@@ -1,10 +1,14 @@
 # Douze points — dossier de conception
 
-Version 0.2 du dossier, 15/11/2026. Écrit après les questions de cadrage, puis revu après un passage au conseil (cinq avis indépendants, relecture croisée, synthèse : `claude/douze-points-conseil.md`). Rien n'est codé, rien n'a été essayé sur la vraie installation.
+Version 0.3 du dossier, 15/11/2026. Écrit après les questions de cadrage, puis revu après un passage au conseil (cinq avis indépendants, relecture croisée, synthèse : `claude/douze-points-conseil.md`). Rien n'est codé, rien n'a été essayé sur la vraie installation.
 
 Couleur proposée : **rose de scène `#e5559f`** (à contrôler contre le tableau de `socle/docs/format.md` avant de l'adopter ; la lie-de-vin de Millésime est la couleur la plus proche).
 
 Version publique : les valeurs réelles (adresses, prénoms des invités) passent par les variables de la stack ou par la base de l'appli, jamais par le dépôt.
+
+**Changements de la v0.3**
+- **Écran d'accueil de la soirée** : QR code, logo et nom de l'évènement, à recopier sur la télé (AirPlay) et à envoyer en image par WhatsApp avec le lien.
+- Port **8088** confirmé ; **tuile dans l'Anneau** retenue ; tous les invités sont sur le Wi-Fi de la maison.
 
 **Changements depuis la v0.1 (après le conseil et les réponses de l'hôte)**
 - **Barème du concours** : le classement de chaque invité donne 12, 10, 8, 7, 6, 5, 4, 3, 2, 1 point à ses dix premières chansons (avant : N, N−1… 1).
@@ -23,7 +27,7 @@ Pendant une soirée de concours de chansons regardée à plusieurs à la maison,
 Choix arrêtés :
 
 1. **Concours couverts en V1** : Eurovision (demi-finales et finale) et Eurovision Asia. Une soirée = une émission. Intervision plus tard.
-2. **Accès des invités** : sur le Wi-Fi de la maison, par un **QR code** montré par l'hôte. Rien n'est ouvert sur Internet.
+2. **Accès des invités** : tous sont sur le Wi-Fi de la maison. L'hôte montre un **écran d'accueil** (logo, nom de l'évènement, QR code) sur la télé et l'envoie par **WhatsApp** avec le lien, pour scanner ou ouvrir avant le début. Rien n'est ouvert sur Internet : le lien ne répond qu'une fois le téléphone sur le Wi-Fi de la maison.
 3. **Identité** : l'hôte prépare la liste des invités ; chacun **touche son prénom**.
 4. **Notation** : **une note sur 20 par chanson, par demi-points**, plus un **commentaire** facultatif.
 5. **Pendant le direct**, l'invité voit la chanson en cours (si l'hôte la fait avancer), **son classement provisoire** et **qui a déjà envoyé** (sans aucune note).
@@ -48,7 +52,7 @@ Fréquence : quelques soirées par an. Première échéance : demi-finales des 1
 
 Chacun prend moins d'une heure, avec le conteneur du socle déjà en place :
 
-1. **Wi-Fi des invités** : un téléphone qui n'est pas du foyer, connecté au Wi-Fi prévu pour les invités, ouvre-t-il une page du NAS ? (Un réseau « invité » de la box est en général isolé.)
+1. **Wi-Fi des invités** : tous seront sur le Wi-Fi de la maison. Vérification de deux minutes : un téléphone qui n'est pas du foyer, sur ce Wi-Fi, ouvre une page du NAS.
 2. **Recopie d'écran** : une page animée ouverte sur l'iPhone de l'hôte, en paysage, recopiée sur la télé : lisible à quatre mètres ? fluide ? que se passe-t-il quand l'iPhone se verrouille ? (Garder l'écran allumé depuis une page demande HTTPS : en http, c'est le toucher régulier de l'hôte qui le tient éveillé.)
 3. **Notification** : par quel chemin (voir « Notification de l'hôte »).
 
@@ -56,7 +60,7 @@ Relevé du 15/11/2026 (recherche web) : Eurovision 2027 à Burgas, 11, 13 et 15 
 
 ### Pile
 
-Socle commun des applis maison : FastAPI (Python 3.12) + Svelte 5 + Tailwind 4, une image Docker multi-étapes `ghcr.io/baloodusudouest/douze-points`, SQLite dans `/data`. Port proposé **8088** (à confirmer : la valeur de `PORT_IMMICH_SCAN` n'est pas écrite dans la stack).
+Socle commun des applis maison : FastAPI (Python 3.12) + Svelte 5 + Tailwind 4, une image Docker multi-étapes `ghcr.io/baloodusudouest/douze-points`, SQLite dans `/data`. Port **8088** (confirmé libre par l'hôte le 15/11/2026).
 
 ### Deux portes
 
@@ -70,6 +74,14 @@ Socle commun des applis maison : FastAPI (Python 3.12) + Svelte 5 + Tailwind 4, 
 - **Un téléphone, un prénom** : au choix du prénom, le téléphone reçoit un jeton personnel gardé dans le navigateur. Tant qu'il n'a rien noté, l'invité peut **changer de prénom lui-même**. Ensuite, l'hôte peut **libérer** un prénom (téléphone changé, navigation privée, erreur) : **les notes et le classement sont conservés** et reviennent au téléphone qui reprend le prénom.
 - Entre amis, le prénom suffit : pas de code par invité.
 - Limites sur la porte invité : commentaires de 280 caractères, toujours affichés comme du texte ; nombre de demandes par minute.
+
+### Écran d'accueil de la soirée
+
+- Une page de la régie, en plein écran, faite pour un iPhone en paysage recopié sur la télé : **logo**, **nom de l'évènement** (« Finale 2027 chez… », saisi par l'hôte), **QR code** de la porte invité, et une ligne « Connecte-toi au Wi-Fi de la maison, puis scanne ».
+- **Partager** : la même affiche en image (PNG fabriqué par le serveur) et le lien, par la feuille de partage de l'iPhone, donc vers WhatsApp. En http, si le partage direct de l'image n'est pas proposé par le navigateur : bouton **Enregistrer l'image** et bouton **Copier le lien**.
+- **Logo** : celui de Douze points par défaut ; l'hôte peut déposer sa propre image pour une soirée (gardée dans `/data`, jamais dans le dépôt). L'appli n'embarque le logo officiel d'aucun concours.
+- Le QR code et le lien portent l'adresse locale de l'appli (`DOUZE_POINTS_ADRESSE`) : ouverts hors du Wi-Fi de la maison, ils ne répondent pas. L'affiche le dit.
+- Le lien reste le même de la création de la soirée à sa clôture : il peut partir par WhatsApp plusieurs jours avant. Tant que la soirée n'est pas ouverte, il montre le nom de l'évènement et « Ça commence bientôt ».
 
 ### Liste des chansons (V1 : à la main)
 
@@ -124,7 +136,7 @@ Home Assistant est touché : le master doc est à relire puis à compléter (aut
 
 ### Lien avec l'Anneau
 
-`/health` public : ok, version, et des nombres sans aucun nom. Tuile dans la famille « Applis maison » si elle est retenue (§ 7).
+`/health` public : ok, version, et des nombres sans aucun nom (soirées archivées, soirée en cours ou non, classements attendus). **Tuile retenue**, famille « Applis maison » : ligne à ajouter dans `atlas/data/anneau-services.yaml` à la mise en stack.
 
 ### Sécurité
 
@@ -152,8 +164,8 @@ Volume : `/data` (douze-points.db, sauvegardes/, syntheses/).
 Navigation : rail à gauche sur PC, pilule en bas sur téléphone. Cinq entrées : **Soirée** (ouverture), **Archives**, **Invités**, **Connexion**, **Réglages**. Pas d'entrée « À traiter » : ce qui attend une décision est dans l'écran Soirée.
 
 **Soirée**
-- Aucune soirée en cours : **Nouvelle soirée** → concours, année, émission → saisie ou collage de la liste → invités attendus → **Ouvrir la soirée**.
-- Soirée ouverte : le **QR code** en grand (à montrer ou à recopier sur la télé à l'arrivée des invités) ; la liste des chansons, avec **Suivante** pour ceux qui veulent tenir la chanson en cours ; les invités et leur état (pas arrivé, en cours « 12 / 26 », envoyé, pas encore renvoyé).
+- Aucune soirée en cours : **Nouvelle soirée** → concours, année, émission, **nom de l'évènement**, logo facultatif → saisie ou collage de la liste → invités attendus. Dès ce moment : **Écran d'accueil** et **Partager** (le lien existe déjà). Puis **Ouvrir la soirée**.
+- Soirée ouverte : bouton **Écran d'accueil** (logo, nom, QR code, à recopier sur la télé à l'arrivée des invités) et **Partager** ; la liste des chansons, avec **Suivante** pour ceux qui veulent tenir la chanson en cours ; les invités et leur état (pas arrivé, en cours « 12 / 26 », envoyé, pas encore renvoyé).
 - Quand tous ont envoyé : bouton plein **Dévoiler**. Sinon : **Forcer le dévoilement**, avec la liste de ceux qui manquent, ce qui sera pris pour chacun, et une confirmation.
 - Avant de lancer : choix **Court / Complet**, ordre de passage des invités (tiré au sort, modifiable).
 - Après : **Synthèse**, **Télécharger le PDF**, **Saisir le vrai résultat**, **Archiver**.
@@ -170,7 +182,7 @@ Navigation : rail à gauche sur PC, pilule en bas sur téléphone. Cinq entrées
 
 ### Invité (téléphone)
 
-1. Scan du QR code → **« Qui es-tu ? »** : grille de prénoms ; un prénom déjà pris est grisé.
+1. Scan du QR code ou lien reçu par WhatsApp → le nom de l'évènement, puis **« Qui es-tu ? »** : grille de prénoms ; un prénom déjà pris est grisé.
 2. Première ouverture : trois lignes d'explication. « Note chaque chanson sur 20. À la fin, range tes chansons : tes dix premières reçoivent 12, 10, 8, 7… 1 point. C'est ce classement qui compte. »
 3. Onglet **Chansons** : la liste dans l'ordre de passage (drapeau, pays, artiste, titre, note donnée). Toucher une chanson → grand curseur de 0 à 20, boutons − et + pour le demi-point, commentaire, **Suivante**.
 4. Onglet **Mon classement** : ses chansons notées, du premier au dernier, avec le rang, la note et **les points que ce rang donne** (12, 10, 8…) ; un trait sous la dixième. Poignée à droite pour **glisser** une ligne (appui sur la poignée seulement) ; **flèches haut / bas** pour ceux que le glisser gêne. **Reclasser d'après mes notes**.
@@ -202,7 +214,7 @@ Navigation : rail à gauche sur PC, pilule en bas sur téléphone. Cinq entrées
 
 ```
 concours(id, nom)                                   -- Eurovision, Eurovision Asia
-soiree(id, concours_id, annee, emission[demi1|demi2|finale|unique], date,
+soiree(id, concours_id, annee, emission[demi1|demi2|finale|unique], date, nom, logo,
        etat[brouillon|ouverte|devoilement|devoilee|archivee],
        jeton_invite, chanson_en_cours_id, mode_devoilement[court|complet], ordre_devoilement_json, pas_devoilement,
        forcee, ouverte_le, devoilee_le)
@@ -225,7 +237,7 @@ La synthèse se recalcule à partir des notes et des points gelés.
 
 0. **Trois essais** (§ 2) : Wi-Fi des invités, recopie d'écran, notification.
 1. Copie du socle : nom, couleur, mot de passe, `/health`, `REPRISE.md`, `CHANGELOG.md`.
-2. Soirée, liste des chansons à la main, invités. Tests.
+2. Soirée, liste des chansons à la main, invités, écran d'accueil et partage. Tests.
 3. Porte invité : prénom, notation, classement (flèches d'abord, glisser-déposer ensuite), envoi, modification. **Test du secret** sur toutes les adresses et tous les états.
 4. Régie : états en direct, forcer, gel des points, sauvegarde. Tests du barème (classement de moins de dix chansons, égalités, copie forcée).
 5. Dévoilement court, complet, « Tout afficher », rejouer.
@@ -233,7 +245,7 @@ La synthèse se recalcule à partir des notes et des points gelés.
 7. **Soirée d'essai avec de vrais invités**, en février ou mars 2027, sur une sélection nationale ou une rediffusion : une dizaine de téléphones, la télé, un redémarrage du conteneur en plein dévoilement.
 8. Notification par Home Assistant (master doc relu et complété).
 9. PDF.
-10. Entrée dans la stack, Atlas, tuile de l'Anneau si retenue, tests d'écran (PC, iPhone portrait, iPhone paysage).
+10. Entrée dans la stack (port 8088), Atlas, tuile de l'Anneau, tests d'écran (PC, iPhone portrait, iPhone paysage).
 
 Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 
@@ -247,9 +259,7 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 
 ## 7. Points ouverts
 
-1. **Port** 8088 à confirmer.
-2. **Couleur** à contrôler contre le tableau du socle.
-3. **Tuile dans l'Anneau** : oui ou non.
-4. **Wi-Fi des invités** : réseau principal ou réseau invité de la box (essai n° 1).
-5. **Notification** : nom du service `notify` du téléphone de l'hôte, à lire dans le master doc Home Assistant.
-6. **Source de l'import**, plus tard : Wikipédia ou site de fans.
+1. **Couleur** à contrôler contre le tableau du socle.
+2. **Notification** : nom du service `notify` du téléphone de l'hôte, à lire dans le master doc Home Assistant.
+3. **Logo de Douze points** : à dessiner (étape 1 du plan, avec l'icône de l'appli).
+4. **Source de l'import**, plus tard : Wikipédia ou site de fans.
