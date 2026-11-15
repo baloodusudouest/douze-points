@@ -386,7 +386,7 @@
       <p class="chiffre text-primary" style="font-size: 7.5rem" aria-live="polite">{note(valeur)}<span class="text-3xl text-muted-foreground"> /20</span></p>
       <div class="mt-4 flex items-center gap-3">
         <button class="demi" aria-label="Un cran de moins" onclick={() => pas(-1)}>−</button>
-        <input type="range" min="0" max="20" step={cran} bind:value={valeur} oninput={() => (touche = true)} aria-label="Note sur 20" class="curseur flex-1" />
+        <input type="range" min="0" max="20" step={cran} bind:value={valeur} style="--rempli: {valeur * 5}%" oninput={() => (touche = true)} aria-label="Note sur 20" class="curseur flex-1" />
         <button class="demi" aria-label="Un cran de plus" onclick={() => pas(1)}>+</button>
       </div>
     </div>
@@ -433,7 +433,18 @@
   .onglet { min-height: 2.75rem; border-radius: 0.7rem; font-size: 0.85rem; color: var(--muted-foreground); }
   .onglet[aria-current="page"] { background: var(--secondary); color: var(--foreground); }
   .demi { width: 3.25rem; height: 3.25rem; border-radius: 999px; border: 1px solid var(--border); font-size: 1.6rem; font-weight: 300; }
-  .curseur { height: 3rem; accent-color: var(--primary); }
+  /* Le curseur de la note : une barre épaisse, remplie de rose jusqu'à la note, et un gros bouton facile à tenir */
+  .curseur { height: 3rem; -webkit-appearance: none; appearance: none; background: transparent; touch-action: none; }
+  .curseur::-webkit-slider-runnable-track { height: 1rem; border-radius: 999px;
+    background: linear-gradient(to right, var(--primary) var(--rempli), var(--secondary) var(--rempli)); }
+  .curseur::-moz-range-track { height: 1rem; border-radius: 999px; background: var(--secondary); }
+  .curseur::-moz-range-progress { height: 1rem; border-radius: 999px; background: var(--primary); }
+  .curseur::-webkit-slider-thumb { -webkit-appearance: none; width: 2.25rem; height: 2.25rem; margin-top: -0.625rem; border-radius: 999px;
+    background: var(--foreground); border: 4px solid var(--primary); box-shadow: 0 2px 8px rgb(0 0 0 / 0.45); }
+  .curseur::-moz-range-thumb { width: 2.25rem; height: 2.25rem; border-radius: 999px; background: var(--foreground);
+    border: 4px solid var(--primary); box-shadow: 0 2px 8px rgb(0 0 0 / 0.45); }
+  .curseur:focus-visible { outline: none; }
+  .curseur:focus-visible::-webkit-slider-thumb { outline: 3px solid color-mix(in oklab, var(--primary) 55%, transparent); outline-offset: 2px; }
   .suivante { min-height: 2.75rem; border-radius: 0.6rem; background: #8f6ad8; color: #fff; font-size: 1rem; font-weight: 500; }
   .suivante:active { transform: translateY(1px); }
   .suivante:focus-visible { outline: 3px solid color-mix(in oklab, #8f6ad8 50%, transparent); outline-offset: 2px; }

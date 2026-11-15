@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 1.0.1 — 15/11/2026
+
+- **Curseur de la note plus gros** : barre épaisse remplie de rose jusqu'à la note, gros bouton rond facile à tenir au pouce (façon A choisie par l'hôte parmi quatre propositions).
+
 ## 1.0.0 — 15/11/2026
 
 - **Le dévoilement se joue sur les téléphones.** On ne quitte plus le concours des yeux : chaque invité suit le classement sur son téléphone, l'hôte le mène depuis le sien (« Dévoiler le classement » dans Les invités, puis Revenir / Suivant / Terminer la soirée), même s'il ne note pas lui-même.
