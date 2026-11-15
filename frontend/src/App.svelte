@@ -6,6 +6,7 @@
   import Mic from '@lucide/svelte/icons/mic-vocal'
   import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal'
   import { api } from '$lib/api.js'
+  import Ouverture from '$lib/Ouverture.svelte'
   import Connexion from './pages/Connexion.svelte'
   import Soiree from './pages/Soiree.svelte'
   import Reglages from './pages/Reglages.svelte'
@@ -41,6 +42,8 @@
 
   onMount(verifier)
 </script>
+
+<Ouverture />
 
 <svelte:window onhashchange={() => (page = lirePage())} />
 

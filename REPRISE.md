@@ -1,6 +1,6 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 15/11/2026, version 0.2.1.
+À lire en premier. Mis à jour le 15/11/2026, version 0.3.0.
 
 ## Où on en est
 
@@ -25,7 +25,7 @@
 3. Soirée d'essai avec de vrais invités.
 4. Notification par Home Assistant (master doc à relire et compléter), puis PDF.
 
-Petits manques connus : ordre du dévoilement non modifiable ; pas d'image de logo par soirée ; pas de correction d'un libellé de chanson à l'écran après l'ouverture (l'adresse existe côté serveur) ; pas de retrait d'un invité de la liste à l'écran.
+Petits manques connus : ordre du dévoilement non modifiable ; pas de correction d'un libellé de chanson à l'écran après l'ouverture (l'adresse existe côté serveur) ; pas de retrait d'un invité de la liste à l'écran.
 
 ## Essais à faire sur place avant la première soirée
 

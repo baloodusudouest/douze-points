@@ -59,6 +59,11 @@ def preparer(data: Path) -> None:
     cx = ouvrir(data)
     try:
         cx.executescript(SCHEMA)
+        # 0.3 : images de l'évènement. `logo` existait ; bannière et poster s'ajoutent aux bases déjà créées.
+        colonnes = {r["name"] for r in cx.execute("PRAGMA table_info(soiree)")}
+        for colonne in ("banniere", "poster"):
+            if colonne not in colonnes:
+                cx.execute(f"ALTER TABLE soiree ADD COLUMN {colonne} TEXT")
         cx.commit()
     finally:
         cx.close()

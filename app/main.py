@@ -31,6 +31,10 @@ ETAT: dict = {}
 PUBLIQUES = ("/api/connexion", "/api/session")
 CONCOURS = ("Eurovision", "Eurovision Asia")
 EMISSIONS = ("demi1", "demi2", "finale", "unique")
+IMAGES = ("logo", "banniere", "poster")
+IMAGE_MAX = 6 * 1024 * 1024
+# Formats acceptés, reconnus à leurs premiers octets (jamais au nom du fichier). Pas de SVG : il peut porter du script.
+SIGNATURES = ((b"\x89PNG\r\n\x1a\n", "png", "image/png"), (b"\xff\xd8\xff", "jpg", "image/jpeg"))
 COMMENTAIRE_MAX = 280
 
 
@@ -189,9 +193,33 @@ def _participants(cx, soiree_id: int) -> list[dict]:
             for r in lignes]
 
 
+def _images(s) -> dict:
+    """Pour chaque image de l'évènement : absente (None), ou le nom de son fichier (il change à chaque dépôt,
+    ce qui sert de version pour que les écrans rechargent la nouvelle)."""
+    return {sorte: s[sorte] for sorte in IMAGES}
+
+
 def _resume(s) -> dict:
     return {"id": s["id"], "concours": s["concours"], "annee": s["annee"], "emission": s["emission"],
-            "date": s["date"], "nom": s["nom"], "etat": s["etat"]}
+            "date": s["date"], "nom": s["nom"], "etat": s["etat"], "images": _images(s)}
+
+
+def _format_image(contenu: bytes):
+    if contenu[:4] == b"RIFF" and contenu[8:12] == b"WEBP":
+        return "webp", "image/webp"
+    for debut, extension, type_mime in SIGNATURES:
+        if contenu.startswith(debut):
+            return extension, type_mime
+    return None
+
+
+def _servir_image(s, sorte: str):
+    if sorte not in IMAGES or not s[sorte]:
+        raise HTTPException(404, "Pas d'image.")
+    fichier = cfg().data / "images" / s[sorte]
+    if not fichier.is_file():
+        raise HTTPException(404, "Pas d'image.")
+    return FileResponse(fichier, headers={"Cache-Control": "private, max-age=86400", "X-Content-Type-Options": "nosniff"})
 
 
 # ================================================================ régie : invités
@@ -267,6 +295,48 @@ def soiree_lire(soiree_id: int):
                 "forcee": bool(s["forcee"]), "chansons": _chansons(cx, soiree_id), "participants": gens,
                 "tous_envoye": bool(attendus) and all(g["etat"] == "envoye" for g in attendus),
                 "lien": f"{cfg().adresse}/invite/{s['jeton_invite']}" if cfg().adresse else ""}
+
+
+@app.put("/api/soirees/{soiree_id}/image/{sorte}")
+async def image_deposer(soiree_id: int, sorte: str, request: Request):
+    """Logo, bannière ou poster de l'évènement, déposés par l'hôte. Gardés dans /data/images, jamais dans le dépôt."""
+    if sorte not in IMAGES:
+        raise HTTPException(404, "Image inconnue.")
+    contenu = await request.body()
+    if len(contenu) > IMAGE_MAX:
+        raise HTTPException(413, "Image trop lourde : 6 Mo au plus.")
+    trouve = _format_image(contenu)
+    if not trouve:
+        raise HTTPException(415, "Format non reconnu : il faut une image PNG, JPEG ou WebP.")
+    dossier = cfg().data / "images"
+    dossier.mkdir(parents=True, exist_ok=True)
+    nom = f"soiree-{soiree_id}-{sorte}-{secrets.token_hex(4)}.{trouve[0]}"
+    with base(cfg().data) as cx:
+        ancien = _soiree(cx, soiree_id)[sorte]
+        (dossier / nom).write_bytes(contenu)
+        cx.execute(f"UPDATE soiree SET {sorte}=? WHERE id=?", (nom, soiree_id))
+    if ancien:
+        (dossier / ancien).unlink(missing_ok=True)
+    return {"images": {sorte: nom}}
+
+
+@app.delete("/api/soirees/{soiree_id}/image/{sorte}")
+def image_retirer(soiree_id: int, sorte: str):
+    if sorte not in IMAGES:
+        raise HTTPException(404, "Image inconnue.")
+    with base(cfg().data) as cx:
+        ancien = _soiree(cx, soiree_id)[sorte]
+        cx.execute(f"UPDATE soiree SET {sorte}=NULL WHERE id=?", (soiree_id,))
+    if ancien:
+        (cfg().data / "images" / ancien).unlink(missing_ok=True)
+    return {"ok": True}
+
+
+@app.get("/api/soirees/{soiree_id}/image/{sorte}")
+def image_lire(soiree_id: int, sorte: str):
+    with base(cfg().data) as cx:
+        s = _soiree(cx, soiree_id)
+    return _servir_image(s, sorte)
 
 
 @app.get("/api/soirees/{soiree_id}/qr.svg")
@@ -460,7 +530,7 @@ def _devoilement(cx, s) -> dict:
         invites.append({"id": pid, "prenom": p["prenom"], "notees": len(notes[pid]), "envoye": p["etat"] == "envoye",
                         "points": [{"chanson": c, "points": pts, "note": notes[pid][c] / 2,
                                     "commentaire": commentaires.get(c, "")} for c, pts in donnes]})
-    return {"mode": s["mode_devoilement"], "pas": s["pas_devoilement"], "forcee": bool(s["forcee"]),
+    return {"mode": s["mode_devoilement"], "pas": s["pas_devoilement"], "forcee": bool(s["forcee"]), "images": _images(s),
             "chansons": chansons, "invites": invites,
             "classement": classement_groupe([c["id"] for c in chansons], points, notes, passage)}
 
@@ -550,7 +620,7 @@ def invite_etat(jeton: str, request: Request):
     with base(cfg().data) as cx:
         s = _porte(cx, jeton)
         etat = {"nom": s["nom"], "concours": s["concours"], "annee": s["annee"], "emission": s["emission"],
-                "etat": s["etat"], "bareme": [12, 10, 8, 7, 6, 5, 4, 3, 2, 1]}
+                "etat": s["etat"], "bareme": [12, 10, 8, 7, 6, 5, 4, 3, 2, 1], "images": _images(s)}
         if s["etat"] == "brouillon":
             return etat
         chansons = [{k: c[k] for k in ("id", "ordre", "pays", "code_pays", "artiste", "titre")}
@@ -677,6 +747,14 @@ def invite_modifier(jeton: str, request: Request):
         _ouverte(s)
         _rouvrir(cx, _moi(cx, s, request))
     return {"ok": True}
+
+
+@app.get("/invite/{jeton}/image/{sorte}")
+def invite_image(jeton: str, sorte: str):
+    """Les images de l'évènement, pour le téléphone des invités. Rien d'autre que l'image."""
+    with base(cfg().data) as cx:
+        s = _porte(cx, jeton)
+    return _servir_image(s, sorte)
 
 
 @app.get("/invite/{jeton}/api/resultats")

@@ -7,6 +7,7 @@
   import { Button } from '$lib/components/ui/button/index.js'
   import Accueil from './Accueil.svelte'
   import Devoilement from './Devoilement.svelte'
+  import Images from './Images.svelte'
   let { ondeconnecte } = $props()
 
   let soirees = $state(null)      // toutes, la plus récente d'abord
@@ -150,6 +151,8 @@
       </section>
     </div>
 
+    <Images soiree={s} onchange={lire} />
+
     <section class="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-5">
       <div class="mr-auto">
         <h2 class="text-lg font-semibold">Prêt ?</h2>
@@ -200,6 +203,8 @@
         </div>
       {/if}
     </section>
+
+    <Images soiree={s} onchange={lire} />
 
     <section class="mt-4 rounded-2xl border bg-card p-5">
       <h2 class="text-lg font-semibold">Chanson en cours</h2>

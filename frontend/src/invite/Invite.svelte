@@ -8,7 +8,8 @@
   import Grip from '@lucide/svelte/icons/grip-vertical'
   import { drapeau, EMISSIONS, BAREME, note } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
-  import Logo from '$lib/Logo.svelte'
+  import Embleme from '$lib/Embleme.svelte'
+  import Ouverture from '$lib/Ouverture.svelte'
   let { jeton } = $props()
 
   const CLE = 'douze-points:' + jeton
@@ -78,6 +79,7 @@
     await lire()
   }
 
+  const image = (sorte) => (e?.images?.[sorte] ? `/invite/${jeton}/image/${sorte}?v=${e.images[sorte]}` : null)
   let chansons = $derived(e?.chansons || [])
   let parId = $derived(Object.fromEntries(chansons.map((c) => [c.id, c])))
   let notes = $derived(e?.moi?.notes || {})
@@ -140,18 +142,21 @@
   async function modifier() { if (await ecrire('POST', 'modifier')) await lire() }
 </script>
 
+<Ouverture />
+
 <main class="mx-auto min-h-dvh max-w-lg px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
   {#if ferme}
     <div class="grid min-h-[80dvh] place-items-center text-center">
-      <div><p class="flex justify-center text-8xl"><Logo /></p><p class="mt-4 text-lg">Cette soirée est terminée.</p><p class="text-sm text-muted-foreground">Le lien n'est plus valable.</p></div>
+      <div><p class="flex justify-center text-8xl"><Embleme src={image('logo')} /></p><p class="mt-4 text-lg">Cette soirée est terminée.</p><p class="text-sm text-muted-foreground">Le lien n'est plus valable.</p></div>
     </div>
 
   {:else if !e}
     <div class="grid min-h-[80dvh] place-items-center text-center">
-      <div><p class="flex justify-center text-8xl"><Logo /></p><p class="mt-4 text-sm text-muted-foreground" role="status">{erreur || 'Ouverture…'}</p></div>
+      <div><p class="flex justify-center text-8xl"><Embleme src={image('logo')} /></p><p class="mt-4 text-sm text-muted-foreground" role="status">{erreur || 'Ouverture…'}</p></div>
     </div>
 
   {:else}
+    {#if image('banniere')}<img src={image('banniere')} alt="" class="mb-3 max-h-36 w-full rounded-xl object-cover" />{/if}
     <header class="mb-4">
       <h1 class="text-2xl font-light tracking-tight">{e.nom}</h1>
       <p class="text-sm text-muted-foreground">{e.concours} {e.annee}, {EMISSIONS[e.emission].toLowerCase()}{e.moi ? ` · ${e.moi.prenom}` : ''}</p>
@@ -159,11 +164,12 @@
     {#if erreur}<p class="mb-3 rounded-xl border border-destructive/60 px-4 py-2 text-sm" role="alert">{erreur}</p>{/if}
 
     {#if e.etat === 'brouillon'}
-      <div class="mt-16 text-center"><p class="flex justify-center text-8xl"><Logo /></p><p class="mt-6 text-xl font-light">Ça commence bientôt.</p>
-        <p class="mt-2 text-sm text-muted-foreground">Garde cette page : elle s'ouvrira toute seule quand la soirée commencera.</p></div>
+      <div class="mt-16 text-center"><p class="flex justify-center text-8xl"><Embleme src={image('logo')} /></p><p class="mt-6 text-xl font-light">Ça commence bientôt.</p>
+        <p class="mt-2 text-sm text-muted-foreground">Garde cette page : elle s'ouvrira toute seule quand la soirée commencera.</p>
+        {#if image('poster')}<img src={image('poster')} alt="Poster de l'évènement" class="mx-auto mt-6 max-h-[45dvh] rounded-xl object-contain" />{/if}</div>
 
     {:else if e.etat === 'devoilement'}
-      <div class="mt-16 text-center"><p class="flex justify-center text-8xl"><Logo /></p><p class="mt-6 text-xl font-light">Regarde la télé.</p>
+      <div class="mt-16 text-center"><p class="flex justify-center text-8xl"><Embleme src={image('logo')} /></p><p class="mt-6 text-xl font-light">Regarde la télé.</p>
         <p class="mt-2 text-sm text-muted-foreground">Les résultats arrivent ici dès que le dévoilement est fini.</p></div>
 
     {:else if e.etat === 'devoilee'}

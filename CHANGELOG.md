@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.3.0 — 15/11/2026
+
+- Images de l'évènement, déposées par l'hôte pendant la préparation ou la soirée : **logo** (à la place du « 12 » sur l'écran d'accueil, l'affiche, les écrans d'attente et le départ du dévoilement), **bannière** (en haut du téléphone des invités), **poster** (écran d'accueil, affiche, écran « Ça commence bientôt »). PNG, JPEG ou WebP, 6 Mo au plus, reconnus à leur contenu ; gardées dans `/data/images`.
+- Ouverture animée : trois projecteurs viennent sur le « 12 », qui se met à briller, puis sa lumière révèle la page. Une fois par session, 2,6 secondes, un toucher la passe ; pas jouée si l'appareil demande moins d'animations.
+
 ## 0.2.1 — 15/11/2026
 
 - Logo : le « 12 » sous un projecteur (icône de l'appli, écran d'accueil, affiche à partager, départ du dévoilement, écrans d'attente des invités).

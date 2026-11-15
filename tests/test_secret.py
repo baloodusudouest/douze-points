@@ -69,9 +69,10 @@ def test_la_porte_invite_ne_mene_pas_a_la_regie(client, soiree):
 
 def test_toutes_les_adresses_invite_sont_couvertes():
     """Les lectures de la porte invité sont exactement celles que ce fichier fouille."""
-    lues = {r.path.rsplit("/", 1)[1] for r in main.app.routes
+    lues = {r.path.split("/", 3)[3] for r in main.app.routes
             if getattr(r, "path", "").startswith("/invite/") and "GET" in getattr(r, "methods", ())}
-    assert lues == set(LECTURES)
+    # image/{sorte} ne rend qu'un fichier image déposé par l'hôte (tests/test_images.py)
+    assert lues == {"api/" + adresse for adresse in LECTURES} | {"image/{sorte}"}
     ecritures = {r.path.rsplit("/", 1)[1] for r in main.app.routes
                  if getattr(r, "path", "").startswith("/invite/") and "GET" not in getattr(r, "methods", ())}
     assert ecritures == {"prenom", "note", "classement", "envoyer", "modifier"}

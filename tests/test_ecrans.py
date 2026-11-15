@@ -66,6 +66,18 @@ def navigateur():
         nav.close()
 
 
+def image_de_demo(taille: str, texte: str) -> dict:
+    """Une image inventée, fabriquée dans le navigateur de test n'est pas nécessaire : un PNG uni suffit."""
+    import struct, zlib
+    largeur, hauteur = (int(x) for x in taille.split("x"))
+    ligne = b"\x00" + bytes((229, 85, 159)) * largeur
+    def bloc(sorte, contenu):
+        return struct.pack(">I", len(contenu)) + sorte + contenu + struct.pack(">I", zlib.crc32(sorte + contenu))
+    png = (b"\x89PNG\r\n\x1a\n" + bloc(b"IHDR", struct.pack(">IIBBBBB", largeur, hauteur, 8, 2, 0, 0, 0))
+           + bloc(b"IDAT", zlib.compress(ligne * hauteur)) + bloc(b"IEND", b""))
+    return {"name": f"{texte}.png", "mimeType": "image/png", "buffer": png}
+
+
 class Ecran:
     """Une page surveillée : erreurs relevées, débordement mesuré, capture si demandée."""
 
@@ -88,6 +100,15 @@ def test_une_soiree_entiere(serveur, navigateur):
     regie = Ecran(navigateur, PC)
     p = regie.page
     p.goto(serveur)
+    # l'ouverture : les projecteurs, le 12 qui brille, puis la page ; elle s'efface seule
+    ouverture = p.get_by_role("button", name="Passer l'ouverture")
+    ouverture.wait_for()
+    p.wait_for_timeout(1500)
+    regie.verifier("pc-0-ouverture")
+    ouverture.wait_for(state="detached", timeout=5000)
+    p.reload()                                                   # une fois par session : pas rejouée
+    p.get_by_label("Mot de passe").wait_for()
+    assert ouverture.count() == 0
     p.get_by_label("Mot de passe").fill(MOT_DE_PASSE)
     p.get_by_role("button", name="Se connecter").click()
     p.get_by_label("Nom de l'évènement").fill("Finale de démonstration")
@@ -100,6 +121,13 @@ def test_une_soiree_entiere(serveur, navigateur):
         p.get_by_label("Prénom d'un nouvel invité").fill(prenom)
         p.get_by_role("button", name="Ajouter").click()
         p.get_by_role("button", name=prenom, pressed=True).wait_for()
+    for sorte, taille in (("Logo", "400x160"), ("Bannière", "1200x300"), ("Poster", "600x900")):
+        p.get_by_label(f"{sorte} : choisir une image").set_input_files(image_de_demo(taille, sorte))
+        p.get_by_alt_text(f"{sorte} de l'évènement").wait_for()
+    p.get_by_role("button", name="Retirer : Bannière").click()
+    p.get_by_role("button", name="Retirer : Bannière").wait_for(state="detached")
+    p.get_by_label("Bannière : choisir une image").set_input_files(image_de_demo("1200x300", "Bannière"))
+    p.get_by_alt_text("Bannière de l'évènement").wait_for()
     regie.verifier("pc-2-preparation")
 
     # ---------------- écran d'accueil : le QR code se charge
@@ -109,6 +137,8 @@ def test_une_soiree_entiere(serveur, navigateur):
     lien = p.get_by_label("Lien des invités").input_value()
     assert "/invite/" in lien
     p.get_by_alt_text("QR code du lien des invités").wait_for()
+    for texte in ("Logo de l'évènement", "Poster de l'évènement"):
+        assert p.get_by_alt_text(texte).evaluate("i => i.complete && i.naturalWidth > 0")
     regie.verifier("pc-3-accueil")
     p.set_viewport_size(PAYSAGE)
     regie.verifier("paysage-3-accueil")
@@ -119,7 +149,12 @@ def test_une_soiree_entiere(serveur, navigateur):
     invite = Ecran(navigateur, TELEPHONE, tactile=True)
     t = invite.page
     t.goto(lien)
+    t.get_by_role("button", name="Passer l'ouverture").click()   # un toucher la passe
     t.get_by_text("Ça commence bientôt.").wait_for()
+    for texte in ("Logo de l'évènement", "Poster de l'évènement"):
+        t.get_by_alt_text(texte).wait_for()
+        assert t.get_by_alt_text(texte).evaluate("i => i.decode().then(() => i.naturalWidth > 0)")
+    assert t.locator("img[src*='/image/banniere']").evaluate("i => i.decode().then(() => i.naturalWidth > 0)")
     invite.verifier("tel-1-bientot")
 
     p.get_by_role("button", name="Ouvrir la soirée").click()

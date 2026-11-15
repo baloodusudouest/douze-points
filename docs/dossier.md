@@ -283,6 +283,12 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 - **Deux entrées dans la régie**, Soirée et Réglages (le § 3 en prévoyait cinq) : les invités se gèrent dans la préparation de la soirée, les soirées passées sous l'écran Soirée. Pas d'écran Connexion tant que la notification Home Assistant n'existe pas.
 - **Dévoilement** : les commandes (Revenir, Tout afficher, Fermer) sont en haut à droite, pour ne recouvrir ni le commentaire ni le podium sur un iPhone en paysage. En portrait, l'écran demande de tourner le téléphone.
 - **Affiche à partager** : dessinée dans le navigateur (pas de PNG fabriqué par le serveur). En http, « Partager l'image » enregistre l'image et « Copier le lien » sélectionne le lien quand le presse-papiers est fermé aux pages.
-- **Logo** (0.2.1) : le « 12 » sous un projecteur, dessin propre à l'appli (`frontend/src/lib/Logo.svelte`, `frontend/public/icone.svg`). Le logo d'un concours n'y entre pas, même stylisé : ce sont des marques déposées. Le dépôt d'une image par soirée n'est pas fait.
+- **Logo** (0.2.1) : le « 12 » sous un projecteur, dessin propre à l'appli (`frontend/src/lib/Logo.svelte`, `frontend/public/icone.svg`). Le logo d'un concours n'y entre pas, même stylisé : ce sont des marques déposées. Le dépôt d'une image par soirée est fait en 0.3.0 (voir plus bas).
 - **Drapeaux** : déduits du nom du pays en français (table dans `frontend/src/lib/pays.js`) ; un pays inconnu de la table n'a pas de drapeau.
 - **Ordre du dévoilement** : tiré au sort ; il ne se modifie pas encore.
+
+## Ajouts de la 0.3.0 (15/11/2026, demandes de l'hôte)
+
+- **Images de l'évènement** : logo, bannière, poster, tous facultatifs, déposés depuis la régie (préparation et soirée ouverte). Le logo remplace le « 12 » partout où il sert d'emblème ; la bannière coiffe le téléphone des invités ; le poster accompagne le QR code sur l'écran d'accueil et l'affiche, et l'écran « Ça commence bientôt ». Formats PNG, JPEG, WebP reconnus à leurs premiers octets ; pas de SVG (il peut porter du script) ; 6 Mo au plus. Les invités les lisent par leur lien (`/invite/<jeton>/image/<sorte>`), qui ne rend rien d'autre.
+- Ces images sont celles que l'hôte choisit de déposer : l'appli n'en embarque aucune et le dépôt public non plus.
+- **Ouverture animée** (`frontend/src/lib/Ouverture.svelte`) : trois projecteurs, le « 12 » qui brille, la lumière qui révèle la page. Jouée à l'ouverture de la régie et du lien des invités, une fois par session.
