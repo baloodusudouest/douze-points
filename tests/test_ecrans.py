@@ -279,7 +279,10 @@ def test_une_soiree_entiere(serveur, navigateur):
     invite.verifier("tel-4-precedente")
     t.get_by_role("button", name="Retour à la liste").click()
     assert t.get_by_role("button", name="Ukraine").get_by_text("Noter").count() == 1
-    t.get_by_role("button", name="Mon classement", exact=True).click()
+    # le gros bouton des chansons mène au classement ; celui du classement l'envoie
+    assert t.get_by_role("button", name="Envoyer mon classement").count() == 0
+    t.get_by_text("12 chansons pas encore notées").wait_for()
+    t.get_by_role("button", name="Passer au classement").click()
     t.get_by_text("Italie").wait_for()
     lignes = t.locator("ol li")
     assert "Italie" in lignes.nth(0).text_content() and "France" in lignes.nth(1).text_content()

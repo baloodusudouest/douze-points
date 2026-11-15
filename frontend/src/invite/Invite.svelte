@@ -313,7 +313,11 @@
           {#if envoye}
             <p class="flex items-center justify-between gap-3 text-sm"><span class="text-primary">Classement envoyé.</span>
               <button class="underline text-muted-foreground" onclick={modifier}>Modifier mon classement</button></p>
-          {:else if nbNotees}
+          {:else if nbNotees && onglet === 'chansons'}
+            <!-- d'abord les notes, puis le classement : le gros bouton mène à l'étape suivante -->
+            {#if nbNotees < chansons.length}<p class="mb-1 text-center text-xs text-muted-foreground">{chansons.length - nbNotees} chanson{chansons.length - nbNotees > 1 ? 's' : ''} pas encore notée{chansons.length - nbNotees > 1 ? 's' : ''}</p>{/if}
+            <Button class="w-full" size="lg" variant={nbNotees < chansons.length ? 'outline' : 'default'} onclick={() => { fiche = null; onglet = 'classement'; scrollTo(0, 0) }}>Passer au classement</Button>
+          {:else if nbNotees && onglet === 'classement'}
             <Button class="w-full" size="lg" onclick={() => (confirmer = true)}>Envoyer mon classement</Button>
           {/if}
           <nav class="mt-2 grid grid-cols-3 gap-1" aria-label="Sections">

@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.9.1 — 15/11/2026
+
+- **Le gros bouton des invités suit les étapes** : dans Chansons, « Passer au classement » (en plein quand tout est noté, sinon avec le nombre de chansons qui restent) ; dans Mon classement, « Envoyer mon classement ».
+
 ## 0.9.0 — 15/11/2026
 
 - **Pays sans drapeau** : dès la liste enregistrée, une alerte montre les chansons dont le pays n'est pas reconnu. On choisit le pays dans une liste (tous les pays, en français, avec leur drapeau) ; « Retenir ces noms » relie le nom inconnu à ce pays pour les prochaines listes collées. L'alerte reste visible pendant la soirée tant qu'il en manque.
