@@ -7,7 +7,7 @@
 - Dossier v0.3 (`docs/dossier.md`, avec les décisions prises en codant en fin de fichier), conseil passé (`docs/conseil.md`).
 - **Une soirée se joue de bout en bout** : préparer, écran d'accueil et QR code, ouvrir, noter et classer sur les téléphones, envoyer, forcer, dévoiler en paysage, résultats sur les téléphones, archiver, rejouer.
 - **Jamais essayé sur la vraie installation**, ni sur un vrai iPhone : tout a été vu dans le navigateur des tests (PC, 390 × 844, 844 × 390). Le glisser au doigt, la recopie d'écran et le partage de l'image depuis Safari en http restent à constater.
-- L'appli n'est pas encore dans la stack.
+- Atlas est à jour (1.6.12) : service dans `data/homelab.yml`, tuile dans `data/anneau-services.yaml`, fiche et flux. **Le déploiement sur le NAS reste à faire par l'hôte** (stack Portainer, variable DOUZE_POINTS_ADRESSE, services.yaml de l'Anneau).
 
 ## Où est quoi
 
@@ -20,7 +20,7 @@
 
 ## Prochaine étape
 
-1. Entrée dans la stack (port 8088), Atlas, tuile de l'Anneau, puis premier essai sur place.
+1. Déploiement sur le NAS, puis premier essai sur place (voir les essais plus bas).
 2. Synthèse de la soirée (écarts et affinités), vrai résultat, grille papier de secours.
 3. Soirée d'essai avec de vrais invités.
 4. Notification par Home Assistant (master doc à relire et compléter), puis PDF.
