@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.7.0 — 15/11/2026
+
+- **Plusieurs soirées** : on en crée autant qu'on veut (les deux demi-finales et la finale, par exemple) ; l'écran Soirée en montre la liste, et un clic ouvre celle qu'on veut. Plusieurs peuvent être en cours en même temps, chacune avec son lien, ses invités et ses notes. « Toutes les soirées » ramène à la liste.
+- **Rejouer le démarrage** : sur l'écran d'accueil, une icône repart du noir (le « 12 » éteint, le bouton, les projecteurs) jusqu'au QR code, sans rien changer à la soirée.
+
 ## 0.6.0 — 15/11/2026
 
 - **Démarrer la soirée** (à la place d'« Ouvrir ») : d'abord un écran dans le noir, le « 12 » éteint et un bouton ; au clic, la soirée s'ouvre aux invités, les projecteurs s'allument sur le « 12 », puis vient l'écran d'accueil avec le QR code.

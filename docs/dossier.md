@@ -313,3 +313,8 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 - **Scène** (`lib/Scene.svelte`) : bannière animée en continu en haut de l'écran d'accueil ; le « 12 » n'est donc plus répété dans le texte (un logo déposé s'y affiche toujours).
 - **L'hôte et la notation** : lien « Passer à la notation » vers `/invite/<jeton>` ; la page des invités, quand elle est ouverte par un appareil connecté à la régie, lit `/api/soirees/<id>` pour montrer l'avancement de chacun. Aucune adresse nouvelle ; la porte invité ne change pas, et la régie ne rend toujours ni note ni commentaire avant le dévoilement.
 - **Fiche de notation** : trois boutons. « Précédente » et « Suivante » n'enregistrent que si la note ou le mot ont été modifiés.
+
+## Ajouts de la 0.7.0 (15/11/2026, demandes de l'hôte)
+
+- **Plusieurs soirées à la fois** : la règle « une seule soirée ouverte » du 15/11 est levée. L'écran Soirée s'ouvre sur la liste des soirées non archivées (ou tout droit sur la soirée s'il n'y en a qu'une) ; celle qu'on a choisie est gardée le temps de la session, pour y revenir après la notation.
+- **Rejouer le démarrage** depuis l'écran d'accueil : l'écran éteint, le bouton et les projecteurs se rejouent ; la soirée, déjà ouverte, n'est pas touchée.

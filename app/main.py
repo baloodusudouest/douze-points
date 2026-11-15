@@ -526,8 +526,6 @@ def soiree_ouvrir(soiree_id: int):
         s = _soiree(cx, soiree_id)
         if s["etat"] != "brouillon":
             raise HTTPException(409, "La soirée est déjà ouverte.")
-        if cx.execute("SELECT 1 FROM soiree WHERE etat IN ('ouverte','devoilement') AND id<>?", (soiree_id,)).fetchone():
-            raise HTTPException(409, "Une autre soirée est en cours : termine-la d'abord.")
         if not _chansons(cx, soiree_id) or not _participants(cx, soiree_id):
             raise HTTPException(409, "Il faut au moins une chanson et un invité attendu.")
         cx.execute("UPDATE soiree SET etat='ouverte', ouverte_le=? WHERE id=?", (maintenant(), soiree_id))

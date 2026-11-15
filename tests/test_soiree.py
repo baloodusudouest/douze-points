@@ -159,13 +159,20 @@ def test_points_geles_et_sauvegarde(client, soiree, tmp_path):
     assert client.post(f"/api/soirees/{soiree.id}/devoiler").status_code == 409
 
 
-def test_une_seule_soiree_en_cours(client, soiree):
+def test_plusieurs_soirees_a_la_fois(client, soiree):
     autre = client.post("/api/soirees", json={"concours": "Eurovision Asia", "annee": 2027, "emission": "unique",
                                               "nom": "Autre soirée"}).json()["id"]
     client.put(f"/api/soirees/{autre}/chansons", json={"texte": "Pays A\nPays B"})
     ids = [i["id"] for i in client.get("/api/invites").json()]
     client.put(f"/api/soirees/{autre}/attendus", json={"invites": ids[:2]})
-    assert client.post(f"/api/soirees/{autre}/ouvrir").status_code == 409
+    # 0.7 : plusieurs soirées se préparent et s'ouvrent côte à côte ; chacune a son lien et ses notes
+    assert client.post(f"/api/soirees/{autre}/ouvrir").status_code == 200
+    jeton = client.get(f"/api/soirees/{autre}").json()["jeton_invite"]
+    assert jeton != soiree.jeton
+    soiree.noter("Aglaé", {1: 15})
+    assert len(client.get(f"/invite/{jeton}/api/etat").json()["chansons"]) == 2
+    assert client.get(f"/api/soirees/{autre}").json()["participants"][0]["notees"] == 0
+    assert [x["etat"] for x in client.get("/api/soirees").json()] == ["ouverte", "ouverte"]
 
 
 def test_journal_sans_prenom(client, soiree):

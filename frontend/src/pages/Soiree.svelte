@@ -14,7 +14,12 @@
   let { ondeconnecte } = $props()
 
   let soirees = $state(null)      // toutes, la plus récente d'abord
-  let s = $state(null)            // la soirée en cours de travail (non archivée la plus récente)
+  let s = $state(null)            // la soirée ouverte à l'écran (celle qu'on a choisie dans la liste)
+  let choisie = $state(null)      // son numéro ; gardé le temps de la session pour y revenir après la notation
+  let creation = $state(false)    // le formulaire « Nouvelle soirée » est déplié
+  let premiere = true
+  const CLE = 'douze-points:soiree'
+  try { choisie = Number(sessionStorage.getItem(CLE)) || null } catch { /* stockage fermé */ }
   let invites = $state([])
   let concours = $state([])       // la liste réglée dans Réglages
   let erreur = $state('')
@@ -68,8 +73,13 @@
   async function lire() {
     await essayer(async () => {
       soirees = await api.get('/api/soirees')
-      const courante = soirees.find((x) => x.etat !== 'archivee')
-      s = courante ? await api.get('/api/soirees/' + courante.id) : null
+      const actives = soirees.filter((x) => x.etat !== 'archivee')
+      if (choisie && !actives.some((x) => x.id === choisie)) choisie = null
+      // À l'arrivée, s'il n'y a qu'une soirée en préparation ou en cours, on y va tout droit
+      if (!choisie && premiere && actives.length === 1) choisie = actives[0].id
+      premiere = false
+      try { choisie ? sessionStorage.setItem(CLE, choisie) : sessionStorage.removeItem(CLE) } catch { /* stockage fermé */ }
+      s = choisie ? await api.get('/api/soirees/' + choisie) : null
       if (s?.etat === 'brouillon') invites = await api.get('/api/invites')
       if (!s) {
         concours = (await api.get('/api/concours')).filter((c) => c.actif).map((c) => c.nom)
@@ -85,7 +95,13 @@
   })
   onDestroy(() => clearInterval(minuterie))
 
-  const creer = (e) => { e.preventDefault(); essayer(async () => { await api.post('/api/soirees', { ...nouvelle, nom: titre }); titreEcrit = null; await lire() }) }
+  const creer = (e) => { e.preventDefault(); essayer(async () => {
+    choisie = (await api.post('/api/soirees', { ...nouvelle, nom: titre })).id      // créée, elle s'ouvre à l'écran
+    titreEcrit = null; creation = false
+    await lire()
+  }) }
+  const ouvrirSoiree = (id) => { choisie = id; erreur = ''; lire() }
+  const toutes = () => { choisie = null; s = null; forcer = null; aSupprimer = null; lire() }
   const coller = () => essayer(async () => { await api.put(`/api/soirees/${s.id}/chansons`, { texte: collage }); collage = ''; await lire() })
   const attendus = () => new Set(s.participants.map((p) => p.prenom))
   async function basculer(invite) {
@@ -104,7 +120,8 @@
   }
   // Démarrer la soirée : elle s'ouvre aux invités, les projecteurs s'allument, puis vient l'écran d'accueil.
   const demarrer = () => essayer(async () => {
-    await api.post(`/api/soirees/${s.id}/ouvrir`)
+    // rejoué depuis l'écran d'accueil d'une soirée déjà démarrée : seulement l'animation
+    if (s.etat === 'brouillon') await api.post(`/api/soirees/${s.id}/ouvrir`)
     lancement = 'projecteurs'
     await lire()
   })
@@ -121,10 +138,13 @@
     const r = await fetch('/api/soirees/' + aSupprimer.id, { method: 'DELETE', credentials: 'same-origin',
       headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmation: true }) })
     if (!r.ok) throw new Error((await r.json().catch(() => null))?.detail || "La soirée n'a pas pu être supprimée.")
+    if (aSupprimer.id === choisie) choisie = null
     aSupprimer = null
     await lire()
   })
-  const archiver = () => essayer(async () => { await api.post(`/api/soirees/${s.id}/archiver`); await lire() })
+  const archiver = () => essayer(async () => { await api.post(`/api/soirees/${s.id}/archiver`); choisie = null; await lire() })
+  const ETATS = { brouillon: 'En préparation', ouverte: 'En cours', devoilement: 'Dévoilement en cours', devoilee: 'Dévoilée' }
+  let actives = $derived((soirees || []).filter((x) => x.etat !== 'archivee'))
 
   const libelle = { attendu: 'Pas arrivé', en_cours: 'Note', envoye: 'Envoyé', ecarte: 'Écarté' }
   // « Jury puis public » n'est proposé que s'il y a au moins un membre du jury et un du public (Réglages › Invités)
@@ -144,10 +164,11 @@
 {:else if lancement === 'projecteurs'}
   <Ouverture toujours onfin={() => { lancement = ''; accueil = true }} />
 {:else if accueil && s}
-  <Accueil soiree={s} onferme={() => (accueil = false)} />
+  <Accueil soiree={s} onferme={() => (accueil = false)} onrejouer={() => { accueil = false; lancement = 'eteint' }} />
 {:else}
   <header class="mb-5">
-    <h1 class="titre">{s ? s.nom : 'Soirée'}</h1>
+    {#if s}<button class="mb-1 text-sm text-muted-foreground underline" onclick={toutes}>Toutes les soirées</button>{/if}
+    <h1 class="titre">{s ? s.nom : 'Soirées'}</h1>
     {#if s}<p class="mt-1 text-sm text-muted-foreground">{s.concours} {s.annee}, {EMISSIONS[s.emission].toLowerCase()}</p>{/if}
   </header>
 
@@ -157,6 +178,19 @@
     <p class="text-sm text-muted-foreground">Lecture…</p>
 
   {:else if !s}
+    {#if actives.length}
+      <ul class="mb-4 grid gap-3 sm:grid-cols-2" aria-label="Soirées">
+        {#each actives as x (x.id)}
+          <li><button class="carte" onclick={() => ouvrirSoiree(x.id)}>
+            <span class="text-lg font-semibold">{x.nom}</span>
+            <span class="text-sm text-muted-foreground">{x.concours} {x.annee}, {EMISSIONS[x.emission].toLowerCase()}</span>
+            <span class="mt-2 text-sm {x.etat === 'brouillon' ? 'text-muted-foreground' : 'text-primary'}">{ETATS[x.etat]}</span>
+          </button></li>
+        {/each}
+      </ul>
+      {#if !creation}<Button onclick={() => (creation = true)}>Nouvelle soirée</Button>{/if}
+    {/if}
+    {#if creation || !actives.length}
     <form class="grid max-w-md gap-4 rounded-2xl border bg-card p-5" onsubmit={creer}>
       <h2 class="text-lg font-semibold">Nouvelle soirée</h2>
       <label class="champ">Concours
@@ -181,8 +215,12 @@
           {:else}<button type="button" class="underline" onclick={() => (titreEcrit = null)}>Revenir au titre fabriqué</button>{/if}
         </span>
       </label>
-      <Button type="submit" size="lg">Créer la soirée</Button>
+      <div class="flex gap-2">
+        <Button type="submit" size="lg">Créer la soirée</Button>
+        {#if actives.length}<Button type="button" variant="outline" size="lg" onclick={() => (creation = false)}>Annuler</Button>{/if}
+      </div>
     </form>
+    {/if}
 
   {:else if s.etat === 'brouillon'}
     <div class="grid gap-4 lg:grid-cols-2">
@@ -341,3 +379,8 @@
     </section>
   {/if}
 {/if}
+
+<style>
+  .carte { display: flex; width: 100%; flex-direction: column; align-items: flex-start; gap: 0.1rem; border-radius: 1rem; border: 1px solid var(--border); background: var(--card); padding: 1.1rem 1.25rem; text-align: left; transition: border-color 0.15s; }
+  .carte:hover, .carte:focus-visible { border-color: var(--primary); }
+</style>

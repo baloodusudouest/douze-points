@@ -219,6 +219,32 @@ def test_une_soiree_entiere(serveur, navigateur):
     p.get_by_text("0 / 14 notées").first.wait_for()               # Célestine vient d'arriver, rien de noté
     regie.verifier("pc-4-hote-invites")
     p.get_by_role("link", name="Retour à la régie").click()
+    p.get_by_text("classements envoyés").wait_for()                # de retour sur la même soirée
+    # rejouer le démarrage depuis l'écran d'accueil : le noir, le bouton, les projecteurs, puis le QR code
+    p.get_by_role("button", name="Écran d'accueil").click()
+    p.get_by_role("button", name="Rejouer le démarrage").click()
+    p.get_by_role("button", name="Pas encore").wait_for()
+    p.get_by_role("button", name="Démarrer la soirée").click()
+    p.get_by_alt_text("QR code du lien des invités").wait_for(timeout=6000)
+    p.get_by_role("button", name="Fermer").click()
+    # une seconde soirée se prépare pendant que la première est en cours ; on passe de l'une à l'autre en cliquant
+    p.get_by_role("button", name="Toutes les soirées").click()
+    p.get_by_role("list", name="Soirées").get_by_role("button", name="Finale de démonstration").wait_for()
+    p.get_by_role("button", name="Nouvelle soirée").click()
+    p.get_by_label("Ville où le concours est organisé").fill("Villeneuve")
+    p.get_by_role("button", name="Créer la soirée").click()
+    p.get_by_role("heading", name="Chansons").wait_for()            # créée, elle s'ouvre : c'est sa préparation
+    p.get_by_role("button", name="Toutes les soirées").click()
+    assert p.get_by_role("list", name="Soirées").get_by_role("button").count() == 2
+    regie.verifier("pc-4-plusieurs-soirees")
+    p.set_viewport_size(TELEPHONE)
+    regie.verifier("tel-4-plusieurs-soirees")
+    p.set_viewport_size(PC)
+    seconde = p.get_by_role("list", name="Soirées").get_by_role("button").filter(has_text="En préparation")
+    seconde.click()
+    p.get_by_role("button", name="Supprimer cette soirée").click()
+    p.get_by_role("alertdialog").get_by_role("button", name="Supprimer la soirée").click()
+    p.get_by_role("list", name="Soirées").get_by_role("button", name="Finale de démonstration").click()
     p.get_by_text("classements envoyés").wait_for()
     regie.verifier("pc-4-soiree-ouverte")
 

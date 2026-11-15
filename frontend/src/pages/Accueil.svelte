@@ -5,7 +5,8 @@
   import { Button } from '$lib/components/ui/button/index.js'
   import Embleme from '$lib/Embleme.svelte'
   import Scene from '$lib/Scene.svelte'
-  let { soiree, onferme } = $props()
+  import RotateCcw from '@lucide/svelte/icons/rotate-ccw'
+  let { soiree, onferme, onrejouer } = $props()
 
   const qr = `/api/soirees/${soiree.id}/qr.svg`
   const image = (sorte) => (soiree.images[sorte] ? `/api/soirees/${soiree.id}/image/${sorte}?v=${soiree.images[sorte]}` : null)
@@ -122,6 +123,8 @@
       <a class="text-xs text-muted-foreground underline" href="/invite/{soiree.jeton_invite}">Passer à la notation</a>
       <Button variant="outline" size="sm" onclick={partager}>Partager l'image</Button>
     {/if}
+    <!-- repartir du noir : l'écran éteint, le bouton, les projecteurs, puis de nouveau cet écran -->
+    <Button variant="outline" size="sm" onclick={onrejouer} aria-label="Rejouer le démarrage" title="Rejouer le démarrage"><RotateCcw class="size-4" aria-hidden="true" /></Button>
     <Button variant="outline" size="sm" onclick={onferme}>Fermer</Button>
     {#if message}<p class="basis-full text-center text-xs text-muted-foreground" role="status">{message}</p>{/if}
   </div>
