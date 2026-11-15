@@ -13,6 +13,12 @@
   async function lire() {
     concours = (await api.get('/api/concours')).filter((c) => c.actif)
     invites = (await api.get('/api/invites')).filter((i) => i.actif)
+    pasNote = (await api.get('/api/reglages')).pas_note
+  }
+  let pasNote = $state(0.5)
+  async function reglerPas(v) {
+    erreur = ''
+    try { pasNote = (await api.put('/api/reglages', { pas_note: v })).pas_note } catch (x) { erreur = x.message }
   }
   async function regler(invite, corps) {
     erreur = ''
@@ -56,6 +62,16 @@
     <input class="saisie flex-1" bind:value={nom} placeholder="Nom du concours" maxlength="60" aria-label="Nom d'un nouveau concours" required />
     <Button type="submit">Ajouter</Button>
   </form>
+</section>
+
+<section class="mt-4 rounded-2xl border bg-card p-5">
+  <h2 class="text-lg font-semibold">Pas de la note</h2>
+  <p class="text-sm text-muted-foreground">Les invités notent de 0 à 20. Les notes déjà données restent telles quelles.</p>
+  <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label="Pas de la note">
+    {#each [[1, 'Au point (12, 13…)'], [0.5, 'Au demi-point (12,5)'], [0.25, 'Au quart de point (12,25)']] as [v, nom]}
+      <button class="pastille" aria-pressed={pasNote === v} onclick={() => reglerPas(v)}>{nom}</button>
+    {/each}
+  </div>
 </section>
 
 <section class="mt-4 rounded-2xl border bg-card p-5">

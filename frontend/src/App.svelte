@@ -53,12 +53,12 @@
 {#if connecte === false}
   <Connexion onconnecte={verifier} />
 {:else if connecte}
-  <div class="md:pl-52">
+  <div class="md:pl-52 print:pl-0">
     <!-- iPhone : pilule flottante en bas, icônes seules (le nom de la section est le titre de l'écran).
          PC : rail à gauche, avec les noms. Mêmes entrées, même ordre. -->
     <nav
       aria-label="Sections"
-      class="fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-card/80 p-1.5 shadow-lg backdrop-blur-md
+      class="print:hidden fixed bottom-[calc(0.75rem+env(safe-area-inset-bottom))] left-1/2 z-20 flex -translate-x-1/2 items-center gap-1 rounded-full border bg-card/80 p-1.5 shadow-lg backdrop-blur-md
              md:inset-y-0 md:left-0 md:w-52 md:translate-x-0 md:flex-col md:items-stretch md:gap-1 md:rounded-none md:border-0 md:border-r md:bg-transparent md:p-4 md:shadow-none md:backdrop-blur-none"
     >
       <span class="mb-4 hidden px-2 text-xl font-light tracking-tight md:block">Douze points</span>

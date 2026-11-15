@@ -27,7 +27,7 @@ from . import __version__, carnet
 from .auth import COMMUN, DUREE, Sessions
 from .base import base, preparer, sauvegarder
 from .config import APPLI, Config, charger
-from .points import classement_groupe, classement_par_notes, inserer, points_du_classement
+from .points import ECHELLE, classement_groupe, classement_par_notes, inserer, points_du_classement
 
 ETAT: dict = {}
 PUBLIQUES = ("/api/connexion", "/api/session")
@@ -316,6 +316,34 @@ def invite_modifier(invite_id: int, corps: dict = Body(...)):
 
 
 # ================================================================ régie : concours
+
+LIBELLE_PAS = {"1": "au point près", "0.5": "par demi-points", "0.25": "par quarts de point"}
+
+
+def _reglage(cx, cle: str) -> str:
+    r = cx.execute("SELECT valeur FROM reglage WHERE cle=?", (cle,)).fetchone()
+    return r["valeur"] if r else ""
+
+
+@app.get("/api/reglages")
+def reglages_lire():
+    with base(cfg().data) as cx:
+        return {"pas_note": float(_reglage(cx, "pas_note"))}
+
+
+@app.put("/api/reglages")
+def reglages_ecrire(corps: dict = Body(...)):
+    """`pas_note` : 1, 0.5 ou 0.25. Les notes déjà données restent telles quelles ; les suivantes suivent le pas."""
+    pas_note = str(corps.get("pas_note"))
+    pas_note = {"1.0": "1", "1": "1", "0.5": "0.5", "0.25": "0.25"}.get(pas_note)
+    if pas_note is None:
+        raise HTTPException(422, "Le pas de la note est 1, 0,5 ou 0,25.")
+    with base(cfg().data) as cx:
+        cx.execute("INSERT INTO reglage(cle, valeur) VALUES('pas_note', ?) ON CONFLICT(cle) DO UPDATE SET valeur=excluded.valeur",
+                   (pas_note,))
+        journal(cx, "reglage", "pas_note", {"valeur": pas_note})
+    return {"pas_note": float(pas_note)}
+
 
 @app.get("/api/concours")
 def concours_lire():
@@ -641,8 +669,8 @@ def forcer_apercu(soiree_id: int):
 @app.post("/api/soirees/{soiree_id}/devoiler")
 def devoiler(soiree_id: int, corps: dict = Body(default={})):
     """Gèle les points : calculés une fois, enregistrés, plus jamais recalculés. Sauvegarde la base avant."""
-    forcer, mode = bool(corps.get("forcer")), str(corps.get("mode") or "court")
-    if mode not in ("court", "complet", "jury"):
+    forcer, mode = bool(corps.get("forcer")), str(corps.get("mode") or "auto")
+    if mode not in ("auto", "court", "complet", "jury"):
         raise HTTPException(422, "Mode inconnu.")
     with base(cfg().data) as cx:
         s = _soiree(cx, soiree_id)
@@ -653,6 +681,8 @@ def devoiler(soiree_id: int, corps: dict = Body(default={})):
             raise HTTPException(409, "Personne n'a noté : rien à dévoiler.")
         jures = {r["id"] for r in cx.execute("SELECT id FROM invite WHERE jury=1")}
         nb_jury = sum(1 for p in retenus if p["invite_id"] in jures)
+        if mode == "auto":          # 1.0 : jury puis public dès qu'il y a un jury et un public, sinon tout le monde ensemble
+            mode = "jury" if 0 < nb_jury < len(retenus) else "court"
         if mode == "jury" and not 0 < nb_jury < len(retenus):
             raise HTTPException(409, "Pour « jury puis public », il faut au moins un membre du jury et un du public "
                                      "parmi ceux qui ont noté (Réglages › Invités).")
@@ -695,11 +725,32 @@ def _devoilement(cx, s) -> dict:
         donnes = sorted(points[pid].items(), key=lambda cp: cp[1])      # du plus petit au douze
         invites.append({"id": pid, "prenom": p["prenom"], "jury": bool(p["jury"]), "notees": len(notes[pid]),
                         "envoye": p["etat"] == "envoye",
-                        "points": [{"chanson": c, "points": pts, "note": notes[pid][c] / 2,
+                        "points": [{"chanson": c, "points": pts, "note": notes[pid][c] / ECHELLE,
                                     "commentaire": commentaires.get(c, "")} for c, pts in donnes]})
-    return {"mode": s["mode_devoilement"], "pas": s["pas_devoilement"], "forcee": bool(s["forcee"]), "images": _images(s),
-            "chansons": chansons, "invites": invites,
-            "classement": classement_groupe([c["id"] for c in chansons], points, notes, passage)}
+    d = {"mode": s["mode_devoilement"], "pas": s["pas_devoilement"], "forcee": bool(s["forcee"]), "images": _images(s),
+         "chansons": chansons, "invites": invites, "etat": s["etat"],
+         "classement": classement_groupe([c["id"] for c in chansons], points, notes, passage)}
+    d["marche"] = _marche(d)
+    return d
+
+
+def _marche(d: dict) -> dict:
+    """Les pas du dévoilement, les mêmes sur la télé et sur chaque téléphone (1.0).
+    Pas 0 : le départ (sur un téléphone, les points de l'invité). Pas 1, s'il y a un jury : tous les points du jury
+    d'un coup. Puis un pas par chanson pour les points du public, de celle qui en reçoit le moins à celle qui en
+    reçoit le plus (égalité : la dernière passée d'abord). Dernier pas (`fin`) : le podium.
+    Sans jury, ou si tout le monde est du jury, tous les invités forment le public."""
+    jures = [i["id"] for i in d["invites"] if i["jury"]]
+    if len(jures) == len(d["invites"]):
+        jures = []
+    total = {c["id"]: 0 for c in d["chansons"]}
+    for i in d["invites"]:
+        if i["id"] not in jures:
+            for p in i["points"]:
+                total[p["chanson"]] += p["points"]
+    passage = {c["id"]: c["ordre"] for c in d["chansons"]}
+    public = sorted(total, key=lambda c: (total[c], -passage[c]))
+    return {"jures": jures, "public": public, "fin": (1 if jures else 0) + len(public) + 1}
 
 
 @app.get("/api/soirees/{soiree_id}/devoilement")
@@ -805,14 +856,14 @@ def _fiche(cx, s) -> dict:
     return {
         "soiree": {**_resume(s), "forcee": bool(s["forcee"])}, "a_jury": a_jury,
         "invites": [{"id": i["id"], "prenom": i["prenom"], "jury": i["jury"], "notees": i["notees"],
-                     "moyenne": round(sum(notes[i["id"]].values()) / len(notes[i["id"]]) / 2, 2)} for i in d["invites"]],
+                     "moyenne": round(sum(notes[i["id"]].values()) / len(notes[i["id"]]) / ECHELLE, 2)} for i in d["invites"]],
         "chansons": [{
             "id": c["id"], "ordre": c["ordre"], "pays": c["pays"], "code_pays": c["code_pays"], "artiste": c["artiste"],
             "titre": c["titre"], "moyenne": groupe[c["id"]]["moyenne"], "points": groupe[c["id"]]["total"],
             "rang": groupe[c["id"]]["rang"], "jury": jury[c["id"]], "public": public[c["id"]],
             "officiel": {"jury": off_jury[c["id"]], "public": off_public[c["id"]], "total": off_total[c["id"]],
                          "rang_jury": rj[c["id"]], "rang_public": rp[c["id"]], "rang": rt[c["id"]]},
-            "invites": {str(i["id"]): {"note": notes[i["id"]][c["id"]] / 2, "rang": rangs[i["id"]].get(c["id"]),
+            "invites": {str(i["id"]): {"note": notes[i["id"]][c["id"]] / ECHELLE, "rang": rangs[i["id"]].get(c["id"]),
                                        "points": points[i["id"]].get(c["id"], 0),
                                        "commentaire": commentaires[i["id"]].get(c["id"], "")}
                         for i in d["invites"] if c["id"] in notes[i["id"]]},
@@ -924,7 +975,7 @@ def _moi(cx, s, request: Request, exiger: bool = True):
 
 
 def _ma_copie(cx, s, p, chansons: list[dict]) -> dict:
-    notes = {r["chanson_id"]: {"valeur": r["valeur"] / 2, "commentaire": r["commentaire"]} for r in
+    notes = {r["chanson_id"]: {"valeur": r["valeur"] / ECHELLE, "commentaire": r["commentaire"]} for r in
              cx.execute("SELECT chanson_id, valeur, commentaire FROM note WHERE participation_id=?", (p["id"],))}
     prenom = cx.execute("SELECT prenom FROM invite WHERE id=?", (p["invite_id"],)).fetchone()["prenom"]
     return {"id": p["id"], "prenom": prenom, "etat": p["etat"], "classement_main": bool(p["classement_main"]),
@@ -937,7 +988,7 @@ def invite_etat(jeton: str, request: Request):
     with base(cfg().data) as cx:
         s = _porte(cx, jeton)
         etat = {"nom": s["nom"], "concours": s["concours"], "annee": s["annee"], "emission": s["emission"],
-                "etat": s["etat"], "bareme": [12, 10, 8, 7, 6, 5, 4, 3, 2, 1], "images": _images(s)}
+                "etat": s["etat"], "pas_note": float(_reglage(cx, "pas_note")), "bareme": [12, 10, 8, 7, 6, 5, 4, 3, 2, 1], "images": _images(s)}
         if s["etat"] == "brouillon":
             return etat
         chansons = [{k: c[k] for k in ("id", "ordre", "pays", "code_pays", "artiste", "titre")}
@@ -984,7 +1035,7 @@ def invite_prenom(jeton: str, request: Request, corps: dict = Body(...)):
 @app.put("/invite/{jeton}/api/note")
 def invite_noter(jeton: str, request: Request, corps: dict = Body(...)):
     """Enregistrée tout de suite : un téléphone qui se verrouille ne perd rien.
-    `valeur` de 0 à 20 par demi-points ; `valeur` absente ou nulle : la note est retirée."""
+    `valeur` de 0 à 20, au pas réglé (1, ½ ou ¼ point) ; `valeur` absente ou nulle : la note est retirée."""
     with base(cfg().data) as cx:
         s = _porte(cx, jeton)
         _ouverte(s)
@@ -998,17 +1049,20 @@ def invite_noter(jeton: str, request: Request, corps: dict = Body(...)):
             cx.execute("DELETE FROM note WHERE participation_id=? AND chanson_id=?", (p["id"], chanson["id"]))
             cx.execute("DELETE FROM classement WHERE participation_id=? AND chanson_id=?", (p["id"], chanson["id"]))
         else:
+            pas_note = float(_reglage(cx, "pas_note"))
+            message = f"La note va de 0 à 20, {LIBELLE_PAS[str(_reglage(cx, 'pas_note'))]}."
             try:
-                demis = float(corps["valeur"]) * 2
+                unites = float(corps["valeur"]) * ECHELLE
             except (TypeError, ValueError):
-                raise HTTPException(422, "La note va de 0 à 20, par demi-points.")
-            if demis != int(demis) or not 0 <= demis <= 40:
-                raise HTTPException(422, "La note va de 0 à 20, par demi-points.")
+                raise HTTPException(422, message)
+            if unites != int(unites) or not 0 <= unites <= 20 * ECHELLE or unites % (pas_note * ECHELLE):
+                raise HTTPException(422, message)
+
             commentaire = str(corps.get("commentaire") or "").strip()[:COMMENTAIRE_MAX]
             cx.execute("INSERT INTO note(participation_id, chanson_id, valeur, commentaire, modifie_le) VALUES(?,?,?,?,?) "
                        "ON CONFLICT(participation_id, chanson_id) DO UPDATE SET valeur=excluded.valeur, "
                        "commentaire=excluded.commentaire, modifie_le=excluded.modifie_le",
-                       (p["id"], chanson["id"], int(demis), commentaire, maintenant()))
+                       (p["id"], chanson["id"], int(unites), commentaire, maintenant()))
             if p["classement_main"]:        # l'ordre fait à la main ne bouge pas : la nouvelle venue s'y range
                 _ecrire_ordre(cx, p["id"], _ordre(cx, p, chansons))
         _rouvrir(cx, p)
@@ -1074,14 +1128,53 @@ def invite_image(jeton: str, sorte: str):
     return _servir_image(s, sorte)
 
 
+@app.get("/invite/{jeton}/api/devoilement")
+def invite_devoilement(jeton: str, request: Request):
+    """Le dévoilement sur le téléphone d'un invité (1.0), au pas où l'hôte l'a mené et pas plus loin : ni les points
+    du jury avant leur pas, ni ceux du public d'une chanson pas encore appelée, ni notes ni commentaires.
+    Chaque ligne additionne les points de l'invité, ceux du jury et ceux des autres invités (les siens ne sont
+    jamais comptés deux fois)."""
+    with base(cfg().data) as cx:
+        s = _porte(cx, jeton)
+        if s["etat"] not in ("devoilement", "devoilee"):
+            raise HTTPException(409, "Le dévoilement n'a pas commencé.")
+        d = _devoilement(cx, s)
+        p = _moi(cx, s, request, exiger=False)
+    m = d["marche"]
+    moi = next((i for i in d["invites"] if p and i["id"] == p["id"]), None)
+    pas = m["fin"] if s["etat"] == "devoilee" else max(0, min(d["pas"], m["fin"]))
+    debut = 1 if m["jures"] else 0
+
+    def somme(du_jury: bool, chanson: int, sans_moi: bool = True) -> int:
+        return sum(x["points"] for i in d["invites"] if (i["id"] in m["jures"]) == du_jury and not (sans_moi and i is moi)
+                   for x in i["points"] if x["chanson"] == chanson)
+
+    ids = [c["id"] for c in d["chansons"]]
+    appelees = m["public"][:max(0, min(len(m["public"]), pas - debut))]
+    sortie = {
+        "etat": s["etat"], "pas": pas, "fin": m["fin"], "avec_jury": bool(m["jures"]), "nb_public": len(m["public"]),
+        "chansons": [{k: c[k] for k in ("id", "ordre", "pays", "code_pays", "artiste", "titre")} for c in d["chansons"]],
+        "moi": {"prenom": moi["prenom"], "jury": moi["id"] in m["jures"],
+                "points": {str(x["chanson"]): x["points"] for x in moi["points"]}} if moi else None,
+        "jury": {str(c): somme(True, c) for c in ids} if m["jures"] and pas >= 1 else None,
+        "public": [{"chanson": c, "autres": somme(False, c), "total": somme(False, c, sans_moi=False)} for c in appelees],
+    }
+    if pas >= m["fin"]:
+        sortie["classement"] = d["classement"]
+    return sortie
+
+
 @app.get("/invite/{jeton}/api/resultats")
 def invite_resultats(jeton: str):
-    """Fermé tant que le dévoilement n'est pas fini : le téléphone ne devance jamais la télé."""
+    """Fermé tant que le dévoilement n'est pas fini. Avec les vrais votes du concours dès que l'hôte les a saisis."""
     with base(cfg().data) as cx:
         s = _porte(cx, jeton)
         if s["etat"] != "devoilee":
             raise HTTPException(409, "Les résultats ne sont pas encore dévoilés.")
-        return _devoilement(cx, s)
+        f = _fiche(cx, s)
+        return {**_devoilement(cx, s), "vrais": [{"chanson": c["id"], **c["officiel"], "notre_rang": c["rang"]}
+                                                 for c in f["chansons"]],
+                "comparaison": f["comparaison"]}
 
 
 # ================================================================ interface

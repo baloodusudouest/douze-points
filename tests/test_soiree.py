@@ -248,3 +248,37 @@ def test_relier_un_pays_inconnu(client):
     assert len(client.get("/api/alias-pays").json()) == 1
     client.delete("/api/alias-pays/pays imaginaire")
     assert client.get("/api/alias-pays").json() == []
+
+
+def test_pas_de_la_note(client):
+    """1.0 : on note au point, au demi-point (par défaut) ou au quart de point."""
+    from tests.conftest import Soiree
+    s = Soiree(client, n=3)
+    tel = s.entrer("Aglaé")
+    noter = lambda v: client.put(s.url("note"), headers=tel, json={"chanson_id": s.chansons[0], "valeur": v})
+    assert client.get("/api/reglages").json() == {"pas_note": 0.5}
+    assert s.etat("Aglaé")["pas_note"] == 0.5
+    assert noter(12.5).status_code == 200 and noter(12.25).status_code == 422
+    assert client.put("/api/reglages", json={"pas_note": 0.3}).status_code == 422
+    client.put("/api/reglages", json={"pas_note": 0.25})
+    assert noter(12.25).status_code == 200
+    assert s.etat("Aglaé")["moi"]["notes"][str(s.chansons[0])]["valeur"] == 12.25
+    client.put("/api/reglages", json={"pas_note": 1})
+    r = noter(12.5)
+    assert r.status_code == 422 and "au point près" in r.json()["detail"]
+    assert noter(20).status_code == 200 and noter(21).status_code == 422
+
+
+def test_anciennes_notes_converties_une_fois(tmp_path):
+    """Une base d'avant la 1.0 (notes en demi-points) passe aux quarts de point, une seule fois."""
+    import sqlite3
+    from app.base import preparer, SCHEMA
+    cx = sqlite3.connect(tmp_path / "douze-points.db")
+    cx.executescript(SCHEMA)
+    cx.execute("INSERT INTO note(participation_id, chanson_id, valeur, commentaire, modifie_le) VALUES(1, 1, 25, '', '')")
+    cx.execute("DELETE FROM reglage")
+    cx.commit(); cx.close()
+    preparer(tmp_path)
+    preparer(tmp_path)
+    cx = sqlite3.connect(tmp_path / "douze-points.db")
+    assert cx.execute("SELECT valeur FROM note").fetchone()[0] == 50          # 12,5 sur 20

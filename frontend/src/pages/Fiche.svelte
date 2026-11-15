@@ -4,8 +4,9 @@
   // Elle s'imprime (ou s'enregistre en PDF depuis l'impression) et se télécharge en tableau.
   import { onMount } from 'svelte'
   import { api } from '$lib/api.js'
-  import { drapeau, EMISSIONS, note, normaliser } from '$lib/pays.js'
+  import { EMISSIONS, note, normaliser } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
+  import Drapeau from '$lib/Drapeau.svelte'
   let { soiree, onferme } = $props()
 
   let f = $state(null)
@@ -35,6 +36,7 @@
     } catch (e) { erreur = e.message }
   }
 
+  const image = (sorte) => `/api/soirees/${soiree}/image/${sorte}?v=${f.soiree.images[sorte]}`
   let parRang = $derived(f ? [...f.chansons].sort((a, b) => a.rang - b.rang || a.ordre - b.ordre) : [])
   let aOfficiel = $derived(!!f && f.chansons.some((c) => c.officiel.total !== null))
   const phrase = (k) => k && `${k.meme_gagnant ? 'même gagnant' : 'pas le même gagnant'}, ${k.trois_premieres} chanson${k.trois_premieres > 1 ? 's' : ''} en commun dans les trois premières, ${note(k.ecart_moyen)} place${k.ecart_moyen >= 2 ? 's' : ''} d'écart en moyenne`
@@ -55,10 +57,14 @@
   {#if message}<p class="mb-3 text-sm text-primary print:hidden" role="status">{message}</p>{/if}
 
   {#if f}
-    <header class="mb-5">
+    {#if f.soiree.images.banniere}<img class="banniere" src={image('banniere')} alt="Bannière de l'évènement" />{/if}
+    <header class="mb-5 flex items-center gap-4">
+      {#if f.soiree.images.logo}<img class="logo" src={image('logo')} alt="Logo de l'évènement" />{/if}
+      <div class="min-w-0">
       <h1 class="titre">{f.soiree.nom}</h1>
       <p class="mt-1 text-sm text-muted-foreground">{f.soiree.concours} {f.soiree.annee}, {EMISSIONS[f.soiree.emission].toLowerCase()}{f.soiree.ville ? `, ${f.soiree.ville}` : ''}.
         {f.invites.length} classements{f.soiree.forcee ? ', dévoilement forcé' : ''}.</p>
+      </div>
     </header>
 
     {#if saisie}
@@ -69,7 +75,7 @@
           <div class="vrai text-xs text-muted-foreground"><span></span><span>Jury</span><span>Public</span></div>
           {#each f.chansons as c (c.id)}
             <div class="vrai">
-              <span class="truncate">{c.ordre}. {drapeau(c.pays, c.code_pays)} {c.pays}</span>
+              <span class="truncate">{c.ordre}. <Drapeau pays={c.pays} code={c.code_pays} />{c.pays}</span>
               <input class="saisie" type="number" min="0" inputmode="numeric" bind:value={saisie[c.id].jury} aria-label="{c.pays} : vrais points du jury" />
               <input class="saisie" type="number" min="0" inputmode="numeric" bind:value={saisie[c.id].public} aria-label="{c.pays} : vrais points du public" />
             </div>
@@ -92,7 +98,7 @@
             {#each parRang as c (c.id)}
               <tr>
                 <td class="chiffre">{c.rang}</td>
-                <td class="g">{drapeau(c.pays, c.code_pays)} {c.pays}<span class="sous">{c.artiste}{c.titre ? ', ' + c.titre : ''}</span></td>
+                <td class="g"><Drapeau pays={c.pays} code={c.code_pays} />{c.pays}<span class="sous">{c.artiste}{c.titre ? ', ' + c.titre : ''}</span></td>
                 <td class="chiffre fort">{c.points}</td><td>{note(c.moyenne)}</td>
                 {#if f.a_jury}<td>{c.jury.points} <span class="sous-ligne">({c.jury.rang}e)</span></td><td>{c.public.points} <span class="sous-ligne">({c.public.rang}e)</span></td>{/if}
                 {#if aOfficiel}<td>{c.officiel.rang ?? ''}</td><td>{ecart(c.rang, c.officiel.rang)}</td>{/if}
@@ -118,7 +124,7 @@
               {#if f.a_jury}<th>Notre public</th>{/if}<th>Vrai public</th><th>Vrai total</th></tr></thead>
             <tbody>
               {#each [...f.chansons].sort((a, b) => (a.officiel.rang ?? 99) - (b.officiel.rang ?? 99) || a.ordre - b.ordre) as c (c.id)}
-                <tr><td class="g">{drapeau(c.pays, c.code_pays)} {c.pays}</td>
+                <tr><td class="g"><Drapeau pays={c.pays} code={c.code_pays} />{c.pays}</td>
                   {#if f.a_jury}<td>{c.jury.rang}e</td>{/if}<td>{c.officiel.rang_jury ? `${c.officiel.rang_jury}e (${c.officiel.jury})` : ''}</td>
                   {#if f.a_jury}<td>{c.public.rang}e</td>{/if}<td>{c.officiel.rang_public ? `${c.officiel.rang_public}e (${c.officiel.public})` : ''}</td>
                   <td>{c.officiel.rang ? `${c.officiel.rang}e (${c.officiel.total})` : ''}</td></tr>
@@ -139,7 +145,7 @@
             {#each f.invites as i (i.id)}<th>{i.prenom}{#if i.jury}<span class="sous">jury</span>{/if}</th>{/each}</tr></thead>
           <tbody>
             {#each f.chansons as c (c.id)}
-              <tr><td class="g">{c.ordre}. {drapeau(c.pays, c.code_pays)} {c.pays}</td>
+              <tr><td class="g">{c.ordre}. <Drapeau pays={c.pays} code={c.code_pays} />{c.pays}</td>
                 {#each f.invites as i (i.id)}
                   {@const v = c.invites[i.id]}
                   <td>{#if v}{note(v.note)}{#if v.points}<span class="pts">{v.points}</span>{/if}{/if}</td>
@@ -157,13 +163,16 @@
       {#each f.chansons as c (c.id)}
         {@const dits = f.invites.filter((i) => c.invites[i.id]?.commentaire)}
         {#if dits.length}
-          <h3>{c.ordre}. {drapeau(c.pays, c.code_pays)} {c.pays}</h3>
+          <h3>{c.ordre}. <Drapeau pays={c.pays} code={c.code_pays} />{c.pays}</h3>
           <ul class="mb-3 grid gap-1 text-sm">
             {#each dits as i (i.id)}<li><strong>{i.prenom}</strong> ({note(c.invites[i.id].note)}/20) : {c.invites[i.id].commentaire}</li>{/each}
           </ul>
         {/if}
       {/each}
     </section>
+    {#if f.soiree.images.poster}
+      <section class="bloc poster-bloc"><img class="poster" src={image('poster')} alt="Poster de l'évènement" /></section>
+    {/if}
   {:else if !erreur}
     <p class="text-sm text-muted-foreground">Lecture…</p>
   {/if}
@@ -188,6 +197,9 @@
   .vrai .saisie { min-height: 2.5rem; width: 100%; }
   .lien-bouton { display: inline-flex; min-height: 2.25rem; align-items: center; border-radius: 0.6rem; border: 1px solid var(--border); padding: 0 0.9rem; font-size: 0.875rem; font-weight: 500; }
 
+  .banniere { display: block; width: 100%; max-height: 11rem; margin-bottom: 1rem; border-radius: 0.8rem; object-fit: cover; }
+  .logo { width: 4.5rem; height: 4.5rem; flex-shrink: 0; border-radius: 0.6rem; object-fit: contain; }
+  .poster { display: block; max-width: 100%; max-height: 24rem; margin: 0 auto; border-radius: 0.8rem; object-fit: contain; }
   /* À l'impression : noir sur blanc, tableaux entiers, rien de la navigation */
   @media print {
     .fiche { color: #000; }
@@ -198,5 +210,7 @@
     .fort, .pts { color: #b01e6b; }
     .bloc { break-inside: auto; }
     tr, li { break-inside: avoid; }
+    .banniere, .logo, .poster { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    .poster-bloc { break-before: page; }
   }
 </style>

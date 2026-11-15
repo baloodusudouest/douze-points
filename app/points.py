@@ -1,9 +1,11 @@
 """Le calcul, sans base ni réseau : classement d'un invité, barème du concours, classement du groupe.
 
-Les notes sont en demi-points entiers (0 à 40 pour 0 à 20) : aucune comparaison de nombres à virgule.
+Les notes sont en quarts de point entiers (0 à 80 pour 0 à 20, `ECHELLE` = 4) : aucune comparaison de nombres à virgule.
+(Jusqu'à la 0.10, en demi-points ; la base est convertie une fois, voir base.preparer.)
 """
 from __future__ import annotations
 
+ECHELLE = 4                                  # une note de 20 est rangée 80
 BAREME = (12, 10, 8, 7, 6, 5, 4, 3, 2, 1)   # rangs 1 à 10 de chaque invité ; rien au-delà
 
 
@@ -40,7 +42,7 @@ def classement_groupe(chansons: list[int], points: dict[int, dict[int, int]],
         moyenne = sum(valeurs) / len(valeurs) if valeurs else -1.0
         cle = (sum(recus), len(recus), tuple(recus.count(b) for b in BAREME), moyenne)
         lignes.append({"chanson": c, "total": sum(recus), "votants": len(recus),
-                       "moyenne": None if moyenne < 0 else round(moyenne / 2, 2), "_cle": cle})
+                       "moyenne": None if moyenne < 0 else round(moyenne / ECHELLE, 2), "_cle": cle})
     lignes.sort(key=lambda l: (-l["_cle"][0], -l["_cle"][1], tuple(-x for x in l["_cle"][2]), -l["_cle"][3],
                                ordre_passage.get(l["chanson"], 0)))
     rang = 0

@@ -72,7 +72,8 @@ def test_toutes_les_adresses_invite_sont_couvertes():
     lues = {r.path.split("/", 3)[3] for r in main.app.routes
             if getattr(r, "path", "").startswith("/invite/") and "GET" in getattr(r, "methods", ())}
     # image/{sorte} ne rend qu'un fichier image déposé par l'hôte (tests/test_images.py)
-    assert lues == {"api/" + adresse for adresse in LECTURES} | {"image/{sorte}"}
+    # api/devoilement rend le dévoilement au pas près : fouillé à part (tests/test_devoilement_telephones.py)
+    assert lues == {"api/" + adresse for adresse in LECTURES} | {"image/{sorte}", "api/devoilement"}
     ecritures = {r.path.rsplit("/", 1)[1] for r in main.app.routes
                  if getattr(r, "path", "").startswith("/invite/") and "GET" not in getattr(r, "methods", ())}
     assert ecritures == {"prenom", "note", "classement", "envoyer", "modifier"}

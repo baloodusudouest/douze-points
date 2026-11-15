@@ -13,9 +13,15 @@ export const PAYS = Object.entries(NOMS).map(([code, nom]) => ({ code, nom })).s
 
 const cle = (nom) => (nom || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/['’]/g, ' ').trim()
 
-export function drapeau(pays, code) {
+// Le code à deux lettres d'un pays (FR, KR…), ou '' s'il n'est pas reconnu
+export function codePays(pays, code) {
   const c = (code || CODES[cle(pays)] || '').toUpperCase()
-  if (!/^[A-Z]{2}$/.test(c)) return ''
+  return /^[A-Z]{2}$/.test(c) ? c : ''
+}
+
+export function drapeau(pays, code) {
+  const c = codePays(pays, code)
+  if (!c) return ''
   return String.fromCodePoint(...[...c].map((l) => 0x1f1e6 + l.charCodeAt(0) - 65))
 }
 

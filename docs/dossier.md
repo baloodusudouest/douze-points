@@ -329,3 +329,10 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 
 - **Alerte « pays sans drapeau »** (`pages/AlerteDrapeaux.svelte`) dans la préparation et la soirée ouverte : choix du pays dans `PAYS` (250 pays, noms français). `PUT /api/chansons/<id>/pays` pose le code ; avec `retenir`, le nom est enregistré dans `alias_pays` et appliqué aux listes collées suivantes (`GET` et `DELETE /api/alias-pays`). Pas encore d'écran pour revoir ces noms reliés.
 - **Table des pays** : noms usuels, communs et officiels de la norme ISO en français et en anglais, avec les formes retournées (« Corée, République de » → « République de Corée »).
+
+## Ajouts de la 1.0.0 (15/11/2026, demande de l'hôte)
+
+- **Dévoilement sur les téléphones** : pas communs fixés par le serveur (`_marche` : jurés, ordre du public par points croissants, `fin`). Porte invité `GET /invite/<jeton>/api/devoilement` : au pas près (jury seulement à partir du pas 1, public des seules chansons appelées), points de l'invité, jamais notes ni commentaires ; testée dans `tests/test_devoilement_telephones.py`. L'hôte (cookie de la régie) mène par `POST /api/soirees/<id>/pas` depuis `invite/Spectacle.svelte` ; la télé (`pages/Devoilement.svelte`) relit le pas chaque seconde. Mode « auto » au dévoilement.
+- **Résultats des invités** : podium de la soirée et de l'invité (`invite/Podium.svelte`), vrais votes et comparaison (`invite/VraisVotes.svelte`, saisie par l'hôte).
+- **Fiche** : images de la soirée, drapeaux en images (`lib/Drapeau.svelte`, paquet `flag-icons`, MIT).
+- **Pas de la note** : table `reglage` (`pas_note` 1 / 0.5 / 0.25, `echelle_notes`), `GET/PUT /api/reglages` ; notes stockées en quarts de point (`points.ECHELLE`).

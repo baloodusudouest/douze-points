@@ -10,6 +10,9 @@
   import { Button } from '$lib/components/ui/button/index.js'
   import Embleme from '$lib/Embleme.svelte'
   import Ouverture from '$lib/Ouverture.svelte'
+  import Spectacle from './Spectacle.svelte'
+  import Podium from './Podium.svelte'
+  import VraisVotes from './VraisVotes.svelte'
   let { jeton } = $props()
 
   const CLE = 'douze-points:' + jeton
@@ -26,19 +29,33 @@
   let commentaire = $state('')
   let confirmer = $state(false)
   let resultats = $state(null)
+  let luResultats = 0
   let occupe = 0                   // demandes en cours : la relecture n'écrase pas ce qu'on est en train de faire
   let glisse = $state(null)        // { id, depart, y } pendant un glisser
   let minuterie
   let touche = $state(false)       // la note ou le mot de la fiche ouverte ont été modifiés
   let regie = $state(null)         // pour l'hôte connecté à la régie : où en est chacun (jamais les notes)
-  let estHote = false
+  let estHote = $state(false)
+
+  let forcerDevoiler = $state(false)
+  async function devoilerDepuisTelephone() {
+    erreur = ''
+    try {
+      const r = await fetch(`/api/soirees/${regie.id}/devoiler`, { method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ forcer: forcerDevoiler, mode: 'auto' }) })
+      const x = await r.json().catch(() => ({}))
+      if (!r.ok) throw new Error(x.detail || `Le serveur a répondu ${r.status}.`)
+      forcerDevoiler = false
+      await lire(); await lireRegie()
+    } catch (x) { erreur = x.message }
+  }
 
   // L'hôte note sur la même page que ses invités. S'il est connecté à la régie sur cet appareil, l'onglet
   // « Les invités » lui montre en plus combien de chansons chacun a notées. Ni notes ni commentaires : surprise.
   async function lireRegie() {
     try {
       const soirees = await (await fetch('/api/soirees', { credentials: 'same-origin' })).json()
-      for (const x of soirees.filter((y) => y.etat === 'ouverte')) {
+      for (const x of soirees.filter((y) => ['ouverte', 'devoilement', 'devoilee'].includes(y.etat))) {
         const d = await (await fetch('/api/soirees/' + x.id, { credentials: 'same-origin' })).json()
         if (d.jeton_invite === jeton) { regie = d; return }
       }
@@ -77,7 +94,8 @@
       const d = await appel('GET', 'etat')
       if (occupe || glisse) return
       e = d
-      if (d.etat === 'devoilee' && !resultats) resultats = await appel('GET', 'resultats')
+      // les résultats sont relus de temps en temps : les vrais votes peuvent arriver pendant la soirée
+      if (d.etat === 'devoilee' && (!resultats || Date.now() - luResultats > 15000)) { resultats = await appel('GET', 'resultats'); luResultats = Date.now() }
     } catch (x) {
       if (x.statut === 404) ferme = true
       else if (!e) erreur = "L'appli ne répond pas. Es-tu sur le Wi-Fi de la maison ?"
@@ -133,7 +151,9 @@
     await ecrire('PUT', 'note', { chanson_id: fiche.id, valeur: null })
     fiche = null
   }
-  const pas = (d) => { valeur = Math.max(0, Math.min(20, Math.round((valeur + d) * 2) / 2)); touche = true }
+  // Le pas de la note, réglé par l'hôte : 1, ½ ou ¼ point
+  let cran = $derived(e?.pas_note || 0.5)
+  const pas = (d) => { valeur = Math.max(0, Math.min(20, Math.round((valeur + d * cran) / cran) * cran)); touche = true }
 
   // ---- classement : flèches, ou glisser par la poignée
   const HAUTEUR = 56
@@ -198,12 +218,19 @@
         {#if image('poster')}<img src={image('poster')} alt="Poster de l'évènement" class="mx-auto mt-6 max-h-[45dvh] rounded-xl object-contain" />{/if}</div>
 
     {:else if e.etat === 'devoilement'}
-      <div class="mt-16 text-center"><p class="flex justify-center text-8xl"><Embleme src={image('logo')} /></p><p class="mt-6 text-xl font-light">Regarde la télé.</p>
-        <p class="mt-2 text-sm text-muted-foreground">Les résultats arrivent ici dès que le dévoilement est fini.</p></div>
+      <Spectacle {appel} regie={estHote ? regie : null} />
 
     {:else if e.etat === 'devoilee'}
       {#if resultats}
-        <h2 class="text-lg font-semibold">Le classement de la soirée</h2>
+        {@const monPodium = resultats.invites.find((i) => i.id === e.moi?.id)?.points.slice(-3).reverse() || []}
+        <h2 class="text-lg font-semibold">Le podium de la soirée</h2>
+        <Podium places={resultats.classement.slice(0, 3).map((l) => ({ c: parId[l.chanson], points: l.total }))} />
+        {#if monPodium.length}
+          <p class="mt-4 text-center text-sm text-muted-foreground">Ton podium</p>
+          <Podium petit places={monPodium.map((p) => ({ c: parId[p.chanson], points: p.points }))} />
+        {/if}
+        <VraisVotes {resultats} {parId} soiree={estHote ? regie : null} onchange={async () => { resultats = await appel('GET', 'resultats'); luResultats = Date.now() }} />
+        <h2 class="mt-6 text-lg font-semibold">Le classement de la soirée</h2>
         <ol class="mt-3 grid gap-1">
           {#each resultats.classement as l (l.chanson)}
             {@const c = parId[l.chanson]}
@@ -234,6 +261,7 @@
         {/each}
       </ul>
       <p class="mt-4 text-sm text-muted-foreground">Ton prénom est grisé alors que ce n'est pas toi ? Demande à l'hôte de le libérer.</p>
+      {#if estHote && regie}<div class="mt-6">{@render carteDevoiler()}</div>{/if}
 
     {:else}
       {#if nbNotees === 0}
@@ -284,6 +312,7 @@
             <span class="text-muted-foreground">{regie.participants.filter((p) => p.etat === 'envoye').length} classements envoyés sur {regie.participants.length}</span>
             <a class="underline" href="/">Retour à la régie</a>
           </p>
+          {@render carteDevoiler()}
           <ul class="mb-4 grid gap-2" aria-label="Avancement des invités">
             {#each regie.participants as p (p.id)}
               <li class="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
@@ -331,6 +360,22 @@
   {/if}
 </main>
 
+{#snippet carteDevoiler()}
+{#if regie.etat === 'ouverte'}
+  {@const restants = regie.participants.filter((p) => p.etat !== 'envoye').length}
+  <div class="mb-4 rounded-xl border bg-card p-4">
+    {#if restants && !forcerDevoiler}
+      <p class="text-sm text-muted-foreground">{restants} invité{restants > 1 ? 's n\'ont' : ' n\'a'} pas encore envoyé.</p>
+      <button class="mt-2 text-sm underline" onclick={() => (forcerDevoiler = true)}>Dévoiler quand même…</button>
+    {:else}
+      {#if restants}<p class="mb-2 text-sm">Ceux qui n'ont pas envoyé comptent avec leur classement du moment ; ceux qui n'ont rien noté sont écartés.</p>{/if}
+      <button class="suivante w-full" onclick={devoilerDepuisTelephone}>Dévoiler le classement</button>
+      <p class="mt-2 text-xs text-muted-foreground">Le classement s'affichera sur le téléphone de chacun ; c'est toi qui feras avancer.</p>
+    {/if}
+  </div>
+{/if}
+{/snippet}
+
 {#if fiche}
   <div class="fixed inset-0 z-20 flex flex-col bg-background px-5 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]" role="dialog" aria-label="Noter {fiche.pays}">
     <p class="text-sm text-muted-foreground">Chanson {fiche.ordre} sur {chansons.length}</p>
@@ -340,9 +385,9 @@
     <div class="my-auto text-center">
       <p class="chiffre text-primary" style="font-size: 7.5rem" aria-live="polite">{note(valeur)}<span class="text-3xl text-muted-foreground"> /20</span></p>
       <div class="mt-4 flex items-center gap-3">
-        <button class="demi" aria-label="Un demi-point de moins" onclick={() => pas(-0.5)}>−</button>
-        <input type="range" min="0" max="20" step="0.5" bind:value={valeur} oninput={() => (touche = true)} aria-label="Note sur 20" class="curseur flex-1" />
-        <button class="demi" aria-label="Un demi-point de plus" onclick={() => pas(0.5)}>+</button>
+        <button class="demi" aria-label="Un cran de moins" onclick={() => pas(-1)}>−</button>
+        <input type="range" min="0" max="20" step={cran} bind:value={valeur} oninput={() => (touche = true)} aria-label="Note sur 20" class="curseur flex-1" />
+        <button class="demi" aria-label="Un cran de plus" onclick={() => pas(1)}>+</button>
       </div>
     </div>
 

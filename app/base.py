@@ -40,6 +40,8 @@ CREATE TABLE IF NOT EXISTS points(
   soiree_id INTEGER NOT NULL REFERENCES soiree(id) ON DELETE CASCADE,
   participation_id INTEGER NOT NULL, chanson_id INTEGER NOT NULL, rang INTEGER NOT NULL, points INTEGER NOT NULL,
   PRIMARY KEY(participation_id, chanson_id));
+CREATE TABLE IF NOT EXISTS reglage(
+  cle TEXT PRIMARY KEY, valeur TEXT NOT NULL);      -- 1.0 : réglages de l'appli (pas de la note…)
 CREATE TABLE IF NOT EXISTS concours(
   id INTEGER PRIMARY KEY, nom TEXT NOT NULL UNIQUE COLLATE NOCASE, actif INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS alias_pays(
@@ -82,6 +84,12 @@ def preparer(data: Path) -> None:
         for colonne in ("officiel_jury", "officiel_public"):
             if colonne not in {r["name"] for r in cx.execute("PRAGMA table_info(chanson)")}:
                 cx.execute(f"ALTER TABLE chanson ADD COLUMN {colonne} INTEGER")
+        # 1.0 : les notes passent des demi-points aux quarts de point (le pas de la note se règle : 1, ½ ou ¼).
+        # Faite une seule fois : la ligne « echelle_notes » le retient.
+        if not cx.execute("SELECT 1 FROM reglage WHERE cle='echelle_notes'").fetchone():
+            cx.execute("UPDATE note SET valeur = valeur * 2")
+            cx.execute("INSERT INTO reglage(cle, valeur) VALUES('echelle_notes', '4')")
+        cx.execute("INSERT OR IGNORE INTO reglage(cle, valeur) VALUES('pas_note', '0.5')")
         if not cx.execute("SELECT 1 FROM concours").fetchone():
             cx.executemany("INSERT INTO concours(nom) VALUES(?)", [(nom,) for nom in CONCOURS_DE_DEPART])
         cx.commit()

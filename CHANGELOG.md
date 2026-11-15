@@ -1,5 +1,17 @@
 # Journal des versions
 
+## 1.0.0 — 15/11/2026
+
+- **Le dévoilement se joue sur les téléphones.** On ne quitte plus le concours des yeux : chaque invité suit le classement sur son téléphone, l'hôte le mène depuis le sien (« Dévoiler le classement » dans Les invités, puis Revenir / Suivant / Terminer la soirée), même s'il ne note pas lui-même.
+  - Départ : le classement de l'invité avec ses points. Puis tous les points du jury d'un coup, puis ceux du public chanson par chanson, de la moins servie à la mieux servie.
+  - Chaque ligne : le pays, ses points à lui (Moi), le jury, les autres invités, le total à droite ; les totaux s'additionnent, puis les lignes changent de place.
+  - Fin : le podium de la soirée, et sous lui le podium de l'invité (repris en tête de ses résultats).
+  - Le téléphone ne reçoit jamais plus que le pas atteint (ni notes ni commentaires avant la fin).
+  - L'écran télé reste facultatif et suit les mêmes pas, menés du téléphone ou de lui-même. Le choix « court / complet / jury puis public » disparaît : jury puis public dès qu'il y a les deux.
+- **Vrais votes depuis le téléphone de l'hôte**, après le dévoilement ; tous les invités voient la comparaison dans leurs résultats.
+- **Fiche imprimée** : bannière, logo et poster de la soirée, et drapeaux en images (Windows n'affiche pas les drapeaux en émoji). Navigation masquée et fond blanc à l'impression.
+- **Pas de la note** dans Réglages : au point, au demi-point ou au quart de point. Les notes sont désormais rangées en quarts de point ; une base existante est convertie une fois au démarrage.
+
 ## 0.10.1 — 15/11/2026
 
 - **Classement complet au dévoilement** : toutes les chansons tiennent dans la hauteur de l'écran ; les lignes rapetissent sur un iPhone au lieu d'être coupées, et gardent leur taille sur une télé.

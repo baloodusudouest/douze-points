@@ -95,6 +95,14 @@ class Ecran:
         self.erreurs = []
         self.page.on("pageerror", lambda e: self.erreurs.append(str(e)))
 
+    def autre_page(self, taille):
+        """Une seconde page dans le même navigateur (mêmes cookies) : le téléphone de l'hôte connecté à la régie."""
+        autre = Ecran.__new__(Ecran)
+        autre.contexte, autre.page, autre.erreurs = self.contexte, self.contexte.new_page(), []
+        autre.page.set_viewport_size(taille)
+        autre.page.on("pageerror", lambda e: autre.erreurs.append(str(e)))
+        return autre
+
     def verifier(self, nom):
         assert self.erreurs == [], (nom, self.erreurs)
         largeur, fenetre = self.page.evaluate("[document.scrollingElement.scrollWidth, window.innerWidth]")
@@ -319,30 +327,36 @@ def test_une_soiree_entiere(serveur, navigateur):
     p.get_by_role("button", name="Dévoiler quand même").click()
     p.get_by_text("Touche l'écran pour commencer.").wait_for()
     regie.verifier("paysage-6-devoilement-depart")
+    # le téléphone de l'invité part de son propre classement, sans les points des autres
+    t.get_by_role("list", name="Classement en direct").wait_for(timeout=10000)
+    t.get_by_text("Ton classement").wait_for()
+    invite.verifier("tel-8-devoilement-depart")
     suivant = p.get_by_role("button", name="Pas suivant")
-    vu_douze = False
+    suivant.click(position={"x": 300, "y": 150})                         # pas de jury : la première chanson du public
+    t.get_by_text("des autres invités").wait_for(timeout=10000)          # le téléphone a suivi la télé
+    t.wait_for_timeout(1600)
+    invite.verifier("tel-8-devoilement-public")
+    p.wait_for_timeout(600)
+    regie.verifier("paysage-7-public")
     for _ in range(40):
         if p.get_by_role("button", name="Terminer").count():
             break
         suivant.click(position={"x": 300, "y": 150})
-        if not vu_douze and p.get_by_text("Douze points", exact=True).locator("visible=true").count():
-            vu_douze = True
-            p.wait_for_timeout(500)
-            regie.verifier("paysage-7-douze-points")
-    assert vu_douze
     p.get_by_text("Le podium de la soirée").wait_for()
     assert p.get_by_role("list", name="Podium").locator("li").count() == 3
     p.wait_for_timeout(600)
     regie.verifier("paysage-8-podium")
-
-    # le téléphone de l'invité ne sait rien tant que ce n'est pas terminé
-    t.get_by_text("Regarde la télé.").wait_for(timeout=10000)
-    invite.verifier("tel-8-regarde-la-tele")
+    # sur le téléphone : le podium de la soirée, et sous lui celui de l'invité
+    t.get_by_role("list", name="Podium de la soirée").wait_for(timeout=10000)
+    t.get_by_role("list", name="Ton podium").wait_for()
+    t.wait_for_timeout(1300)
+    invite.verifier("tel-8-podium")
     p.get_by_role("button", name="Terminer").click()
     p.set_viewport_size(PC)
     p.get_by_text("Soirée dévoilée").wait_for()
     regie.verifier("pc-9-devoilee")
     t.get_by_role("heading", name="Le classement de la soirée").wait_for(timeout=10000)
+    t.get_by_role("list", name="Ton podium").wait_for()
     t.get_by_text("Très scénique").first.wait_for()
     invite.verifier("tel-9-resultats")
 
@@ -372,6 +386,11 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     for prenom in ("Aglaé", "Barnabé"):
         p.get_by_role("button", name=f"{prenom} : jury").click()
         p.get_by_role("button", name=f"{prenom} : jury", pressed=True).wait_for()
+    p.get_by_role("button", name="Au quart de point (12,25)").click()
+    p.get_by_role("button", name="Au quart de point (12,25)", pressed=True).wait_for()
+    regie.verifier("pc-10-pas-de-la-note")
+    p.get_by_role("button", name="Au demi-point (12,5)").click()
+    p.get_by_role("button", name="Au demi-point (12,5)", pressed=True).wait_for()
     regie.verifier("pc-10-jury")
 
     api = p.request
@@ -385,6 +404,10 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     assert (lue_chansons[0]["pays"], lue_chansons[0]["code_pays"], lue_chansons[0]["artiste"]) == ("France", "FR", "Artiste 1")
     invites = [i["id"] for i in api.get(f"{serveur}/api/invites").json() if i["actif"]]
     api.put(f"{serveur}/api/soirees/{soiree}/attendus", data={"invites": invites})
+    for sorte, taille in (("banniere", "1200x300"), ("logo", "400x400"), ("poster", "600x900")):
+        r = api.put(f"{serveur}/api/soirees/{soiree}/image/{sorte}", data=image_de_demo(taille, sorte)["buffer"],
+                    headers={"Content-Type": "image/png"})
+        assert r.ok, r.text()
     api.post(f"{serveur}/api/soirees/{soiree}/ouvrir")
     lue = api.get(f"{serveur}/api/soirees/{soiree}").json()
     assert lue["nom"] == "Eurovision Villeneuve 2027, finale"
@@ -397,11 +420,27 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
         httpx.post(f"{serveur}/invite/{jeton}/api/envoyer", headers=tel)
 
     p.get_by_role("link", name="Soirée").click()
-    p.get_by_role("button", name="Jury puis public", pressed=True).wait_for()      # proposé, et choisi d'office
+    p.get_by_text("le jury d'un coup, puis le public chanson par chanson").wait_for()
     regie.verifier("pc-11-tous-envoye")
+    # l'hôte dévoile depuis son téléphone (connecté à la régie, sur la page des invités) ; la télé suit
+    hote = regie.autre_page(TELEPHONE)
+    h = hote.page
+    h.goto(f"{serveur}/invite/{jeton}")
+    h.get_by_role("button", name="Passer l'ouverture").click()
+    h.get_by_text("Qui es-tu ?").wait_for()                       # l'hôte ne joue pas ici : il mène quand même
+    h.get_by_role("button", name="Dévoiler le classement").click()
+    h.get_by_label("Commandes de l'hôte").wait_for(timeout=10000)
+    hote.verifier("tel-11-hote-depart")
     p.set_viewport_size(PAYSAGE)
-    p.get_by_role("button", name="Dévoiler", exact=True).click()
+    p.get_by_role("button", name="Reprendre le dévoilement").click()
     p.get_by_text("Touche l'écran pour commencer.").wait_for()
+    h.get_by_role("button", name="Suivant", exact=True).click()          # le jury d'un coup, mené du téléphone
+    h.get_by_text("Les points du jury").first.wait_for()
+    p.get_by_role("list", name="Top 5 du jury").wait_for(timeout=10000)  # la télé a suivi
+    h.wait_for_timeout(1600)
+    hote.verifier("tel-11-hote-jury")
+    h.get_by_role("button", name="Revenir").click()
+    p.get_by_text("Touche l'écran pour commencer.").wait_for(timeout=10000)
     # un glissement du doigt vers la droite referme l'écran ; un glissement trop court ne fait rien
     def glisser(dx):
         p.evaluate("""(dx) => {
@@ -421,7 +460,7 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
         if p.get_by_role("button", name="Terminer").count():
             break
         suivant.click(position={"x": 300, "y": 150})
-        for phase in ("Les points du jury", "Les points du public"):
+        for phase in ("Les points du public",):
             if phase not in vus and p.get_by_text(phase).count():
                 vus.add(phase)
                 p.wait_for_timeout(450)
@@ -439,7 +478,7 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
             assert p.get_by_role("list", name="Classement du groupe").locator("li").count() == len(PAYS)
             bas = p.get_by_role("list", name="Classement du groupe").locator("li").last.bounding_box()
             assert bas["y"] + bas["height"] <= p.viewport_size["height"]
-    assert vus == {"Les points du jury", "top", "Les points du public"}
+    assert vus == {"top", "Les points du public"}
     p.get_by_role("list", name="Podium").wait_for()
     p.wait_for_timeout(1800)                                     # le podium est monté, les cotillons tombent
     regie.verifier("paysage-13-podium")
@@ -460,6 +499,14 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     p.get_by_role("heading", name="Les commentaires").wait_for()
     assert p.get_by_text("Refrain entêtant").count() >= 1
     regie.verifier("pc-14-fiche")
+    # à l'impression : la bannière, le logo et le poster de la soirée, et les drapeaux en images (Windows n'a pas d'émoji)
+    p.emulate_media(media="print")
+    for nom in ("Bannière", "Logo", "Poster"):
+        assert p.get_by_alt_text(f"{nom} de l'évènement").evaluate("i => i.decode().then(() => i.naturalWidth > 0)")
+    assert p.locator("img.drapeau-image").count() >= len(PAYS)
+    if CAPTURES:
+        p.screenshot(path=f"{CAPTURES}/pc-14-fiche-impression.png", full_page=True)
+    p.emulate_media(media="screen")
     p.get_by_role("button", name="Saisir les vrais votes").click()
     for pays, jury, public in (("France", 120, 80), ("Suède", 90, 150), ("Italie", 60, 20)):
         p.get_by_label(f"{pays} : vrais points du jury").fill(str(jury))

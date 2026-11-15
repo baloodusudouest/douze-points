@@ -1,7 +1,7 @@
 <script>
   // Le dévoilement, joué sur le téléphone de l'hôte (en paysage, recopié sur la télé) à partir des points figés.
   // Toucher l'écran : pas suivant. Le pas est gardé côté serveur : après une coupure, on reprend où l'on était.
-  import { onMount } from 'svelte'
+  import { onMount, onDestroy } from 'svelte'
   import { flip } from 'svelte/animate'
   import { cubicInOut } from 'svelte/easing'
   import { fade, scale } from 'svelte/transition'
@@ -21,37 +21,28 @@
   const RETARD_TRI = 1300
   let hauteurEcran = $state(800)
 
-  // Les pas.
-  // « court » et « complet » : invité par invité, ses petits points d'un coup (court : 1 à 7), puis ses grands un par un.
-  // « jury » : comme au concours. D'abord les points du jury, chanson par chanson dans l'ordre de passage ;
-  // puis ceux du public, en partant de la dernière du classement du jury et en remontant jusqu'à la première.
+  // Les pas (1.0), les mêmes que sur les téléphones des invités (le serveur les fixe : d.marche) :
+  // tous les points du jury d'un coup, puis ceux du public chanson par chanson, de la moins servie à la mieux.
   let etapes = $derived.by(() => {
     if (!d) return []
+    const jures = new Set(d.marche.jures)
+    const parChanson = (jury) => {
+      const lot = Object.fromEntries(d.chansons.map((c) => [c.id, []]))
+      for (const inv of d.invites.filter((i) => jures.has(i.id) === jury))
+        for (const p of inv.points) lot[p.chanson].push({ ...p, prenom: inv.prenom })
+      return lot
+    }
+    const somme = (lot) => lot.reduce((t, p) => t + p.points, 0)
+    const jury = parChanson(true), publicc = parChanson(false)
     const sortie = []
-    if (d.mode === 'jury') {
-      const recus = (jury) => {
-        const parChanson = Object.fromEntries(d.chansons.map((c) => [c.id, []]))
-        for (const inv of d.invites.filter((i) => i.jury === jury))
-          for (const p of inv.points) parChanson[p.chanson].push({ ...p, prenom: inv.prenom })
-        return parChanson
-      }
-      const jury = recus(true), publicc = recus(false)
-      const somme = (lot) => lot.reduce((t, p) => t + p.points, 0)
-      for (const c of d.chansons)
-        sortie.push({ phase: 'jury', chanson: c.id, lot: jury[c.id], total: somme(jury[c.id]) })
-      const remontee = [...d.chansons].sort((x, y) => somme(jury[x.id]) - somme(jury[y.id]) || y.ordre - x.ordre)
-      // entre les deux : un écran pour le top 5 du jury
-      sortie.push({ phase: 'top', lot: [], top: remontee.slice(-5).reverse().map((c) => ({ chanson: c.id, points: somme(jury[c.id]) })) })
-      for (const c of remontee)
-        sortie.push({ phase: 'public', chanson: c.id, lot: publicc[c.id], total: somme(publicc[c.id]), avant: somme(jury[c.id]) })
-      return sortie
+    if (jures.size) {
+      const tous = Object.values(jury).flat()
+      const top = [...d.chansons].sort((x, y) => somme(jury[y.id]) - somme(jury[x.id]) || x.ordre - y.ordre)
+        .slice(0, 5).map((c) => ({ chanson: c.id, points: somme(jury[c.id]) }))
+      sortie.push({ phase: 'top', jury: true, lot: tous, top })
     }
-    for (const inv of d.invites) {
-      const seuil = d.mode === 'court' ? 8 : 0
-      const petits = inv.points.filter((p) => p.points < seuil)
-      if (petits.length) sortie.push({ invite: inv, lot: petits })
-      for (const p of inv.points.filter((x) => x.points >= seuil)) sortie.push({ invite: inv, lot: [p], annonce: p })
-    }
+    for (const id of d.marche.public)
+      sortie.push({ phase: 'public', chanson: id, lot: publicc[id], total: somme(publicc[id]), avant: somme(jury[id]) })
     return sortie
   })
   // pas 0 : l'attente ; pas 1 à N : les étapes ; pas N + 1 : le podium.
@@ -59,14 +50,14 @@
   let fini = $derived(!!d && pas >= fin)
   let courant = $derived(pas > 0 && !fini ? etapes[pas - 1] : null)
   let chansons = $derived(d ? Object.fromEntries(d.chansons.map((c) => [c.id, c])) : {})
-  let avecJury = $derived(d?.mode === 'jury')
+  let avecJury = $derived(!!d?.marche.jures.length)
 
   // Le tableau : pendant le jeu, les totaux des pas déjà joués ; à la fin, le classement du serveur (égalités départagées).
   // Points reçus jusqu'à un pas donné, séparés jury / public (en mode « jury puis public »)
   function cumul(jusque) {
     const jury = Object.fromEntries(d.chansons.map((c) => [c.id, 0]))
     const pub = Object.fromEntries(d.chansons.map((c) => [c.id, 0]))
-    for (const e of etapes.slice(0, jusque)) for (const p of e.lot) (e.phase === 'jury' ? jury : pub)[p.chanson] += p.points
+    for (const e of etapes.slice(0, jusque)) for (const p of e.lot) (e.jury ? jury : pub)[p.chanson] += p.points
     return { jury, pub }
   }
   let tableau = $derived.by(() => {
@@ -83,8 +74,8 @@
     return lignes.sort((a, b) => t(b.chanson) - t(a.chanson) || a.c.ordre - b.c.ordre)
   })
   let plus = $derived(Math.max(1, ...tableau.map((l) => l.total)))
-  let recu = $derived(new Set(courant ? (courant.phase ? [courant.chanson] : courant.lot.map((p) => p.chanson)) : []))
-  let teinte = $derived(courant?.phase === 'jury' ? 'jury' : 'public')
+  let recu = $derived(new Set(courant ? (courant.chanson ? [courant.chanson] : courant.lot.map((p) => p.chanson)) : []))
+  let teinte = $derived(courant?.jury ? 'jury' : 'public')
 
   // Cotillons du podium : une centaine de papiers, chacun avec sa place, sa couleur, sa durée et son retard.
   const COULEURS = ['#e5559f', '#f2ece2', '#a98fd8', '#7f9cc4', '#8fae6b', '#e0884a']
@@ -117,15 +108,28 @@
     } catch (e) { erreur = e.message }
   })
 
-  function aller(n) {
+  // Le pas est mené depuis le téléphone de l'hôte comme depuis cet écran : on relit celui du serveur chaque seconde,
+  // sauf juste après un geste fait ici (le temps que le serveur l'ait reçu).
+  let dernierGeste = 0
+  const suivi = setInterval(async () => {
+    if (!d || document.hidden || Date.now() - dernierGeste < 2500) return
+    try {
+      const lu = await api.get(`/api/soirees/${soiree}/devoilement`)
+      if (lu.etat === 'devoilement' && lu.pas !== pas) aller(lu.pas, false)
+    } catch { /* coupure passagère */ }
+  }, 1000)
+  onDestroy(() => clearInterval(suivi))
+
+  function aller(n, envoyer = true) {
     n = Math.max(0, Math.min(fin, n))
+    if (envoyer) dernierGeste = Date.now()
     clearTimeout(attenteTri)
     if (n === pas + 1 && n <= etapes.length) {
       // un pas en avant : les points s'ajoutent sur place, puis la ligne prend sa nouvelle place
       attenteTri = setTimeout(() => (pasTri = n), RETARD_TRI)
     } else pasTri = n               // retour, « Tout afficher » ou podium : tout de suite
     pas = n
-    api.post(`/api/soirees/${soiree}/pas`, { pas }).catch(() => {})   // une soirée déjà dévoilée ne garde plus le pas : sans importance
+    if (envoyer) api.post(`/api/soirees/${soiree}/pas`, { pas }).catch(() => {})   // une soirée déjà dévoilée ne garde plus le pas : sans importance
   }
   async function terminer() {
     try { await api.post(`/api/soirees/${soiree}/terminer`) } catch { /* déjà terminée : on rejoue une archive */ }
@@ -198,7 +202,7 @@
           {#key pas}
             {#if courant.phase === 'top'}
               <div class="w-full min-w-0" in:fade={{ duration: 250 }}>
-                <p class="text-lg font-light" style="color: var(--jury)">Le top 5 du jury</p>
+                <p class="text-lg font-light" style="color: var(--jury)">Les points du jury : le top 5</p>
                 <ol class="top mx-auto mt-3" aria-label="Top 5 du jury">
                   {#each courant.top as t, i (t.chanson)}
                     {@const c = chansons[t.chanson]}
@@ -211,7 +215,7 @@
                     </li>
                   {/each}
                 </ol>
-                <p class="mt-3 text-sm text-muted-foreground">Place maintenant aux points du public.</p>
+                <p class="mt-3 text-sm text-muted-foreground">Puis le public, chanson par chanson.</p>
               </div>
             {:else if courant.phase}
               {@const c = chansons[courant.chanson]}

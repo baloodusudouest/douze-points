@@ -117,3 +117,8 @@
   .ligne[aria-pressed="true"] { background: var(--primary); color: var(--primary-foreground); }
   .ligne[aria-pressed="true"] .text-muted-foreground { color: inherit; }
 }
+
+/* À l'impression (la fiche en PDF) : fond blanc, texte noir, quel que soit le thème sombre de l'écran */
+@media print {
+  html, body { background: #fff !important; color: #000; }
+}

@@ -30,7 +30,7 @@
   let forcer = $state(null)       // aperçu de ce que « forcer » ferait
   let fiche = $state(null)        // id d'une soirée dont on lit la fiche
   let aSupprimer = $state(null)   // soirée dont la suppression attend une confirmation
-  let mode = $state('court')
+  const mode = 'auto'          // 1.0 : jury puis public s'il y a les deux, sinon tout le monde ensemble
   let collage = $state('')
   let prenom = $state('')
   let propositions = $state([])   // personnes de carnet qui correspondent à ce qui est tapé
@@ -151,8 +151,6 @@
   const libelle = { attendu: 'Pas arrivé', en_cours: 'Note', envoye: 'Envoyé', ecarte: 'Écarté' }
   // « Jury puis public » n'est proposé que s'il y a au moins un membre du jury et un du public (Réglages › Invités)
   let avecJury = $derived(!!s && s.participants.some((p) => p.jury) && s.participants.some((p) => !p.jury))
-  let modeChoisi = false
-  $effect(() => { if (avecJury && !modeChoisi) { mode = 'jury'; modeChoisi = true } })
   let envoyes = $derived(s ? s.participants.filter((p) => p.etat === 'envoye').length : 0)
   let passees = $derived((soirees || []).filter((x) => x.etat === 'archivee'))
 </script>
@@ -300,11 +298,7 @@
       </ul>
 
       <div class="mt-5 flex flex-wrap items-center gap-3 border-t pt-4">
-        <fieldset class="mr-auto flex gap-2 text-sm" aria-label="Dévoilement">
-          {#if avecJury}<button class="pastille" aria-pressed={mode === 'jury'} onclick={() => (mode = 'jury')}>Jury puis public</button>{/if}
-          <button class="pastille" aria-pressed={mode === 'court'} onclick={() => (mode = 'court')}>Court : 8, 10 et 12</button>
-          <button class="pastille" aria-pressed={mode === 'complet'} onclick={() => (mode = 'complet')}>Complet</button>
-        </fieldset>
+        <p class="mr-auto max-w-md text-sm text-muted-foreground">Le dévoilement se joue sur le téléphone de chacun{avecJury ? ' : le jury d\'un coup, puis le public chanson par chanson' : ', chanson par chanson'}. Tu le mènes depuis ton téléphone ; cet écran suit, si tu veux aussi l'afficher.</p>
         {#if s.tous_envoye}
           <Button size="lg" onclick={() => devoiler(false)}>Dévoiler</Button>
         {:else}
