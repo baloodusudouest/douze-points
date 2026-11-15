@@ -4,6 +4,7 @@
   import { EMISSIONS } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Embleme from '$lib/Embleme.svelte'
+  import Scene from '$lib/Scene.svelte'
   let { soiree, onferme } = $props()
 
   const qr = `/api/soirees/${soiree.id}/qr.svg`
@@ -94,18 +95,21 @@
   }
 </script>
 
-<div class="fixed inset-0 z-30 grid bg-background p-[max(1.25rem,env(safe-area-inset-top))] landscape:items-center landscape:gap-8 portrait:content-center portrait:justify-items-center portrait:gap-6 {poster ? 'landscape:grid-cols-[auto_1fr_auto]' : 'landscape:grid-cols-[1fr_auto]'}">
-  {#if poster}<img src={poster} alt="Poster de l'évènement" class="rounded-xl object-contain portrait:hidden" style="max-height: 68vh; max-width: 28vw" />{/if}
+<div class="fixed inset-0 z-30 flex flex-col bg-background">
+  <!-- la scène : des projecteurs qui balaient doucement le « 12 », en continu -->
+  <div class="shrink-0" style="height: clamp(5rem, 27vh, 16rem)"><Scene /></div>
+<div class="grid min-h-0 flex-1 px-[max(1.25rem,env(safe-area-inset-left))] pb-14 landscape:items-center landscape:gap-8 portrait:content-center portrait:justify-items-center portrait:gap-5 {poster ? 'landscape:grid-cols-[auto_1fr_auto]' : 'landscape:grid-cols-[1fr_auto]'}">
+  {#if poster}<img src={poster} alt="Poster de l'évènement" class="rounded-xl object-contain portrait:hidden" style="max-height: 50vh; max-width: 24vw" />{/if}
   <div class="min-w-0 portrait:text-center">
-    <p style="font-size: clamp(5rem, 26vh, 14rem); line-height: 1" class="portrait:flex portrait:justify-center"><Embleme src={logo} /></p>
-    <h1 class="mt-2 font-light tracking-tight" style="font-size: clamp(1.6rem, 7vh, 4.2rem); line-height: 1.08">{soiree.nom}</h1>
+    {#if logo}<p style="font-size: clamp(2.5rem, 13vh, 8rem); line-height: 1" class="portrait:flex portrait:justify-center"><Embleme src={logo} /></p>{/if}
+    <h1 class="mt-2 font-light tracking-tight" style="font-size: clamp(1.5rem, 6.5vh, 4rem); line-height: 1.08">{soiree.nom}</h1>
     <p class="mt-3 text-muted-foreground" style="font-size: clamp(0.95rem, 3.2vh, 1.7rem)">
       {soiree.concours} {soiree.annee}, {EMISSIONS[soiree.emission].toLowerCase()}<br />
       Connecte-toi au Wi-Fi de la maison, puis scanne.
     </p>
   </div>
   {#if soiree.lien}
-    <img src={qr} alt="QR code du lien des invités" class="rounded-2xl" style="width: min(66vh, 78vw); height: auto" />
+    <img src={qr} alt="QR code du lien des invités" class="rounded-2xl" style="width: min(50vh, 70vw); height: auto" />
   {:else}
     <p class="max-w-xs rounded-2xl border p-5 text-sm">Aucune adresse n'est réglée dans la stack (DOUZE_POINTS_ADRESSE) : pas de QR code ni de lien.</p>
   {/if}
@@ -114,9 +118,12 @@
     {#if soiree.lien}
       <input bind:this={champLien} readonly value={soiree.lien} aria-label="Lien des invités" class="saisie w-56 text-xs" style="min-height: 2.25rem; font-size: 0.75rem" />
       <Button variant="outline" size="sm" onclick={copier}>Copier le lien</Button>
+      <!-- l'hôte note lui aussi : la même page que les invités, sur cet appareil -->
+      <a class="text-xs text-muted-foreground underline" href="/invite/{soiree.jeton_invite}">Passer à la notation</a>
       <Button variant="outline" size="sm" onclick={partager}>Partager l'image</Button>
     {/if}
     <Button variant="outline" size="sm" onclick={onferme}>Fermer</Button>
     {#if message}<p class="basis-full text-center text-xs text-muted-foreground" role="status">{message}</p>{/if}
   </div>
+</div>
 </div>

@@ -306,3 +306,10 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 - **Fiche de la soirée** (`GET /api/soirees/<id>/fiche`, `fiche.csv`) : disponible une fois le dévoilement lancé, jamais avant. Elle remplace la « synthèse » et le PDF côté serveur du § 2 : l'impression du navigateur fait le PDF. Restent à y ajouter : écarts et affinités.
 - **Vrais votes** (`PUT /api/soirees/<id>/officiel`) : points du vrai jury et du vrai public par chanson, saisis après coup (colonnes `chanson.officiel_jury`, `officiel_public`). Comparaison : même gagnant, chansons communes dans les trois premières, écart moyen de rang, pour l'ensemble, le jury et le public.
 - **Suppression d'une soirée** (`DELETE /api/soirees/<id>` avec confirmation) : tout ce qui lui appartient part, les invités restent ; sauvegarde de la base juste avant.
+
+## Ajouts de la 0.6.0 (15/11/2026, demandes de l'hôte)
+
+- **Démarrage en trois temps** : écran éteint (`pages/Lancement.svelte`, le « 12 » gris et le bouton), projecteurs (`lib/Ouverture.svelte` avec `toujours`), écran d'accueil. La soirée ne s'ouvre aux invités qu'au clic sur le bouton de l'écran éteint.
+- **Scène** (`lib/Scene.svelte`) : bannière animée en continu en haut de l'écran d'accueil ; le « 12 » n'est donc plus répété dans le texte (un logo déposé s'y affiche toujours).
+- **L'hôte et la notation** : lien « Passer à la notation » vers `/invite/<jeton>` ; la page des invités, quand elle est ouverte par un appareil connecté à la régie, lit `/api/soirees/<id>` pour montrer l'avancement de chacun. Aucune adresse nouvelle ; la porte invité ne change pas, et la régie ne rend toujours ni note ni commentaire avant le dévoilement.
+- **Fiche de notation** : trois boutons. « Précédente » et « Suivante » n'enregistrent que si la note ou le mot ont été modifiés.

@@ -195,7 +195,30 @@ def test_une_soiree_entiere(serveur, navigateur):
     assert t.locator("img[src*='/image/banniere']").evaluate("i => i.decode().then(() => i.naturalWidth > 0)")
     invite.verifier("tel-1-bientot")
 
-    p.get_by_role("button", name="Ouvrir la soirée").click()
+    # démarrer : le 12 éteint et son bouton, les projecteurs, puis l'écran d'accueil sous la scène
+    p.get_by_role("button", name="Démarrer la soirée").click()
+    p.get_by_role("button", name="Pas encore").wait_for()
+    regie.verifier("pc-4-eteint")
+    assert httpx.get(lien.replace("/invite/", "/invite/") + "/api/etat").json()["etat"] == "brouillon"     # rien n'est ouvert avant le bouton
+    p.get_by_role("button", name="Démarrer la soirée").click()
+    p.get_by_role("button", name="Passer l'ouverture").wait_for()
+    p.get_by_alt_text("QR code du lien des invités").wait_for(timeout=6000)      # l'accueil arrive seul, après l'animation
+    p.get_by_role("img", name="Douze points").first.wait_for()                    # la scène, en bannière
+    p.set_viewport_size(PAYSAGE)
+    p.wait_for_timeout(400)
+    regie.verifier("paysage-4-accueil-scene")
+    p.set_viewport_size(PC)
+    regie.verifier("pc-4-accueil-scene")
+    # l'hôte passe à la notation depuis l'accueil : même page que les invités, avec en plus l'avancement de chacun
+    p.get_by_role("link", name="Passer à la notation").click()
+    p.get_by_role("heading", name="Qui es-tu ?").wait_for()
+    p.get_by_role("button", name="Célestine").click()
+    p.get_by_role("button", name="Les invités").click()
+    p.get_by_role("list", name="Avancement des invités").wait_for()
+    p.get_by_text("0 classements envoyés sur 4").wait_for()
+    p.get_by_text("0 / 14 notées").first.wait_for()               # Célestine vient d'arriver, rien de noté
+    regie.verifier("pc-4-hote-invites")
+    p.get_by_role("link", name="Retour à la régie").click()
     p.get_by_text("classements envoyés").wait_for()
     regie.verifier("pc-4-soiree-ouverte")
 
@@ -214,7 +237,13 @@ def test_une_soiree_entiere(serveur, navigateur):
             invite.verifier("tel-4-notation")
         t.get_by_role("button", name="Suivante").click()
     t.get_by_role("heading", name="Ukraine").wait_for()
+    # ouverte sans rien toucher : « Précédente » revient à l'Italie et à sa note, sans noter l'Ukraine
+    t.get_by_role("button", name="Précédente").click()
+    t.get_by_role("heading", name="Italie").wait_for()
+    assert t.get_by_label("Note sur 20").input_value() == "17"
+    invite.verifier("tel-4-precedente")
     t.get_by_role("button", name="Retour à la liste").click()
+    assert t.get_by_role("button", name="Ukraine").get_by_text("Noter").count() == 1
     t.get_by_role("button", name="Mon classement", exact=True).click()
     t.get_by_text("Italie").wait_for()
     lignes = t.locator("ol li")
@@ -235,7 +264,8 @@ def test_une_soiree_entiere(serveur, navigateur):
     # ---------------- les deux autres passent par l'adresse des invités, sans écran
     jeton = lien.rsplit("/", 1)[1]
     etat = httpx.get(f"{serveur}/invite/{jeton}/api/etat").json()
-    for k, autre in enumerate(g for g in etat["invites"] if g["prenom"] != "Aglaé"):
+    # (Aglaé a noté à l'écran ; Célestine, prise par l'hôte, ne note rien et sera écartée)
+    for k, autre in enumerate(g for g in etat["invites"] if not g["pris"]):
         tel = {"X-Telephone": httpx.post(f"{serveur}/invite/{jeton}/api/prenom", json={"participation_id": autre["id"]}).json()["jeton_telephone"]}
         for i, c in enumerate(etat["chansons"]):
             httpx.put(f"{serveur}/invite/{jeton}/api/note", headers=tel,

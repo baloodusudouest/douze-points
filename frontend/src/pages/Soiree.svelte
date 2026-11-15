@@ -9,6 +9,8 @@
   import Devoilement from './Devoilement.svelte'
   import Images from './Images.svelte'
   import Fiche from './Fiche.svelte'
+  import Lancement from './Lancement.svelte'
+  import Ouverture from '$lib/Ouverture.svelte'
   let { ondeconnecte } = $props()
 
   let soirees = $state(null)      // toutes, la plus récente d'abord
@@ -17,6 +19,7 @@
   let concours = $state([])       // la liste réglée dans Réglages
   let erreur = $state('')
   let accueil = $state(false)
+  let lancement = $state('')      // '' | 'eteint' (le 12 gris et le bouton) | 'projecteurs' (l'animation)
   let rejouer = $state(null)      // id d'une soirée dont on (re)joue le dévoilement
   let forcer = $state(null)       // aperçu de ce que « forcer » ferait
   let fiche = $state(null)        // id d'une soirée dont on lit la fiche
@@ -99,7 +102,12 @@
       await lire()
     })
   }
-  const ouvrir = () => essayer(async () => { await api.post(`/api/soirees/${s.id}/ouvrir`); await lire() })
+  // Démarrer la soirée : elle s'ouvre aux invités, les projecteurs s'allument, puis vient l'écran d'accueil.
+  const demarrer = () => essayer(async () => {
+    await api.post(`/api/soirees/${s.id}/ouvrir`)
+    lancement = 'projecteurs'
+    await lire()
+  })
   const enCours = (id) => essayer(async () => { await api.post(`/api/soirees/${s.id}/chanson-en-cours`, { chanson_id: id }); await lire() })
   const liberer = (p) => essayer(async () => { await api.post(`/api/soirees/${s.id}/liberer`, { participation_id: p.id }); await lire() })
   const voirForcer = () => essayer(async () => { forcer = await api.get(`/api/soirees/${s.id}/forcer`) })
@@ -131,6 +139,10 @@
   <Devoilement soiree={rejouer} onferme={() => { rejouer = null; lire() }} />
 {:else if fiche}
   <Fiche soiree={fiche} onferme={() => (fiche = null)} />
+{:else if lancement === 'eteint' && s}
+  <Lancement soiree={s} ondemarre={demarrer} onferme={() => { lancement = ''; erreur = '' }} {erreur} />
+{:else if lancement === 'projecteurs'}
+  <Ouverture toujours onfin={() => { lancement = ''; accueil = true }} />
 {:else if accueil && s}
   <Accueil soiree={s} onferme={() => (accueil = false)} />
 {:else}
@@ -219,10 +231,10 @@
     <section class="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-5">
       <div class="mr-auto">
         <h2 class="text-lg font-semibold">Prêt ?</h2>
-        <p class="text-sm text-muted-foreground">Le lien des invités existe déjà : tu peux l'envoyer avant d'ouvrir. Une fois la soirée ouverte, la liste ne change plus.</p>
+        <p class="text-sm text-muted-foreground">Le lien des invités existe déjà : tu peux l'envoyer avant de démarrer. Une fois la soirée démarrée, la liste ne change plus.</p>
       </div>
       <Button variant="outline" onclick={() => (accueil = true)}>Écran d'accueil</Button>
-      <Button size="lg" onclick={ouvrir} disabled={!s.chansons.length || !s.participants.length}>Ouvrir la soirée</Button>
+      <Button size="lg" onclick={() => (lancement = 'eteint')} disabled={!s.chansons.length || !s.participants.length}>Démarrer la soirée</Button>
     </section>
 
   {:else if s.etat === 'ouverte'}

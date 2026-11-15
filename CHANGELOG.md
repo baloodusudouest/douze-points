@@ -1,5 +1,12 @@
 # Journal des versions
 
+## 0.6.0 — 15/11/2026
+
+- **Démarrer la soirée** (à la place d'« Ouvrir ») : d'abord un écran dans le noir, le « 12 » éteint et un bouton ; au clic, la soirée s'ouvre aux invités, les projecteurs s'allument sur le « 12 », puis vient l'écran d'accueil avec le QR code.
+- **Scène en bannière** en haut de l'écran d'accueil : une rampe de cinq projecteurs dont les faisceaux balaient doucement le « 12 », sans s'arrêter (fixes si l'appareil demande moins d'animations).
+- **« Passer à la notation »**, à côté de « Copier le lien » : l'hôte note sur la même page que ses invités. Connecté à la régie, son onglet « Les invités » lui montre en plus combien de chansons chacun a notées et qui a envoyé, sans aucune note ni commentaire, et un lien de retour à la régie.
+- **Notation : Précédente, Enregistrer, Suivante.** Changer de chanson enregistre ce qui a été modifié ; une chanson ouverte sans rien toucher n'est plus notée par mégarde.
+
 ## 0.5.0 — 15/11/2026
 
 - **Invités choisis dans carnet** : en tapant le début d'un prénom ou d'un nom, carnet propose ses fiches (carnet 2.22.1, adresse `/douze-points/personnes`, jeton `DOUZE_POINTS_CARNET_JETON`). Douze points ne garde que le prénom (avec l'initiale du nom si le prénom est déjà pris). Sans carnet, ou s'il ne répond pas, on ajoute à la main comme avant. Nouvel écran **Connexion** avec la tuile carnet et « Vérifier ».

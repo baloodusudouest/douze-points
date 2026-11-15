@@ -29,6 +29,22 @@
   let occupe = 0                   // demandes en cours : la relecture n'écrase pas ce qu'on est en train de faire
   let glisse = $state(null)        // { id, depart, y } pendant un glisser
   let minuterie
+  let touche = $state(false)       // la note ou le mot de la fiche ouverte ont été modifiés
+  let regie = $state(null)         // pour l'hôte connecté à la régie : où en est chacun (jamais les notes)
+  let estHote = false
+
+  // L'hôte note sur la même page que ses invités. S'il est connecté à la régie sur cet appareil, l'onglet
+  // « Les invités » lui montre en plus combien de chansons chacun a notées. Ni notes ni commentaires : surprise.
+  async function lireRegie() {
+    try {
+      const soirees = await (await fetch('/api/soirees', { credentials: 'same-origin' })).json()
+      for (const x of soirees.filter((y) => y.etat === 'ouverte')) {
+        const d = await (await fetch('/api/soirees/' + x.id, { credentials: 'same-origin' })).json()
+        if (d.jeton_invite === jeton) { regie = d; return }
+      }
+      regie = null
+    } catch { regie = null }
+  }
 
   async function appel(methode, suite, corps) {
     const r = await fetch(`/invite/${jeton}/api/${suite}`, {
@@ -68,7 +84,14 @@
     }
   }
 
-  onMount(() => { lire(); minuterie = setInterval(lire, 3000) })
+  onMount(async () => {
+    lire()
+    minuterie = setInterval(() => { lire(); if (estHote && onglet === 'invites' && !document.hidden) lireRegie() }, 3000)
+    try {
+      estHote = (await (await fetch('/api/session', { credentials: 'same-origin' })).json()).connecte === true
+      if (estHote) lireRegie()
+    } catch { estHote = false }
+  })
   onDestroy(() => clearInterval(minuterie))
 
   async function choisir(p) {
@@ -92,19 +115,25 @@
     fiche = c
     valeur = notes[c.id]?.valeur ?? 10
     commentaire = notes[c.id]?.commentaire ?? ''
+    touche = false
   }
-  async function enregistrer(suivante) {
+  // « Enregistrer » enregistre et revient à la liste. « Précédente » et « Suivante » changent de chanson, en
+  // enregistrant d'abord ce qui a été modifié ; une chanson ouverte sans rien toucher n'est pas notée par mégarde.
+  async function enregistrer(pas = 0) {
     const c = fiche
-    await ecrire('PUT', 'note', { chanson_id: c.id, valeur, commentaire })
-    if (erreur) return
-    const apres = suivante && chansons[chansons.findIndex((x) => x.id === c.id) + 1]
-    if (apres) ouvrir(apres); else fiche = null
+    if (pas === 0 || touche) {
+      await ecrire('PUT', 'note', { chanson_id: c.id, valeur, commentaire })
+      if (erreur) return
+    }
+    const voisine = pas && chansons[chansons.findIndex((x) => x.id === c.id) + pas]
+    if (voisine) ouvrir(voisine); else fiche = null
   }
+  let rangFiche = $derived(fiche ? chansons.findIndex((x) => x.id === fiche.id) : -1)
   async function retirer() {
     await ecrire('PUT', 'note', { chanson_id: fiche.id, valeur: null })
     fiche = null
   }
-  const pas = (d) => (valeur = Math.max(0, Math.min(20, Math.round((valeur + d) * 2) / 2)))
+  const pas = (d) => { valeur = Math.max(0, Math.min(20, Math.round((valeur + d) * 2) / 2)); touche = true }
 
   // ---- classement : flèches, ou glisser par la poignée
   const HAUTEUR = 56
@@ -249,6 +278,23 @@
         {/if}
 
       {:else}
+        {#if regie}
+          <!-- vue de l'hôte : où en est chacun, sans aucune note -->
+          <p class="mb-3 flex items-center justify-between gap-3 text-sm">
+            <span class="text-muted-foreground">{regie.participants.filter((p) => p.etat === 'envoye').length} classements envoyés sur {regie.participants.length}</span>
+            <a class="underline" href="/">Retour à la régie</a>
+          </p>
+          <ul class="mb-4 grid gap-2" aria-label="Avancement des invités">
+            {#each regie.participants as p (p.id)}
+              <li class="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
+                <span class="size-2.5 rounded-full {p.etat === 'envoye' ? 'bg-primary' : p.etat === 'en_cours' ? 'bg-foreground/50' : 'border border-muted-foreground'}"></span>
+                <span class="font-medium">{p.prenom}</span>
+                {#if p.jury}<span class="rounded-full border px-2 text-xs text-muted-foreground">jury</span>{/if}
+                <span class="ml-auto text-sm text-muted-foreground">{p.etat === 'envoye' ? 'A envoyé' : p.etat === 'attendu' ? 'Pas arrivé' : `${p.notees} / ${chansons.length} notées`}</span>
+              </li>
+            {/each}
+          </ul>
+        {:else}
         <ul class="grid gap-2">
           {#each e.invites as p (p.id)}
             <li class="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
@@ -258,6 +304,7 @@
             </li>
           {/each}
         </ul>
+        {/if}
       {/if}
 
       <!-- Bas d'écran : l'envoi, puis les trois onglets -->
@@ -271,7 +318,7 @@
           {/if}
           <nav class="mt-2 grid grid-cols-3 gap-1" aria-label="Sections">
             {#each [['chansons', `Chansons ${nbNotees}/${chansons.length}`], ['classement', 'Mon classement'], ['invites', 'Les invités']] as [cle, nom]}
-              <button class="onglet" aria-current={onglet === cle ? 'page' : undefined} onclick={() => (onglet = cle)}>{nom}</button>
+              <button class="onglet" aria-current={onglet === cle ? 'page' : undefined} onclick={() => { onglet = cle; if (cle === 'invites' && estHote) lireRegie() }}>{nom}</button>
             {/each}
           </nav>
         </div>
@@ -291,19 +338,23 @@
       <p class="chiffre text-primary" style="font-size: 7.5rem" aria-live="polite">{note(valeur)}<span class="text-3xl text-muted-foreground"> /20</span></p>
       <div class="mt-4 flex items-center gap-3">
         <button class="demi" aria-label="Un demi-point de moins" onclick={() => pas(-0.5)}>−</button>
-        <input type="range" min="0" max="20" step="0.5" bind:value={valeur} aria-label="Note sur 20" class="curseur flex-1" />
+        <input type="range" min="0" max="20" step="0.5" bind:value={valeur} oninput={() => (touche = true)} aria-label="Note sur 20" class="curseur flex-1" />
         <button class="demi" aria-label="Un demi-point de plus" onclick={() => pas(0.5)}>+</button>
       </div>
     </div>
 
     <label class="champ">Un mot sur cette chanson (facultatif, signé de ton prénom au dévoilement)
-      <textarea bind:value={commentaire} rows="2" maxlength="280"></textarea>
+      <textarea bind:value={commentaire} oninput={() => (touche = true)} rows="2" maxlength="280"></textarea>
     </label>
     {#if erreur}<p class="mt-2 text-sm text-destructive" role="alert">{erreur}</p>{/if}
-    <div class="mt-4 flex items-center gap-2">
-      {#if notes[fiche.id]}<button class="mr-auto text-sm text-muted-foreground underline" onclick={retirer}>Retirer ma note</button>{/if}
-      <Button class="ml-auto" variant="outline" size="lg" onclick={() => enregistrer(false)}>Enregistrer</Button>
-      <Button size="lg" onclick={() => enregistrer(true)}>Suivante</Button>
+    <p class="mt-2 flex min-h-5 items-center text-xs text-muted-foreground">
+      {#if notes[fiche.id]}<button class="underline" onclick={retirer}>Retirer ma note</button>
+      {:else if !touche}Pas encore notée : bouge le curseur, ou passe à une autre chanson.{/if}
+    </p>
+    <div class="mt-2 grid grid-cols-3 gap-2">
+      <Button variant="outline" size="lg" onclick={() => enregistrer(-1)} disabled={rangFiche <= 0}>Précédente</Button>
+      <Button size="lg" onclick={() => enregistrer(0)}>Enregistrer</Button>
+      <Button variant="outline" size="lg" onclick={() => enregistrer(1)} disabled={rangFiche >= chansons.length - 1}>Suivante</Button>
     </div>
   </div>
 {/if}

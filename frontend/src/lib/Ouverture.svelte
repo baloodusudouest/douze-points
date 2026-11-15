@@ -4,21 +4,34 @@
   // un toucher la passe. Si l'appareil demande moins d'animations, elle n'est pas jouée du tout.
   import { onMount } from 'svelte'
 
+  // `toujours` : jouée à chaque fois (le démarrage d'une soirée), et non une fois par session.
+  // `onfin` : appelé quand elle s'efface, qu'elle ait été jouée, passée d'un toucher ou sautée.
+  let { toujours = false, onfin = () => {} } = $props()
+
   const CLE = 'douze-points:ouverture'
   let visible = $state(false)
+  let fin
+
+  function finir() {
+    clearTimeout(fin)
+    visible = false
+    onfin()
+  }
 
   onMount(() => {
     let deja = false
-    try { deja = sessionStorage.getItem(CLE) === '1'; sessionStorage.setItem(CLE, '1') } catch { /* stockage fermé : on la joue */ }
-    if (deja || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    if (!toujours) {
+      try { deja = sessionStorage.getItem(CLE) === '1'; sessionStorage.setItem(CLE, '1') } catch { /* stockage fermé : on la joue */ }
+    }
+    if (deja || matchMedia('(prefers-reduced-motion: reduce)').matches) { onfin(); return }
     visible = true
-    const fin = setTimeout(() => (visible = false), 2600)
+    fin = setTimeout(finir, 2600)
     return () => clearTimeout(fin)
   })
 </script>
 
 {#if visible}
-  <button class="ouverture" aria-label="Passer l'ouverture" onclick={() => (visible = false)}>
+  <button class="ouverture" aria-label="Passer l'ouverture" onclick={finir}>
     <span class="halo"></span>
     <svg viewBox="0 0 400 400" aria-hidden="true">
       <defs>
