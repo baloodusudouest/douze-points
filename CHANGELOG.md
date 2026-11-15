@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.10.0 — 15/11/2026
+
+- **Top 5 du jury** : dans le dévoilement « jury puis public », un écran entre les deux phases montre les cinq meilleurs du jury, du cinquième au premier, avant de passer aux points du public.
+
 ## 0.9.2 — 15/11/2026
 
 - **Notation : deux boutons** en bas, « Retour à la liste » et « Suivante » en violet (« Terminer » sur la dernière chanson). Le lien « Retour à la liste » du haut et les boutons Précédente / Enregistrer sont retirés. Les deux boutons enregistrent ce qui a été modifié ; une chanson ouverte sans rien toucher n'est pas notée.

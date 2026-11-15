@@ -415,7 +415,13 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
                 if phase == "Les points du public":
                     p.wait_for_timeout(1300)                 # l'addition est faite, la ligne a pris sa place
                     regie.verifier("paysage-12-public-apres")
-    assert vus == {"Les points du jury", "Les points du public"}
+        if "top" not in vus and p.get_by_role("list", name="Top 5 du jury").count():
+            vus.add("top")
+            assert "Les points du public" not in vus                   # entre le jury et le public
+            assert p.get_by_role("list", name="Top 5 du jury").locator("li").count() == 5
+            p.wait_for_timeout(2600)
+            regie.verifier("paysage-12-top5-jury")
+    assert vus == {"Les points du jury", "top", "Les points du public"}
     p.get_by_role("list", name="Podium").wait_for()
     p.wait_for_timeout(1800)                                     # le podium est monté, les cotillons tombent
     regie.verifier("paysage-13-podium")

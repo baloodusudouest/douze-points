@@ -40,6 +40,8 @@
       for (const c of d.chansons)
         sortie.push({ phase: 'jury', chanson: c.id, lot: jury[c.id], total: somme(jury[c.id]) })
       const remontee = [...d.chansons].sort((x, y) => somme(jury[x.id]) - somme(jury[y.id]) || y.ordre - x.ordre)
+      // entre les deux : un écran pour le top 5 du jury
+      sortie.push({ phase: 'top', lot: [], top: remontee.slice(-5).reverse().map((c) => ({ chanson: c.id, points: somme(jury[c.id]) })) })
       for (const c of remontee)
         sortie.push({ phase: 'public', chanson: c.id, lot: publicc[c.id], total: somme(publicc[c.id]), avant: somme(jury[c.id]) })
       return sortie
@@ -180,7 +182,24 @@
           <p class="mt-1 text-sm text-muted-foreground">{podium[0].c.artiste}{podium[0].c.titre ? ', ' + podium[0].c.titre : ''}</p>
         {:else}
           {#key pas}
-            {#if courant.phase}
+            {#if courant.phase === 'top'}
+              <div class="w-full min-w-0" in:fade={{ duration: 250 }}>
+                <p class="text-lg font-light" style="color: var(--jury)">Le top 5 du jury</p>
+                <ol class="top mx-auto mt-3" aria-label="Top 5 du jury">
+                  {#each courant.top as t, i (t.chanson)}
+                    {@const c = chansons[t.chanson]}
+                    <!-- du cinquième au premier, l'un après l'autre -->
+                    <li class:premier={i === 0} style="animation-delay: {(courant.top.length - 1 - i) * 0.45}s">
+                      <span class="chiffre rang">{i + 1}</span>
+                      <span class="shrink-0">{drapeau(c.pays, c.code_pays)}</span>
+                      <span class="min-w-0 flex-1 truncate text-left">{c.pays}</span>
+                      <span class="chiffre points">{t.points}</span>
+                    </li>
+                  {/each}
+                </ol>
+                <p class="mt-3 text-sm text-muted-foreground">Place maintenant aux points du public.</p>
+              </div>
+            {:else if courant.phase}
               {@const c = chansons[courant.chanson]}
               <div class="w-full min-w-0" in:fade={{ duration: 200 }}>
                 <p class="text-lg font-light" style="color: var(--{courant.phase})">{courant.phase === 'jury' ? 'Les points du jury' : 'Les points du public'}</p>
@@ -258,6 +277,15 @@
   .addition .arrive { animation: arriver 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both; }
   @keyframes arriver { from { opacity: 0; transform: translateY(-2vh) scale(1.3); } to { opacity: 1; transform: none; } }
 
+  .top { display: grid; max-width: 26rem; gap: 0.4rem; }
+  .top li { display: flex; align-items: center; gap: 0.7rem; border-radius: 0.6rem; padding: 0.35rem 0.8rem; font-size: clamp(1rem, 4.6vh, 1.6rem);
+    background: color-mix(in oklab, var(--jury) 14%, var(--background)); animation: entrer-top 0.55s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  .top li.premier { background: color-mix(in oklab, var(--jury) 38%, var(--background)); box-shadow: inset 4px 0 0 var(--jury); }
+  .top .rang { width: 1.4rem; text-align: right; color: var(--muted-foreground); }
+  .top .points { color: var(--jury); }
+  .top li.premier .points { color: #fff; }
+  @keyframes entrer-top { from { opacity: 0; transform: translateX(3rem); } to { opacity: 1; transform: none; } }
+
   .commande { min-height: 2.75rem; border-radius: 999px; border: 1px solid var(--border); background: var(--background); padding: 0 1rem; color: var(--muted-foreground); }
   .commande.plein { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
 
@@ -281,6 +309,6 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .cotillons { display: none; }
-    .marche, .addition .arrive { animation: none; }
+    .marche, .addition .arrive, .top li { animation: none; }
   }
 </style>
