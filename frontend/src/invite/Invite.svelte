@@ -117,11 +117,11 @@
     commentaire = notes[c.id]?.commentaire ?? ''
     touche = false
   }
-  // « Enregistrer » enregistre et revient à la liste. « Précédente » et « Suivante » changent de chanson, en
-  // enregistrant d'abord ce qui a été modifié ; une chanson ouverte sans rien toucher n'est pas notée par mégarde.
+  // « Retour à la liste » et « Suivante » enregistrent d'abord ce qui a été modifié ; une chanson ouverte sans
+  // rien toucher n'est pas notée par mégarde. Sur la dernière chanson, « Suivante » devient « Terminer ».
   async function enregistrer(pas = 0) {
     const c = fiche
-    if (pas === 0 || touche) {
+    if (touche) {
       await ecrire('PUT', 'note', { chanson_id: c.id, valeur, commentaire })
       if (erreur) return
     }
@@ -333,8 +333,7 @@
 
 {#if fiche}
   <div class="fixed inset-0 z-20 flex flex-col bg-background px-5 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(1rem+env(safe-area-inset-bottom))]" role="dialog" aria-label="Noter {fiche.pays}">
-    <button class="self-start text-sm text-muted-foreground underline" onclick={() => (fiche = null)}>Retour à la liste</button>
-    <p class="mt-4 text-sm text-muted-foreground">Chanson {fiche.ordre} sur {chansons.length}</p>
+    <p class="text-sm text-muted-foreground">Chanson {fiche.ordre} sur {chansons.length}</p>
     <h2 class="text-3xl font-light tracking-tight">{drapeau(fiche.pays, fiche.code_pays)} {fiche.pays}</h2>
     <p class="text-muted-foreground">{fiche.artiste}{fiche.titre ? ', ' + fiche.titre : ''}</p>
 
@@ -355,10 +354,9 @@
       {#if notes[fiche.id]}<button class="underline" onclick={retirer}>Retirer ma note</button>
       {:else if !touche}Pas encore notée : bouge le curseur, ou passe à une autre chanson.{/if}
     </p>
-    <div class="mt-2 grid grid-cols-3 gap-2">
-      <Button variant="outline" size="lg" onclick={() => enregistrer(-1)} disabled={rangFiche <= 0}>Précédente</Button>
-      <Button size="lg" onclick={() => enregistrer(0)}>Enregistrer</Button>
-      <Button variant="outline" size="lg" onclick={() => enregistrer(1)} disabled={rangFiche >= chansons.length - 1}>Suivante</Button>
+    <div class="mt-2 grid grid-cols-2 gap-2">
+      <Button variant="outline" size="lg" onclick={() => enregistrer(0)}>Retour à la liste</Button>
+      <button class="suivante" onclick={() => enregistrer(1)}>{rangFiche >= chansons.length - 1 ? 'Terminer' : 'Suivante'}</button>
     </div>
   </div>
 {/if}
@@ -391,4 +389,7 @@
   .onglet[aria-current="page"] { background: var(--secondary); color: var(--foreground); }
   .demi { width: 3.25rem; height: 3.25rem; border-radius: 999px; border: 1px solid var(--border); font-size: 1.6rem; font-weight: 300; }
   .curseur { height: 3rem; accent-color: var(--primary); }
+  .suivante { min-height: 2.75rem; border-radius: 0.6rem; background: #8f6ad8; color: #fff; font-size: 1rem; font-weight: 500; }
+  .suivante:active { transform: translateY(1px); }
+  .suivante:focus-visible { outline: 3px solid color-mix(in oklab, #8f6ad8 50%, transparent); outline-offset: 2px; }
 </style>

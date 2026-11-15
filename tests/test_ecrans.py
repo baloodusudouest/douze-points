@@ -272,13 +272,13 @@ def test_une_soiree_entiere(serveur, navigateur):
             invite.verifier("tel-4-notation")
         t.get_by_role("button", name="Suivante").click()
     t.get_by_role("heading", name="Ukraine").wait_for()
-    # ouverte sans rien toucher : « Précédente » revient à l'Italie et à sa note, sans noter l'Ukraine
-    t.get_by_role("button", name="Précédente").click()
-    t.get_by_role("heading", name="Italie").wait_for()
-    assert t.get_by_label("Note sur 20").input_value() == "17"
-    invite.verifier("tel-4-precedente")
+    # ouverte sans rien toucher : « Retour à la liste » ne note pas l'Ukraine ; l'Italie garde sa note
+    invite.verifier("tel-4-notation-boutons")
     t.get_by_role("button", name="Retour à la liste").click()
     assert t.get_by_role("button", name="Ukraine").get_by_text("Noter").count() == 1
+    t.get_by_role("button", name="Italie").click()
+    assert t.get_by_label("Note sur 20").input_value() == "17"
+    t.get_by_role("button", name="Retour à la liste").click()
     # le gros bouton des chansons mène au classement ; celui du classement l'envoie
     assert t.get_by_role("button", name="Envoyer mon classement").count() == 0
     t.get_by_text("12 chansons pas encore notées").wait_for()

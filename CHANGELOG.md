@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.9.2 — 15/11/2026
+
+- **Notation : deux boutons** en bas, « Retour à la liste » et « Suivante » en violet (« Terminer » sur la dernière chanson). Le lien « Retour à la liste » du haut et les boutons Précédente / Enregistrer sont retirés. Les deux boutons enregistrent ce qui a été modifié ; une chanson ouverte sans rien toucher n'est pas notée.
+
 ## 0.9.1 — 15/11/2026
 
 - **Le gros bouton des invités suit les étapes** : dans Chansons, « Passer au classement » (en plein quand tout est noté, sinon avec le nombre de chansons qui restent) ; dans Mon classement, « Envoyer mon classement ».
