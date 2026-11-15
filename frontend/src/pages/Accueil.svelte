@@ -3,6 +3,7 @@
   // recopié sur la télé, et pour partir en image dans une conversation (avec le lien).
   import { EMISSIONS } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
+  import Logo from '$lib/Logo.svelte'
   let { soiree, onferme } = $props()
 
   const qr = `/api/soirees/${soiree.id}/qr.svg`
@@ -16,8 +17,14 @@
     g.fillStyle = '#151311'; g.fillRect(0, 0, L, H)
     await document.fonts.ready
     const police = getComputedStyle(document.body).fontFamily
-    g.fillStyle = '#e5559f'; g.font = `300 300px ${police}`; g.textBaseline = 'alphabetic'
-    g.fillText('12', 110, 360)
+    // le logo : le « 12 » sous un projecteur (mêmes tracés que lib/Logo.svelte, à l'échelle 3)
+    g.save(); g.translate(110, 70); g.scale(3, 3)
+    const faisceau = g.createLinearGradient(0, -14, 0, 98)
+    faisceau.addColorStop(0, 'rgba(229,85,159,0.6)'); faisceau.addColorStop(1, 'rgba(229,85,159,0.04)')
+    g.fillStyle = faisceau; g.fill(new Path2D('M52 -14h16l46 112H6z'))
+    g.strokeStyle = '#f2ece2'; g.lineWidth = 6; g.lineCap = 'round'; g.lineJoin = 'round'
+    g.stroke(new Path2D('M28 34l15-11v60')); g.stroke(new Path2D('M62 38c0-9.5 7-16 16-16s16 6.5 16 15.5c0 7.5-4.5 12.5-12.5 20L62 82h33'))
+    g.restore(); g.textBaseline = 'alphabetic'
     g.fillStyle = '#f2ece2'; g.font = `300 84px ${police}`
     lignes(g, soiree.nom, 820).forEach((l, i) => g.fillText(l, 120, 500 + i * 96))
     g.fillStyle = '#a89e91'; g.font = `400 40px ${police}`
@@ -69,7 +76,7 @@
 
 <div class="fixed inset-0 z-30 grid bg-background p-[max(1.25rem,env(safe-area-inset-top))] landscape:grid-cols-[1fr_auto] landscape:items-center landscape:gap-8 portrait:content-center portrait:justify-items-center portrait:gap-6">
   <div class="min-w-0 portrait:text-center">
-    <p class="chiffre text-primary" style="font-size: clamp(4.5rem, 22vh, 13rem)" aria-hidden="true">12</p>
+    <p style="font-size: clamp(5rem, 26vh, 14rem); line-height: 1" class="portrait:flex portrait:justify-center"><Logo /></p>
     <h1 class="mt-2 font-light tracking-tight" style="font-size: clamp(1.6rem, 7vh, 4.2rem); line-height: 1.08">{soiree.nom}</h1>
     <p class="mt-3 text-muted-foreground" style="font-size: clamp(0.95rem, 3.2vh, 1.7rem)">
       {soiree.concours} {soiree.annee}, {EMISSIONS[soiree.emission].toLowerCase()}<br />

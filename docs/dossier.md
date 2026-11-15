@@ -283,6 +283,6 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 - **Deux entrées dans la régie**, Soirée et Réglages (le § 3 en prévoyait cinq) : les invités se gèrent dans la préparation de la soirée, les soirées passées sous l'écran Soirée. Pas d'écran Connexion tant que la notification Home Assistant n'existe pas.
 - **Dévoilement** : les commandes (Revenir, Tout afficher, Fermer) sont en haut à droite, pour ne recouvrir ni le commentaire ni le podium sur un iPhone en paysage. En portrait, l'écran demande de tourner le téléphone.
 - **Affiche à partager** : dessinée dans le navigateur (pas de PNG fabriqué par le serveur). En http, « Partager l'image » enregistre l'image et « Copier le lien » sélectionne le lien quand le presse-papiers est fermé aux pages.
-- **Logo** : le « 12 » de l'appli. Le dépôt d'une image par soirée n'est pas fait.
+- **Logo** (0.2.1) : le « 12 » sous un projecteur, dessin propre à l'appli (`frontend/src/lib/Logo.svelte`, `frontend/public/icone.svg`). Le logo d'un concours n'y entre pas, même stylisé : ce sont des marques déposées. Le dépôt d'une image par soirée n'est pas fait.
 - **Drapeaux** : déduits du nom du pays en français (table dans `frontend/src/lib/pays.js`) ; un pays inconnu de la table n'a pas de drapeau.
 - **Ordre du dévoilement** : tiré au sort ; il ne se modifie pas encore.

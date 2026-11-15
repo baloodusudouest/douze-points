@@ -8,6 +8,7 @@
   import Grip from '@lucide/svelte/icons/grip-vertical'
   import { drapeau, EMISSIONS, BAREME, note } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
+  import Logo from '$lib/Logo.svelte'
   let { jeton } = $props()
 
   const CLE = 'douze-points:' + jeton
@@ -142,12 +143,12 @@
 <main class="mx-auto min-h-dvh max-w-lg px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
   {#if ferme}
     <div class="grid min-h-[80dvh] place-items-center text-center">
-      <div><p class="chiffre text-7xl text-primary">12</p><p class="mt-4 text-lg">Cette soirée est terminée.</p><p class="text-sm text-muted-foreground">Le lien n'est plus valable.</p></div>
+      <div><p class="flex justify-center text-8xl"><Logo /></p><p class="mt-4 text-lg">Cette soirée est terminée.</p><p class="text-sm text-muted-foreground">Le lien n'est plus valable.</p></div>
     </div>
 
   {:else if !e}
     <div class="grid min-h-[80dvh] place-items-center text-center">
-      <div><p class="chiffre text-7xl text-primary">12</p><p class="mt-4 text-sm text-muted-foreground" role="status">{erreur || 'Ouverture…'}</p></div>
+      <div><p class="flex justify-center text-8xl"><Logo /></p><p class="mt-4 text-sm text-muted-foreground" role="status">{erreur || 'Ouverture…'}</p></div>
     </div>
 
   {:else}
@@ -158,11 +159,11 @@
     {#if erreur}<p class="mb-3 rounded-xl border border-destructive/60 px-4 py-2 text-sm" role="alert">{erreur}</p>{/if}
 
     {#if e.etat === 'brouillon'}
-      <div class="mt-16 text-center"><p class="chiffre text-8xl text-primary">12</p><p class="mt-6 text-xl font-light">Ça commence bientôt.</p>
+      <div class="mt-16 text-center"><p class="flex justify-center text-8xl"><Logo /></p><p class="mt-6 text-xl font-light">Ça commence bientôt.</p>
         <p class="mt-2 text-sm text-muted-foreground">Garde cette page : elle s'ouvrira toute seule quand la soirée commencera.</p></div>
 
     {:else if e.etat === 'devoilement'}
-      <div class="mt-16 text-center"><p class="chiffre text-8xl text-primary">12</p><p class="mt-6 text-xl font-light">Regarde la télé.</p>
+      <div class="mt-16 text-center"><p class="flex justify-center text-8xl"><Logo /></p><p class="mt-6 text-xl font-light">Regarde la télé.</p>
         <p class="mt-2 text-sm text-muted-foreground">Les résultats arrivent ici dès que le dévoilement est fini.</p></div>
 
     {:else if e.etat === 'devoilee'}

@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.2.1 — 15/11/2026
+
+- Logo : le « 12 » sous un projecteur (icône de l'appli, écran d'accueil, affiche à partager, départ du dévoilement, écrans d'attente des invités).
+
 ## 0.2.0 — 15/11/2026
 
 - Régie : créer une soirée, coller la liste des chansons, choisir et ajouter les invités, écran d'accueil (« 12 », nom de l'évènement, QR code), copier le lien, partager l'affiche en image, ouvrir la soirée, suivre qui a envoyé, libérer un prénom, tenir la chanson en cours, forcer, archiver, rejouer une soirée passée.

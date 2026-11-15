@@ -6,6 +6,7 @@
   import { fade, scale } from 'svelte/transition'
   import { api } from '$lib/api.js'
   import { drapeau, note } from '$lib/pays.js'
+  import Logo from '$lib/Logo.svelte'
   let { soiree, onferme } = $props()
 
   let d = $state(null)
@@ -89,7 +90,7 @@
 
       <div class="grid content-center justify-items-center overflow-hidden pt-10 text-center portrait:hidden">
         {#if pas === 0}
-          <p class="chiffre text-primary" style="font-size: 26vh">12</p>
+          <p style="font-size: 30vh; line-height: 1"><Logo /></p>
           <p class="mt-2 text-2xl font-light">Le classement de la soirée</p>
           <p class="mt-3 text-muted-foreground">{d.invites.length} classements. Touche l'écran pour commencer.</p>
         {:else if fini}
