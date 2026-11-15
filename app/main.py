@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import hmac
+import io
 import json
 import random
 import secrets
@@ -16,10 +17,9 @@ import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import datetime
-from pathlib import Path
-
+import segno
 from fastapi import Body, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, Response
 
 from . import __version__
 from .auth import COMMUN, DUREE, Sessions
@@ -267,6 +267,19 @@ def soiree_lire(soiree_id: int):
                 "forcee": bool(s["forcee"]), "chansons": _chansons(cx, soiree_id), "participants": gens,
                 "tous_envoye": bool(attendus) and all(g["etat"] == "envoye" for g in attendus),
                 "lien": f"{cfg().adresse}/invite/{s['jeton_invite']}" if cfg().adresse else ""}
+
+
+@app.get("/api/soirees/{soiree_id}/qr.svg")
+def qr(soiree_id: int):
+    """Le QR code du lien des invités, pour l'écran d'accueil. Clair sur fond sombre, bord compris."""
+    with base(cfg().data) as cx:
+        s = _soiree(cx, soiree_id)
+    if not cfg().adresse:
+        raise HTTPException(409, "Aucune adresse n'est réglée dans la stack (DOUZE_POINTS_ADRESSE).")
+    tampon = io.BytesIO()
+    segno.make(f"{cfg().adresse}/invite/{s['jeton_invite']}", error="m").save(
+        tampon, kind="svg", scale=10, border=3, dark="#151311", light="#f2ece2", xmldecl=False)
+    return Response(tampon.getvalue(), media_type="image/svg+xml")
 
 
 def lire_collage(texte: str) -> list[dict]:

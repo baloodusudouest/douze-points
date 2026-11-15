@@ -1,13 +1,13 @@
 <script>
   // Régie de Douze points. Navigation commune aux applis maison : rail à gauche sur PC,
-  // pilule d'icônes en bas sur iPhone. Les écrans des invités (/invite/<jeton>) arrivent à l'étape suivante.
+  // pilule d'icônes en bas sur iPhone. Les écrans des invités sont dans src/invite (voir main.js).
   import { onMount } from 'svelte'
   import { fly } from 'svelte/transition'
   import Mic from '@lucide/svelte/icons/mic-vocal'
   import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal'
   import { api } from '$lib/api.js'
   import Connexion from './pages/Connexion.svelte'
-  import Soirees from './pages/Soirees.svelte'
+  import Soiree from './pages/Soiree.svelte'
   import Reglages from './pages/Reglages.svelte'
 
   const onglets = [
@@ -80,7 +80,7 @@
           {#if page === 'reglages'}
             <Reglages {session} {deconnecter} />
           {:else}
-            <Soirees ondeconnecte={() => (connecte = false)} />
+            <Soiree ondeconnecte={() => (connecte = false)} />
           {/if}
         </div>
       {/key}

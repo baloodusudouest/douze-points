@@ -1,32 +1,31 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 15/11/2026, version 0.1.0.
+À lire en premier. Mis à jour le 15/11/2026, version 0.2.0.
 
 ## Où on en est
 
 - Dossier v0.3 (`docs/dossier.md`, avec les décisions prises en codant en fin de fichier), conseil passé (`docs/conseil.md`).
-- **Serveur écrit et testé** (`app/`) : soirées, liste des chansons (saisie ou collage), invités, porte invité (prénom, notes, classement, envoi), forcer, gel des points au barème 12-10-8…1, données du dévoilement, `/health`.
-- **Interface : presque rien.** Copie du socle renommée (couleur, icône, connexion, réglages) et une page qui liste les soirées. Aucun écran pour préparer une soirée, noter ou dévoiler.
-- **Jamais essayé sur la vraie installation.** L'appli n'est pas dans la stack.
+- **Une soirée se joue de bout en bout** : préparer, écran d'accueil et QR code, ouvrir, noter et classer sur les téléphones, envoyer, forcer, dévoiler en paysage, résultats sur les téléphones, archiver, rejouer.
+- **Jamais essayé sur la vraie installation**, ni sur un vrai iPhone : tout a été vu dans le navigateur des tests (PC, 390 × 844, 844 × 390). Le glisser au doigt, la recopie d'écran et le partage de l'image depuis Safari en http restent à constater.
+- L'appli n'est pas encore dans la stack.
 
 ## Où est quoi
 
 - `app/points.py` : le calcul seul (classement d'un invité, barème, départage du groupe).
 - `app/base.py` : schéma SQLite, sauvegarde.
 - `app/main.py` : la régie sous `/api/…` (mot de passe commun), la porte invité sous `/invite/<jeton>/api/…` (en-tête `X-Telephone` : le jeton personnel du téléphone).
+- `frontend/src/pages/` : la régie (`Soiree`, `Accueil`, `Devoilement`) ; `frontend/src/invite/Invite.svelte` : le téléphone des invités ; `main.js` choisit selon l'adresse.
+- `tests/test_ecrans.py` : une soirée entière dans un navigateur (`CAPTURES=/un/dossier` garde des captures).
 - `tests/test_secret.py` : avant la fin du dévoilement, la porte invité ne rend rien des autres. **Toute nouvelle adresse sous `/invite/` doit y être ajoutée**, sinon le test échoue.
 
 ## Prochaine étape
 
-Les écrans, dans cet ordre (plan du dossier, § 6) :
+1. Entrée dans la stack (port 8088), Atlas, tuile de l'Anneau, puis premier essai sur place.
+2. Synthèse de la soirée (écarts et affinités), vrai résultat, grille papier de secours.
+3. Soirée d'essai avec de vrais invités.
+4. Notification par Home Assistant (master doc à relire et compléter), puis PDF.
 
-1. régie : préparer une soirée (liste, invités), écran d'accueil avec QR code, partage ;
-2. invité : prénom, notation, classement à glisser, envoi ;
-3. régie : états en direct, forcer, dévoilement (court, complet, « Tout afficher »).
-
-Puis synthèse, vrai résultat, grille papier ; soirée d'essai ; notification Home Assistant ; PDF ; entrée dans la stack (port 8088), Atlas, tuile de l'Anneau.
-
-Restent à écrire côté serveur : l'affiche (QR code et image à partager), la synthèse (écarts et affinités), le vrai résultat, la notification, le PDF.
+Petits manques connus : ordre du dévoilement non modifiable ; pas d'image de logo par soirée ; pas de correction d'un libellé de chanson à l'écran après l'ouverture (l'adresse existe côté serveur) ; pas de retrait d'un invité de la liste à l'écran.
 
 ## Essais à faire sur place avant la première soirée
 

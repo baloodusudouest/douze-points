@@ -173,3 +173,10 @@ def test_journal_sans_prenom(client, soiree):
     client.post(f"/api/soirees/{soiree.id}/liberer", json={"participation_id": soiree.part["Aglaé"]})
     texte = client.get("/api/journal").text
     assert "prenom_libere" in texte and not any(p in texte for p in PRENOMS)
+
+
+def test_qr_code_du_lien(client, soiree):
+    r = client.get(f"/api/soirees/{soiree.id}/qr.svg")
+    assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg") and b"<svg" in r.content
+    client.cookies.clear()
+    assert client.get(f"/api/soirees/{soiree.id}/qr.svg").status_code == 401
