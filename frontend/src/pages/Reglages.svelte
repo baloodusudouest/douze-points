@@ -6,10 +6,18 @@
   let { session, deconnecter } = $props()
 
   let concours = $state([])
+  let invites = $state([])
   let nom = $state('')
   let erreur = $state('')
 
-  async function lire() { concours = (await api.get('/api/concours')).filter((c) => c.actif) }
+  async function lire() {
+    concours = (await api.get('/api/concours')).filter((c) => c.actif)
+    invites = (await api.get('/api/invites')).filter((i) => i.actif)
+  }
+  async function regler(invite, corps) {
+    erreur = ''
+    try { await api.put('/api/invites/' + invite.id, corps); await lire() } catch (x) { erreur = x.message }
+  }
   onMount(() => lire().catch((e) => (erreur = e.message)))
 
   async function ajouter(e) {
@@ -48,6 +56,25 @@
     <input class="saisie flex-1" bind:value={nom} placeholder="Nom du concours" maxlength="60" aria-label="Nom d'un nouveau concours" required />
     <Button type="submit">Ajouter</Button>
   </form>
+</section>
+
+<section class="mt-4 rounded-2xl border bg-card p-5">
+  <h2 class="text-lg font-semibold">Invités : jury ou public</h2>
+  <p class="mt-1 text-sm text-muted-foreground">Coche les membres du jury ; les autres sont le public. Au dévoilement « jury puis public », les points du jury arrivent d'abord, chanson par chanson, puis ceux du public en partant du bas du classement. Tous les points comptent pareil.</p>
+  {#if invites.length}
+    <ul class="mt-3 grid gap-2 sm:grid-cols-2" aria-label="Invités">
+      {#each invites as i (i.id)}
+        <li class="flex items-center gap-2 rounded-xl border px-3 py-2">
+          <span class="mr-auto font-medium">{i.prenom}</span>
+          <button class="pastille" aria-pressed={i.jury} aria-label="{i.prenom} : jury" onclick={() => regler(i, { jury: true })}>Jury</button>
+          <button class="pastille" aria-pressed={!i.jury} aria-label="{i.prenom} : public" onclick={() => regler(i, { jury: false })}>Public</button>
+          <Button variant="outline" size="sm" onclick={() => regler(i, { actif: false })} aria-label="Retirer {i.prenom} de la liste">Retirer</Button>
+        </li>
+      {/each}
+    </ul>
+  {:else}
+    <p class="mt-3 text-sm text-muted-foreground">Aucun invité pour l'instant : ils s'ajoutent en préparant une soirée.</p>
+  {/if}
 </section>
 
 <section class="mt-4 rounded-2xl border bg-card p-5">

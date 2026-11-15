@@ -196,3 +196,24 @@ def test_titre_fabrique_avec_la_ville(client):
     autre = client.post("/api/soirees", json={"concours": "Eurovision", "annee": 2027, "emission": "finale",
                                               "ville": "Burgas", "nom": "La grande finale"}).json()["id"]
     assert client.get(f"/api/soirees/{autre}").json()["nom"] == "La grande finale"
+
+
+def test_jury_puis_public(client, soiree):
+    ids = {i["prenom"]: i["id"] for i in client.get("/api/invites").json()}
+    soiree.tout_le_monde()
+    # sans jury désigné : le mode est refusé, et rien n'est lancé
+    assert client.post(f"/api/soirees/{soiree.id}/devoiler", json={"mode": "jury"}).status_code == 409
+    for prenom in ("Aglaé", "Barnabé"):
+        assert client.put(f"/api/invites/{ids[prenom]}", json={"jury": True}).status_code == 200
+    assert {i["prenom"] for i in client.get("/api/invites").json() if i["jury"]} == {"Aglaé", "Barnabé"}
+    assert {g["prenom"] for g in client.get(f"/api/soirees/{soiree.id}").json()["participants"] if g["jury"]} == {"Aglaé", "Barnabé"}
+    assert client.post(f"/api/soirees/{soiree.id}/devoiler", json={"mode": "jury"}).status_code == 200
+    d = client.get(f"/api/soirees/{soiree.id}/devoilement").json()
+    assert d["mode"] == "jury" and {i["prenom"] for i in d["invites"] if i["jury"]} == {"Aglaé", "Barnabé"}
+    # le rôle est figé au dévoilement : changer le réglage ensuite ne change pas cette soirée
+    client.put(f"/api/invites/{ids['Aglaé']}", json={"jury": False})
+    apres = client.get(f"/api/soirees/{soiree.id}/devoilement").json()
+    assert {i["prenom"] for i in apres["invites"] if i["jury"]} == {"Aglaé", "Barnabé"}
+    # le total du groupe reste la somme de tous les points, jury et public confondus
+    total = sum(p["points"] for i in d["invites"] for p in i["points"])
+    assert sum(l["total"] for l in d["classement"]) == total

@@ -5,14 +5,17 @@
   import { fly } from 'svelte/transition'
   import Mic from '@lucide/svelte/icons/mic-vocal'
   import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal'
+  import Plug from '@lucide/svelte/icons/plug'
   import { api } from '$lib/api.js'
   import Ouverture from '$lib/Ouverture.svelte'
   import Connexion from './pages/Connexion.svelte'
   import Soiree from './pages/Soiree.svelte'
   import Reglages from './pages/Reglages.svelte'
+  import Services from './pages/Services.svelte'
 
   const onglets = [
     { page: 'soiree', nom: 'Soirée', icone: Mic },
+    { page: 'connexion', nom: 'Connexion', icone: Plug },
     { page: 'reglages', nom: 'Réglages', icone: SlidersHorizontal },
   ]
 
@@ -82,6 +85,8 @@
         <div in:fly={{ y: 6, duration: 180 }}>
           {#if page === 'reglages'}
             <Reglages {session} {deconnecter} />
+          {:else if page === 'connexion'}
+            <Services />
           {:else}
             <Soiree ondeconnecte={() => (connecte = false)} />
           {/if}

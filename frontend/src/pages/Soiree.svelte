@@ -8,6 +8,7 @@
   import Accueil from './Accueil.svelte'
   import Devoilement from './Devoilement.svelte'
   import Images from './Images.svelte'
+  import Fiche from './Fiche.svelte'
   let { ondeconnecte } = $props()
 
   let soirees = $state(null)      // toutes, la plus récente d'abord
@@ -18,9 +19,35 @@
   let accueil = $state(false)
   let rejouer = $state(null)      // id d'une soirée dont on (re)joue le dévoilement
   let forcer = $state(null)       // aperçu de ce que « forcer » ferait
+  let fiche = $state(null)        // id d'une soirée dont on lit la fiche
+  let aSupprimer = $state(null)   // soirée dont la suppression attend une confirmation
   let mode = $state('court')
   let collage = $state('')
   let prenom = $state('')
+  let propositions = $state([])   // personnes de carnet qui correspondent à ce qui est tapé
+  let attente
+
+  // En tapant : carnet propose les personnes dont le prénom ou le nom commence ainsi (si carnet est relié).
+  function taper() {
+    clearTimeout(attente)
+    const saisie = prenom.trim()
+    if (saisie.length < 2) { propositions = []; return }
+    attente = setTimeout(async () => {
+      try {
+        const r = await api.get('/api/carnet/personnes?q=' + encodeURIComponent(saisie))
+        if (prenom.trim() === saisie) propositions = r.personnes
+      } catch { propositions = [] }      // carnet muet : on ajoute à la main, sans message
+    }, 200)
+  }
+  async function choisir(personne) {
+    await essayer(async () => {
+      const { id } = await api.post('/api/invites', { carnet_id: personne.carnet_id })
+      const voulus = [...new Set([...invites.filter((i) => attendus().has(i.prenom)).map((i) => i.id), id])]
+      await api.put(`/api/soirees/${s.id}/attendus`, { invites: voulus })
+      prenom = ''; propositions = []
+      await lire()
+    })
+  }
   let nouvelle = $state({ concours: 'Eurovision', annee: new Date().getFullYear(), emission: 'finale', ville: '' })
   // Le titre se fabrique tout seul (concours, ville, année, émission) tant que l'hôte n'écrit pas le sien.
   let titreEcrit = $state(null)
@@ -68,7 +95,7 @@
       const { id } = await api.post('/api/invites', { prenom })
       const voulus = [...invites.filter((i) => attendus().has(i.prenom)).map((i) => i.id), id]
       await api.put(`/api/soirees/${s.id}/attendus`, { invites: voulus })
-      prenom = ''
+      prenom = ''; propositions = []
       await lire()
     })
   }
@@ -82,15 +109,28 @@
     rejouer = s.id
     await lire()
   })
+  const supprimer = () => essayer(async () => {
+    const r = await fetch('/api/soirees/' + aSupprimer.id, { method: 'DELETE', credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ confirmation: true }) })
+    if (!r.ok) throw new Error((await r.json().catch(() => null))?.detail || "La soirée n'a pas pu être supprimée.")
+    aSupprimer = null
+    await lire()
+  })
   const archiver = () => essayer(async () => { await api.post(`/api/soirees/${s.id}/archiver`); await lire() })
 
   const libelle = { attendu: 'Pas arrivé', en_cours: 'Note', envoye: 'Envoyé', ecarte: 'Écarté' }
+  // « Jury puis public » n'est proposé que s'il y a au moins un membre du jury et un du public (Réglages › Invités)
+  let avecJury = $derived(!!s && s.participants.some((p) => p.jury) && s.participants.some((p) => !p.jury))
+  let modeChoisi = false
+  $effect(() => { if (avecJury && !modeChoisi) { mode = 'jury'; modeChoisi = true } })
   let envoyes = $derived(s ? s.participants.filter((p) => p.etat === 'envoye').length : 0)
   let passees = $derived((soirees || []).filter((x) => x.etat === 'archivee'))
 </script>
 
 {#if rejouer}
   <Devoilement soiree={rejouer} onferme={() => { rejouer = null; lire() }} />
+{:else if fiche}
+  <Fiche soiree={fiche} onferme={() => (fiche = null)} />
 {:else if accueil && s}
   <Accueil soiree={s} onferme={() => (accueil = false)} />
 {:else}
@@ -160,9 +200,16 @@
           {/each}
         </ul>
         <form class="mt-4 flex gap-2" onsubmit={ajouter}>
-          <input class="saisie flex-1" bind:value={prenom} placeholder="Prénom" maxlength="40" aria-label="Prénom d'un nouvel invité" required />
+          <input class="saisie flex-1" bind:value={prenom} oninput={taper} placeholder="Prénom ou nom" maxlength="40" aria-label="Prénom d'un nouvel invité" autocomplete="off" required />
           <Button type="submit" variant="outline">Ajouter</Button>
         </form>
+        {#if propositions.length}
+          <ul class="mt-2 grid gap-1" aria-label="Personnes de carnet">
+            {#each propositions as p (p.carnet_id)}
+              <li><button class="ligne border" onclick={() => choisir(p)}>{p.nom}</button></li>
+            {/each}
+          </ul>
+        {/if}
         <p class="mt-2 text-xs text-muted-foreground">Tu notes aussi : ajoute ton prénom.</p>
       </section>
     </div>
@@ -192,6 +239,7 @@
           <li class="flex items-center gap-3 rounded-xl border px-3 py-2">
             <span class="size-2.5 rounded-full {p.etat === 'envoye' ? 'bg-primary' : p.etat === 'en_cours' ? 'bg-foreground/50' : 'border border-muted-foreground'}"></span>
             <span class="font-medium">{p.prenom}</span>
+            {#if p.jury}<span class="rounded-full border px-2 text-xs text-muted-foreground">jury</span>{/if}
             <span class="mr-auto text-sm text-muted-foreground">{libelle[p.etat]}{p.etat === 'en_cours' ? ` ${p.notees} / ${s.chansons.length}` : ''}</span>
             {#if p.pris}<button class="text-xs text-muted-foreground underline" onclick={() => liberer(p)} title="Téléphone changé ou mauvais prénom : les notes sont gardées">Libérer</button>{/if}
           </li>
@@ -200,6 +248,7 @@
 
       <div class="mt-5 flex flex-wrap items-center gap-3 border-t pt-4">
         <fieldset class="mr-auto flex gap-2 text-sm" aria-label="Dévoilement">
+          {#if avecJury}<button class="pastille" aria-pressed={mode === 'jury'} onclick={() => (mode = 'jury')}>Jury puis public</button>{/if}
           <button class="pastille" aria-pressed={mode === 'court'} onclick={() => (mode = 'court')}>Court : 8, 10 et 12</button>
           <button class="pastille" aria-pressed={mode === 'complet'} onclick={() => (mode = 'complet')}>Complet</button>
         </fieldset>
@@ -247,9 +296,21 @@
         <h2 class="text-lg font-semibold">Soirée dévoilée</h2>
         <p class="text-sm text-muted-foreground">Les invités voient les résultats sur leur téléphone. Archiver ferme leur lien et permet de préparer la soirée suivante.</p>
       </div>
+      <Button variant="outline" onclick={() => (fiche = s.id)}>Fiche de la soirée</Button>
       <Button variant="outline" onclick={() => (rejouer = s.id)}>Rejouer le dévoilement</Button>
       <Button onclick={archiver}>Archiver</Button>
     </section>
+  {/if}
+
+  {#if s && !aSupprimer}
+    <p class="mt-6 text-right"><button class="text-sm text-muted-foreground underline" onclick={() => (aSupprimer = s)}>Supprimer cette soirée</button></p>
+  {/if}
+  {#if aSupprimer}
+    <div class="mt-4 rounded-xl border border-destructive/60 p-4 text-sm" role="alertdialog" aria-label="Supprimer la soirée">
+      <p class="font-medium">Supprimer « {aSupprimer.nom} » ?</p>
+      <p class="mt-1 text-muted-foreground">Ses chansons, ses notes, ses commentaires, ses classements et ses images disparaissent, et le lien des invités ne répond plus. Les invités restent dans la liste. Une copie de la base est gardée dans les sauvegardes.</p>
+      <div class="mt-3 flex gap-2"><Button variant="destructive" onclick={supprimer}>Supprimer la soirée</Button><Button variant="outline" onclick={() => (aSupprimer = null)}>Garder</Button></div>
+    </div>
   {/if}
 
   {#if passees.length}
@@ -257,9 +318,11 @@
       <h2 class="text-lg font-semibold">Soirées passées</h2>
       <ul class="mt-3 grid gap-2 sm:grid-cols-2">
         {#each passees as p (p.id)}
-          <li class="flex items-center gap-3 rounded-xl border bg-card px-4 py-3">
-            <span class="mr-auto"><span class="font-medium">{p.nom}</span><br /><span class="text-sm text-muted-foreground">{p.concours} {p.annee}, {EMISSIONS[p.emission].toLowerCase()}</span></span>
-            <Button variant="outline" onclick={() => (rejouer = p.id)}>Rejouer</Button>
+          <li class="flex flex-wrap items-center gap-2 rounded-xl border bg-card px-4 py-3">
+            <span class="mr-auto min-w-0 basis-full sm:basis-auto"><span class="font-medium">{p.nom}</span><br /><span class="text-sm text-muted-foreground">{p.concours} {p.annee}, {EMISSIONS[p.emission].toLowerCase()}</span></span>
+            <Button variant="outline" size="sm" onclick={() => (fiche = p.id)} aria-label="Fiche : {p.nom}">Fiche</Button>
+            <Button variant="outline" size="sm" onclick={() => (rejouer = p.id)} aria-label="Rejouer : {p.nom}">Rejouer</Button>
+            <Button variant="outline" size="sm" onclick={() => (aSupprimer = p)} aria-label="Supprimer : {p.nom}">Supprimer</Button>
           </li>
         {/each}
       </ul>

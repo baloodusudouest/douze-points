@@ -10,6 +10,16 @@
   ]
   let erreur = $state('')
   let envoi = $state('')
+  let survol = $state('')         // la case au-dessus de laquelle on tient une image
+
+  // Glisser-déposer : une image lâchée sur une case y est déposée (sur PC ; sur téléphone, le bouton suffit).
+  function lacher(e, sorte) {
+    e.preventDefault()
+    survol = ''
+    const fichier = [...(e.dataTransfer?.files || [])].find((f) => f.type.startsWith('image/'))
+    if (fichier) deposer(sorte, fichier)
+    else erreur = "Ce qui a été déposé n'est pas une image."
+  }
 
   async function deposer(sorte, fichier) {
     if (!fichier) return
@@ -31,17 +41,18 @@
 
 <section class="mt-4 rounded-2xl border bg-card p-5">
   <h2 class="text-lg font-semibold">Images de l'évènement</h2>
-  <p class="text-sm text-muted-foreground">Facultatif. PNG, JPEG ou WebP, 6 Mo au plus. Sans logo, c'est le « 12 » de l'appli.</p>
+  <p class="text-sm text-muted-foreground">Facultatif. Glisse une image sur une case, ou choisis-la. PNG, JPEG ou WebP, 6 Mo au plus. Sans logo, c'est le « 12 » de l'appli.</p>
   {#if erreur}<p class="mt-2 text-sm text-destructive" role="alert">{erreur}</p>{/if}
   <ul class="mt-4 grid gap-3 sm:grid-cols-3">
     {#each sortes as s (s.cle)}
-      <li class="flex flex-col gap-2 rounded-xl border p-3">
+      <li class="case flex flex-col gap-2 rounded-xl border p-3" class:survol={survol === s.cle} aria-label="{s.nom} : déposer une image ici"
+        ondragover={(e) => { e.preventDefault(); survol = s.cle }} ondragleave={() => (survol = '')} ondrop={(e) => lacher(e, s.cle)}>
         <p class="font-medium">{s.nom}</p>
         <div class="grid h-28 place-items-center overflow-hidden rounded-lg bg-background">
           {#if soiree.images[s.cle]}
             <img src="/api/soirees/{soiree.id}/image/{s.cle}?v={soiree.images[s.cle]}" alt="{s.nom} de l'évènement" class="max-h-28 max-w-full object-contain" />
           {:else}
-            <span class="text-sm text-muted-foreground">Aucune image</span>
+            <span class="text-sm text-muted-foreground">{survol === s.cle ? 'Lâche l\'image ici' : 'Glisse une image ici'}</span>
           {/if}
         </div>
         <p class="text-xs text-muted-foreground">{s.ou}</p>
@@ -61,4 +72,5 @@
 <style>
   .depot { display: inline-flex; min-height: 2rem; cursor: pointer; align-items: center; border-radius: 0.6rem; border: 1px solid var(--border); padding: 0 0.75rem; font-size: 0.85rem; font-weight: 500; }
   .depot:focus-within { border-color: var(--ring); }
+  .case.survol { border-color: var(--primary); background: color-mix(in oklab, var(--primary) 10%, transparent); }
 </style>

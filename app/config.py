@@ -18,6 +18,8 @@ class Config:
     adresse: str = ""                # adresse de l'appli vue par les téléphones des invités (QR code, lien)
     ha_webhook: str = ""             # adresse de Home Assistant appelée quand tous ont envoyé ; vide : rien
     limite_invite: int = 240         # demandes par minute et par téléphone sur la porte invité
+    carnet_url: str = ""             # carnet vu depuis le conteneur ; avec le jeton : invités choisis en tapant leur nom
+    carnet_jeton: str = ""           # même valeur que CARNET_JETON_DOUZE_POINTS côté carnet ; vide : carnet n'est pas lu
 
 
 def charger() -> Config:
@@ -31,4 +33,6 @@ def charger() -> Config:
         static=Path(__file__).parent / "static",
         adresse=os.environ.get("DOUZE_POINTS_ADRESSE", "").strip().rstrip("/"),
         ha_webhook=os.environ.get("DOUZE_POINTS_HA_WEBHOOK", "").strip(),
+        carnet_url=os.environ.get("DOUZE_POINTS_CARNET_URL", "").strip().rstrip("/"),
+        carnet_jeton=os.environ.get("DOUZE_POINTS_CARNET_JETON", "").strip(),
     )

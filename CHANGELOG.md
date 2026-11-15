@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 0.5.0 — 15/11/2026
+
+- **Invités choisis dans carnet** : en tapant le début d'un prénom ou d'un nom, carnet propose ses fiches (carnet 2.22.1, adresse `/douze-points/personnes`, jeton `DOUZE_POINTS_CARNET_JETON`). Douze points ne garde que le prénom (avec l'initiale du nom si le prénom est déjà pris). Sans carnet, ou s'il ne répond pas, on ajoute à la main comme avant. Nouvel écran **Connexion** avec la tuile carnet et « Vérifier ».
+- **Jury et public** : Réglages › Invités dit qui est du jury ; les autres sont le public. Nouveau dévoilement **« Jury puis public »**, comme au concours : les points du jury chanson par chanson dans l'ordre de passage, puis ceux du public en remontant depuis la dernière du classement du jury. Tous les points comptent pareil ; le rôle de chacun est figé au lancement.
+- **Podium** des trois premières à la fin de tout dévoilement, avec des cotillons.
+- **Fiche de la soirée** : classement du groupe, du jury et du public, notes et points de chacun, commentaires ; elle s'imprime (ou s'enregistre en PDF) et se télécharge en tableau (CSV). On y saisit plus tard les **vrais votes** du jury et du public : la fiche compare alors notre soirée au concours.
+- **Supprimer une soirée** (une soirée d'essai, par exemple), après confirmation ; la base est sauvegardée juste avant.
+- **Images** : glisser-déposer d'une image sur sa case.
+
 ## 0.4.0 — 15/11/2026
 
 - Réglages › Concours : ajouter un concours à la liste proposée à la création d'une soirée, en retirer un (les soirées déjà faites gardent son nom ; il en reste toujours au moins un). La liste part avec Eurovision et Eurovision Asia.

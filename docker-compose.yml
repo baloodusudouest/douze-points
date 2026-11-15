@@ -12,6 +12,8 @@ services:
       - DOUZE_POINTS_PASSWORD=${APPS_PASSWORD}                   # mot de passe commun des applis maison, obligatoire
       - DOUZE_POINTS_ADRESSE=${DOUZE_POINTS_ADRESSE:-}           # adresse vue par les téléphones des invités (QR code, lien)
       - DOUZE_POINTS_HA_WEBHOOK=${DOUZE_POINTS_HA_WEBHOOK:-}     # appelé quand tous ont envoyé ; vide : pas de notification
+      - DOUZE_POINTS_CARNET_URL=http://carnet:8096               # carnet vu depuis le conteneur (même stack)
+      - DOUZE_POINTS_CARNET_JETON=${DOUZE_POINTS_CARNET_JETON:-} # même valeur que CARNET_JETON_DOUZE_POINTS côté carnet ; vide : carnet pas lu
     volumes:
       - ${DOUZE_POINTS_DATA_DIR}:/data                           # douze-points.db, sauvegardes/
     labels:

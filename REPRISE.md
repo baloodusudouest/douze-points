@@ -1,6 +1,6 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 15/11/2026, version 0.4.0.
+À lire en premier. Mis à jour le 15/11/2026, version 0.5.0.
 
 ## Où on en est
 
@@ -16,16 +16,20 @@
 - `app/main.py` : la régie sous `/api/…` (mot de passe commun), la porte invité sous `/invite/<jeton>/api/…` (en-tête `X-Telephone` : le jeton personnel du téléphone).
 - `frontend/src/pages/` : la régie (`Soiree`, `Accueil`, `Devoilement`) ; `frontend/src/invite/Invite.svelte` : le téléphone des invités ; `main.js` choisit selon l'adresse.
 - `tests/test_ecrans.py` : une soirée entière dans un navigateur (`CAPTURES=/un/dossier` garde des captures).
+- `app/carnet.py` : lecture de carnet (prénoms et noms), remplacée par un faux dans les tests.
+- `frontend/src/pages/Fiche.svelte` : la fiche de la soirée ; `Services.svelte` : l'écran Connexion.
 - `tests/test_secret.py` : avant la fin du dévoilement, la porte invité ne rend rien des autres. **Toute nouvelle adresse sous `/invite/` doit y être ajoutée**, sinon le test échoue.
 
 ## Prochaine étape
 
-1. Déploiement sur le NAS, puis premier essai sur place (voir les essais plus bas).
-2. Synthèse de la soirée (écarts et affinités), vrai résultat, grille papier de secours.
-3. Soirée d'essai avec de vrais invités.
-4. Notification par Home Assistant (master doc à relire et compléter), puis PDF.
+1. Déploiement sur le NAS (stack, `DOUZE_POINTS_ADRESSE`, jeton partagé avec carnet, tuile de l'Anneau), puis essais sur place.
+2. Soirée d'essai avec de vrais invités.
+3. Notification par Home Assistant quand tous ont envoyé (master doc à relire et compléter).
+4. Grille papier de secours ; « écarts et affinités » (qui note comme qui) dans la fiche.
 
-Petits manques connus : ordre du dévoilement non modifiable ; pas de correction d'un libellé de chanson à l'écran après l'ouverture (l'adresse existe côté serveur) ; pas de retrait d'un invité de la liste à l'écran.
+Fait depuis la 0.3 : concours réglables, ville et titre fabriqué, carnet, jury et public, podium, fiche de la soirée avec vrais votes, suppression.
+
+Petits manques connus : ordre du dévoilement non modifiable ; pas de correction d'un libellé de chanson à l'écran après l'ouverture (l'adresse existe côté serveur).
 
 ## Essais à faire sur place avant la première soirée
 

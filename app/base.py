@@ -69,6 +69,17 @@ def preparer(data: Path) -> None:
             if colonne not in colonnes:
                 cx.execute(f"ALTER TABLE soiree ADD COLUMN {colonne} TEXT")
         # 0.4 : la liste des concours se règle dans l'appli. Une base neuve part avec ces deux-là.
+        # 0.5 : un invité choisi dans carnet garde le numéro de sa fiche (jamais son nom complet)
+        if "carnet_id" not in {r["name"] for r in cx.execute("PRAGMA table_info(invite)")}:
+            cx.execute("ALTER TABLE invite ADD COLUMN carnet_id TEXT")
+        # 0.5 : jury ou public. `invite.jury` se règle dans l'appli ; `participation.jury` est figé au dévoilement.
+        for table in ("invite", "participation"):
+            if "jury" not in {r["name"] for r in cx.execute(f"PRAGMA table_info({table})")}:
+                cx.execute(f"ALTER TABLE {table} ADD COLUMN jury INTEGER NOT NULL DEFAULT 0")
+        # 0.5 : les vrais votes du concours, saisis après coup (points du jury et du public pour chaque chanson)
+        for colonne in ("officiel_jury", "officiel_public"):
+            if colonne not in {r["name"] for r in cx.execute("PRAGMA table_info(chanson)")}:
+                cx.execute(f"ALTER TABLE chanson ADD COLUMN {colonne} INTEGER")
         if not cx.execute("SELECT 1 FROM concours").fetchone():
             cx.executemany("INSERT INTO concours(nom) VALUES(?)", [(nom,) for nom in CONCOURS_DE_DEPART])
         cx.commit()

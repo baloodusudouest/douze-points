@@ -14,7 +14,7 @@ import httpx
 import pytest
 import uvicorn
 
-from app import main
+from app import carnet, main
 from app.config import Config
 
 playwright = pytest.importorskip("playwright.sync_api")
@@ -38,7 +38,13 @@ def serveur(tmp_path_factory):
     adresse = f"http://127.0.0.1:{port}"
     main.ETAT.clear()
     main.ETAT["cfg"] = Config(password=MOT_DE_PASSE, data=tmp_path_factory.mktemp("demo"), static=STATIQUE,
-                              attente_connexion=False, adresse=adresse, limite_invite=100000)
+                              attente_connexion=False, adresse=adresse, limite_invite=100000,
+                              carnet_url="http://carnet.exemple", carnet_jeton="jeton-de-test")
+    # carnet est remplacé par un faux (personnes inventées), écrit d'après /douze-points/personnes
+    vrai_appel, carnet.appeler = carnet.appeler, lambda url, jeton: [
+        {"carnet_id": "AAAA-1", "prenom": "Hélène", "nom": "Hélène DUBOIS"},
+        {"carnet_id": "AAAA-2", "prenom": "Henri", "nom": "Henri LEROY"}]
+    carnet.oublier()
     srv = uvicorn.Server(uvicorn.Config(main.app, host="127.0.0.1", port=port, log_level="warning"))
     fil = threading.Thread(target=srv.run, daemon=True)
     fil.start()
@@ -52,6 +58,8 @@ def serveur(tmp_path_factory):
     srv.should_exit = True
     fil.join(timeout=5)
     main.ETAT.clear()
+    carnet.appeler = vrai_appel
+    carnet.oublier()
 
 
 @pytest.fixture(scope="module")
@@ -117,6 +125,11 @@ def test_une_soiree_entiere(serveur, navigateur):
     p.get_by_role("button", name="Ajouter").click()
     p.get_by_role("button", name="Retirer Concours de démonstration").wait_for()
     regie.verifier("pc-0-reglages")
+    # Connexion : la tuile de carnet, ce qui y est lu, et « Vérifier »
+    p.get_by_role("link", name="Connexion").click()
+    p.get_by_role("button", name="Vérifier").click()
+    p.get_by_text("2 personnes lues.").wait_for()
+    regie.verifier("pc-0-connexion")
     p.get_by_role("link", name="Soirée").click()
     p.get_by_role("combobox").first.select_option("Concours de démonstration")
     p.get_by_label("Ville où le concours est organisé").fill("Villeneuve")
@@ -132,12 +145,26 @@ def test_une_soiree_entiere(serveur, navigateur):
         p.get_by_label("Prénom d'un nouvel invité").fill(prenom)
         p.get_by_role("button", name="Ajouter").click()
         p.get_by_role("button", name=prenom, pressed=True).wait_for()
+    # un invité choisi dans carnet en tapant le début de son prénom : seul son prénom est gardé
+    p.get_by_label("Prénom d'un nouvel invité").fill("he")
+    p.get_by_role("button", name="Hélène DUBOIS").wait_for()
+    regie.verifier("pc-2-carnet")
+    p.get_by_role("button", name="Hélène DUBOIS").click()
+    p.get_by_role("button", name="Hélène", pressed=True).wait_for()
+    assert p.get_by_text("DUBOIS").count() == 0
     for sorte, taille in (("Logo", "400x160"), ("Bannière", "1200x300"), ("Poster", "600x900")):
         p.get_by_label(f"{sorte} : choisir une image").set_input_files(image_de_demo(taille, sorte))
         p.get_by_alt_text(f"{sorte} de l'évènement").wait_for()
     p.get_by_role("button", name="Retirer : Bannière").click()
     p.get_by_role("button", name="Retirer : Bannière").wait_for(state="detached")
-    p.get_by_label("Bannière : choisir une image").set_input_files(image_de_demo("1200x300", "Bannière"))
+    # la bannière revient par glisser-déposer : une image lâchée sur sa case
+    banniere = image_de_demo("1200x300", "Bannière")
+    donnees = p.evaluate_handle("""(octets) => { const d = new DataTransfer();
+        d.items.add(new File([new Uint8Array(octets)], 'banniere.png', { type: 'image/png' })); return d }""", list(banniere["buffer"]))
+    case = p.get_by_label("Bannière : déposer une image ici")
+    case.dispatch_event("dragover", {"dataTransfer": donnees})
+    p.get_by_text("Lâche l'image ici").wait_for()
+    case.dispatch_event("drop", {"dataTransfer": donnees})
     p.get_by_alt_text("Bannière de l'évènement").wait_for()
     regie.verifier("pc-2-preparation")
 
@@ -218,7 +245,7 @@ def test_une_soiree_entiere(serveur, navigateur):
 
     # ---------------- régie : il en manque un, forcer, puis dévoiler en paysage
     p.get_by_role("button", name="Forcer le dévoilement").click()
-    p.get_by_text("son classement du moment sera pris").wait_for()
+    p.get_by_text("son classement du moment sera pris").first.wait_for()
     regie.verifier("pc-5-forcer")
     p.set_viewport_size(PAYSAGE)
     p.get_by_role("button", name="Dévoiler quand même").click()
@@ -235,7 +262,8 @@ def test_une_soiree_entiere(serveur, navigateur):
             p.wait_for_timeout(500)
             regie.verifier("paysage-7-douze-points")
     assert vu_douze
-    p.get_by_text("Le choix de la soirée").wait_for()
+    p.get_by_text("Le podium de la soirée").wait_for()
+    assert p.get_by_role("list", name="Podium").locator("li").count() == 3
     p.wait_for_timeout(600)
     regie.verifier("paysage-8-podium")
 
@@ -258,3 +286,92 @@ def test_une_soiree_entiere(serveur, navigateur):
     regie.verifier("tel-regie-nouvelle")
     t.get_by_text("Cette soirée est terminée.").wait_for(timeout=10000)
     invite.verifier("tel-10-termine")
+
+
+def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
+    """Seconde soirée, préparée par les adresses de la régie : dévoilement « jury puis public », fiche, vrais votes,
+    puis suppression. Les invités sont ceux de la première soirée."""
+    regie = Ecran(navigateur, PC)
+    p = regie.page
+    p.goto(serveur)
+    p.get_by_role("button", name="Passer l'ouverture").click()
+    p.get_by_label("Mot de passe").fill(MOT_DE_PASSE)
+    p.get_by_role("button", name="Se connecter").click()
+    p.get_by_role("heading", name="Nouvelle soirée").wait_for()
+
+    # Réglages : deux membres du jury, les autres sont le public
+    p.get_by_role("link", name="Réglages").click()
+    for prenom in ("Aglaé", "Barnabé"):
+        p.get_by_role("button", name=f"{prenom} : jury").click()
+        p.get_by_role("button", name=f"{prenom} : jury", pressed=True).wait_for()
+    regie.verifier("pc-10-jury")
+
+    api = p.request
+    soiree = api.post(f"{serveur}/api/soirees", data={"concours": "Eurovision", "annee": 2027, "emission": "finale", "ville": "Villeneuve"}).json()["id"]
+    api.put(f"{serveur}/api/soirees/{soiree}/chansons", data={"texte": "\n".join(f"{pays} ; Artiste {i} ; Titre {i}" for i, pays in enumerate(PAYS, 1))})
+    invites = [i["id"] for i in api.get(f"{serveur}/api/invites").json() if i["actif"]]
+    api.put(f"{serveur}/api/soirees/{soiree}/attendus", data={"invites": invites})
+    api.post(f"{serveur}/api/soirees/{soiree}/ouvrir")
+    lue = api.get(f"{serveur}/api/soirees/{soiree}").json()
+    assert lue["nom"] == "Eurovision Villeneuve 2027, finale"
+    jeton = lue["jeton_invite"]
+    for k, g in enumerate(lue["participants"]):
+        tel = {"X-Telephone": httpx.post(f"{serveur}/invite/{jeton}/api/prenom", json={"participation_id": g["id"]}).json()["jeton_telephone"]}
+        for i, c in enumerate(lue["chansons"]):
+            httpx.put(f"{serveur}/invite/{jeton}/api/note", headers=tel,
+                      json={"chanson_id": c["id"], "valeur": ((i * (k + 3)) % 41) / 2, "commentaire": "Refrain entêtant" if i == k else ""})
+        httpx.post(f"{serveur}/invite/{jeton}/api/envoyer", headers=tel)
+
+    p.get_by_role("link", name="Soirée").click()
+    p.get_by_role("button", name="Jury puis public", pressed=True).wait_for()      # proposé, et choisi d'office
+    regie.verifier("pc-11-tous-envoye")
+    p.set_viewport_size(PAYSAGE)
+    p.get_by_role("button", name="Dévoiler", exact=True).click()
+    p.get_by_text("Touche l'écran pour commencer.").wait_for()
+    suivant, vus = p.get_by_role("button", name="Pas suivant"), set()
+    for _ in range(40):
+        if p.get_by_role("button", name="Terminer").count():
+            break
+        suivant.click(position={"x": 300, "y": 150})
+        for phase in ("Les points du jury", "Les points du public"):
+            if phase not in vus and p.get_by_text(phase).count():
+                vus.add(phase)
+                p.wait_for_timeout(450)
+                regie.verifier("paysage-12-" + phase.rsplit(" ", 1)[1])
+    assert vus == {"Les points du jury", "Les points du public"}
+    p.get_by_role("list", name="Podium").wait_for()
+    p.wait_for_timeout(1800)                                     # le podium est monté, les cotillons tombent
+    regie.verifier("paysage-13-podium")
+    p.get_by_role("button", name="Terminer").click()
+    p.set_viewport_size(PC)
+
+    # la fiche de la soirée, puis les vrais votes
+    p.get_by_role("button", name="Fiche de la soirée").click()
+    p.get_by_role("heading", name="Le classement de la soirée").wait_for()
+    p.get_by_role("heading", name="Les commentaires").wait_for()
+    assert p.get_by_text("Refrain entêtant").count() >= 1
+    regie.verifier("pc-14-fiche")
+    p.get_by_role("button", name="Saisir les vrais votes").click()
+    for pays, jury, public in (("France", 120, 80), ("Suède", 90, 150), ("Italie", 60, 20)):
+        p.get_by_label(f"{pays} : vrais points du jury").fill(str(jury))
+        p.get_by_label(f"{pays} : vrais points du public").fill(str(public))
+    regie.verifier("pc-15-vrais-votes")
+    p.get_by_role("button", name="Enregistrer les vrais votes").click()
+    p.get_by_role("heading", name="Notre soirée face aux vrais votes").wait_for()
+    p.get_by_text("Notre jury et le vrai jury").wait_for()
+    regie.verifier("pc-16-comparaison")
+    p.set_viewport_size(TELEPHONE)
+    regie.verifier("tel-16-fiche")
+    with p.expect_download() as tableau:
+        p.get_by_role("link", name="Télécharger le tableau").click()
+    assert tableau.value.suggested_filename.endswith(".csv")
+    p.set_viewport_size(PC)
+    p.get_by_role("button", name="Retour").click()
+
+    # supprimer la soirée : confirmation, puis plus rien
+    p.get_by_role("button", name="Supprimer cette soirée").click()
+    regie.verifier("pc-17-supprimer")
+    p.get_by_role("alertdialog").get_by_role("button", name="Supprimer la soirée").click()
+    p.get_by_role("heading", name="Nouvelle soirée").wait_for()
+    assert httpx.get(f"{serveur}/invite/{jeton}/api/etat").status_code == 404
+    regie.verifier("pc-18-apres-suppression")
