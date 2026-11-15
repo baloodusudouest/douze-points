@@ -42,6 +42,8 @@ CREATE TABLE IF NOT EXISTS points(
   PRIMARY KEY(participation_id, chanson_id));
 CREATE TABLE IF NOT EXISTS concours(
   id INTEGER PRIMARY KEY, nom TEXT NOT NULL UNIQUE COLLATE NOCASE, actif INTEGER NOT NULL DEFAULT 1);
+CREATE TABLE IF NOT EXISTS alias_pays(
+  cle TEXT PRIMARY KEY, code TEXT NOT NULL);         -- 0.9 : un nom de pays inconnu, relié à un pays par l'hôte
 CREATE TABLE IF NOT EXISTS journal(
   id INTEGER PRIMARY KEY, date TEXT NOT NULL, action TEXT NOT NULL, cible TEXT, detail TEXT);
 """

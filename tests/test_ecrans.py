@@ -138,9 +138,18 @@ def test_une_soiree_entiere(serveur, navigateur):
     titre.fill("Finale de démonstration")                        # l'hôte peut écrire le sien
     regie.verifier("pc-1-nouvelle-soiree")
     p.get_by_role("button", name="Créer la soirée").click()
-    p.get_by_label("Coller la liste").fill("\n".join(f"{pays} ; Artiste {i} ; Titre {i}" for i, pays in enumerate(PAYS, 1)))
+    p.get_by_label("Coller la liste").fill("\n".join(f"{pays} ; Artiste {i} ; Titre {i}" for i, pays in enumerate(PAYS, 1))
+                                          + "\nPays de démonstration ; Artiste 15 ; Titre 15")
     p.get_by_role("button", name="Enregistrer la liste").click()
-    p.get_by_text("Autriche").wait_for()
+    p.locator("ol").get_by_text("Autriche").wait_for()
+    # un nom inconnu : l'alerte le signale, on le relie à un pays, l'alerte disparaît
+    alerte = p.get_by_role("alert", name="Pays sans drapeau")
+    alerte.wait_for()
+    assert alerte.get_by_text("Pays de démonstration").count() == 1
+    regie.verifier("pc-2-pays-inconnu")
+    alerte.get_by_label("Pays de « Pays de démonstration »").select_option("MT")
+    alerte.wait_for(state="detached")
+    assert httpx.get(f"{serveur}/health").status_code == 200
     for prenom in ("Aglaé", "Barnabé", "Célestine"):
         p.get_by_label("Prénom d'un nouvel invité").fill(prenom)
         p.get_by_role("button", name="Ajouter").click()
@@ -216,7 +225,7 @@ def test_une_soiree_entiere(serveur, navigateur):
     p.get_by_role("button", name="Les invités").click()
     p.get_by_role("list", name="Avancement des invités").wait_for()
     p.get_by_text("0 classements envoyés sur 4").wait_for()
-    p.get_by_text("0 / 14 notées").first.wait_for()               # Célestine vient d'arriver, rien de noté
+    p.get_by_text("0 / 15 notées").first.wait_for()               # Célestine vient d'arriver, rien de noté
     regie.verifier("pc-4-hote-invites")
     p.get_by_role("link", name="Retour à la régie").click()
     p.get_by_text("classements envoyés").wait_for()                # de retour sur la même soirée
@@ -295,7 +304,7 @@ def test_une_soiree_entiere(serveur, navigateur):
         tel = {"X-Telephone": httpx.post(f"{serveur}/invite/{jeton}/api/prenom", json={"participation_id": autre["id"]}).json()["jeton_telephone"]}
         for i, c in enumerate(etat["chansons"]):
             httpx.put(f"{serveur}/invite/{jeton}/api/note", headers=tel,
-                      json={"chanson_id": c["id"], "valeur": ((i * (k + 3)) % 41) / 2, "commentaire": "Très scénique" if i == 2 else ""})
+                      json={"chanson_id": c["id"], "valeur": ((i * (k + 3)) % 41) / 2, "commentaire": "Très scénique" if k == 0 else ""})
         if k == 0:
             httpx.post(f"{serveur}/invite/{jeton}/api/envoyer", headers=tel)
 

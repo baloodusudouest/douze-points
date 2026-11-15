@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.9.0 — 15/11/2026
+
+- **Pays sans drapeau** : dès la liste enregistrée, une alerte montre les chansons dont le pays n'est pas reconnu. On choisit le pays dans une liste (tous les pays, en français, avec leur drapeau) ; « Retenir ces noms » relie le nom inconnu à ce pays pour les prochaines listes collées. L'alerte reste visible pendant la soirée tant qu'il en manque.
+- **Noms officiels reconnus** : « Republic of Korea », « Korea, Republic of », « Russian Federation », « Iran (Islamic Republic of) »…, en anglais et en français.
+
 ## 0.8.1 — 15/11/2026
 
 - **Drapeaux pour tous les pays** : la table des noms couvre maintenant tous les pays de la norme ISO, en français et en anglais (« Bhutan » comme « Bhoutan »), plus les noms courants (Corée du Sud, Kosovo, Royaume-Uni, Tchéquie…). Avant, seuls une soixantaine de noms en français étaient reconnus. Un drapeau collé en tête de ligne reste prioritaire.

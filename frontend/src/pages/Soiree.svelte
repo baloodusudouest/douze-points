@@ -10,6 +10,7 @@
   import Images from './Images.svelte'
   import Fiche from './Fiche.svelte'
   import Lancement from './Lancement.svelte'
+  import AlerteDrapeaux from './AlerteDrapeaux.svelte'
   import Ouverture from '$lib/Ouverture.svelte'
   let { ondeconnecte } = $props()
 
@@ -265,6 +266,7 @@
       </section>
     </div>
 
+    <AlerteDrapeaux chansons={s.chansons} onchange={lire} />
     <Images soiree={s} onchange={lire} />
 
     <section class="mt-4 flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-5">
@@ -320,6 +322,7 @@
       {/if}
     </section>
 
+    <AlerteDrapeaux chansons={s.chansons} onchange={lire} />
     <Images soiree={s} onchange={lire} />
 
     <section class="mt-4 rounded-2xl border bg-card p-5">

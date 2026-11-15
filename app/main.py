@@ -459,6 +459,13 @@ def qr(soiree_id: int):
     return Response(tampon.getvalue(), media_type="image/svg+xml")
 
 
+def cle_pays(nom: str) -> str:
+    """Un nom de pays sans accents ni majuscules (même règle que l'interface, frontend/src/lib/pays.js)."""
+    import unicodedata
+    simple = "".join(c for c in unicodedata.normalize("NFD", nom.casefold()) if unicodedata.category(c) != "Mn")
+    return simple.replace("'", " ").replace("\u2019", " ").strip()
+
+
 DRAPEAU_EN_TETE = re.compile("^\\s*([\U0001F1E6-\U0001F1FF]{2})\\s*")
 
 
@@ -490,6 +497,11 @@ def lire_collage(texte: str) -> list[dict]:
 def chansons_remplacer(soiree_id: int, corps: dict = Body(...)):
     """Brouillon : la liste entière, dans l'ordre de passage (lignes, ou texte collé)."""
     chansons = lire_collage(str(corps["texte"])) if "texte" in corps else list(corps.get("chansons") or [])
+    with base(cfg().data) as cx:      # les noms de pays déjà reliés par l'hôte reçoivent leur drapeau
+        alias = {r["cle"]: r["code"] for r in cx.execute("SELECT cle, code FROM alias_pays")}
+    for c in chansons:
+        if not c.get("code_pays") and cle_pays(str(c.get("pays", ""))) in alias:
+            c["code_pays"] = alias[cle_pays(str(c["pays"]))]
     if len(chansons) > 60:
         raise HTTPException(422, "Soixante chansons au plus.")
     with base(cfg().data) as cx:
@@ -513,6 +525,36 @@ def chanson_corriger(chanson_id: int, corps: dict = Body(...)):
         for champ, taille in (("pays", 60), ("artiste", 120), ("titre", 120), ("code_pays", 2)):
             if champ in corps:
                 cx.execute(f"UPDATE chanson SET {champ}=? WHERE id=?", (str(corps[champ] or "").strip()[:taille], chanson_id))
+    return {"ok": True}
+
+
+@app.put("/api/chansons/{chanson_id}/pays")
+def chanson_pays(chanson_id: int, corps: dict = Body(...)):
+    """Le drapeau d'une chanson dont le pays n'est pas reconnu, choisi par l'hôte. Avec `retenir`, le nom du pays
+    (`nom`) est relié à ce code pour les prochaines listes collées. Possible à tout moment, même soirée ouverte."""
+    code = str(corps.get("code") or "").strip().upper()
+    if not re.fullmatch(r"[A-Z]{2}", code):
+        raise HTTPException(422, "Il faut le code du pays, deux lettres (FR, KR…).")
+    with base(cfg().data) as cx:
+        if not cx.execute("SELECT 1 FROM chanson WHERE id=?", (chanson_id,)).fetchone():
+            raise HTTPException(404, "Chanson inconnue.")
+        cx.execute("UPDATE chanson SET code_pays=? WHERE id=?", (code, chanson_id))
+        nom = cle_pays(str(corps.get("nom") or ""))
+        if corps.get("retenir") and nom:
+            cx.execute("INSERT INTO alias_pays(cle, code) VALUES(?,?) ON CONFLICT(cle) DO UPDATE SET code=excluded.code", (nom, code))
+    return {"ok": True}
+
+
+@app.get("/api/alias-pays")
+def alias_pays():
+    with base(cfg().data) as cx:
+        return [dict(r) for r in cx.execute("SELECT cle, code FROM alias_pays ORDER BY cle")]
+
+
+@app.delete("/api/alias-pays/{cle}")
+def alias_pays_retirer(cle: str):
+    with base(cfg().data) as cx:
+        cx.execute("DELETE FROM alias_pays WHERE cle=?", (cle,))
     return {"ok": True}
 
 

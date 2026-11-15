@@ -1,6 +1,6 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 15/11/2026, version 0.8.1.
+À lire en premier. Mis à jour le 15/11/2026, version 0.9.0.
 
 ## Où on en est
 

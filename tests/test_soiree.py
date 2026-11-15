@@ -228,3 +228,23 @@ def test_jury_puis_public(client, soiree):
     # le total du groupe reste la somme de tous les points, jury et public confondus
     total = sum(p["points"] for i in d["invites"] for p in i["points"])
     assert sum(l["total"] for l in d["classement"]) == total
+
+
+def test_relier_un_pays_inconnu(client):
+    connecter(client)
+    s1 = client.post("/api/soirees", json={"concours": "Eurovision", "annee": 2027, "emission": "finale"}).json()["id"]
+    c = client.put(f"/api/soirees/{s1}/chansons", json={"texte": "Pays imaginaire ; Artiste ; Titre\nFrance ; A ; B"}).json()["chansons"]
+    assert c[0]["code_pays"] is None
+    assert client.put(f"/api/chansons/{c[0]['id']}/pays", json={"code": "kr1"}).status_code == 422
+    assert client.put(f"/api/chansons/{c[0]['id']}/pays", json={"code": "kr", "nom": "Pays imaginaire", "retenir": True}).status_code == 200
+    assert client.get(f"/api/soirees/{s1}").json()["chansons"][0]["code_pays"] == "KR"
+    assert client.get("/api/alias-pays").json() == [{"cle": "pays imaginaire", "code": "KR"}]
+    # une prochaine liste avec le même nom (accents et majuscules mis à part) reçoit le drapeau toute seule
+    s2 = client.post("/api/soirees", json={"concours": "Eurovision", "annee": 2027, "emission": "demi1"}).json()["id"]
+    c2 = client.put(f"/api/soirees/{s2}/chansons", json={"texte": "PAYS IMAGINAIRE ; X ; Y"}).json()["chansons"]
+    assert c2[0]["code_pays"] == "KR"
+    # sans « retenir » : seule la chanson change
+    client.put(f"/api/chansons/{c[1]['id']}/pays", json={"code": "FR", "nom": "France"})
+    assert len(client.get("/api/alias-pays").json()) == 1
+    client.delete("/api/alias-pays/pays imaginaire")
+    assert client.get("/api/alias-pays").json() == []

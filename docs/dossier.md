@@ -324,3 +324,8 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 - **Dévoilement** : jury en bleu (`--jury: #7aa2e3`), public en rose (couleur de l'appli). Barre à deux couleurs par ligne en mode jury. Aux points du public : « jury + public », puis le total qui compte (`lib/Compteur.svelte`, `Tween` de Svelte). L'ordre du tableau suit le pas avec 1,3 s de retard (`pasTri`) : d'abord l'addition, puis le glissement (`flip`, 900 ms, `cubicInOut`). Retour, « Tout afficher » et podium : sans retard.
 - **Pas du dévoilement** : 0 = attente, 1 à N = étapes, N + 1 = podium (la dernière étape était sautée).
 - **Listes collées** : `lire_collage` comprend « drapeau Pays: Artiste - Titre » ; `normaliser()` (frontend/src/lib/pays.js) découpe à l'affichage les chansons déjà enregistrées sous cette forme. La base n'est pas réécrite.
+
+## Ajouts de la 0.9.0 (15/11/2026, demande de l'hôte)
+
+- **Alerte « pays sans drapeau »** (`pages/AlerteDrapeaux.svelte`) dans la préparation et la soirée ouverte : choix du pays dans `PAYS` (250 pays, noms français). `PUT /api/chansons/<id>/pays` pose le code ; avec `retenir`, le nom est enregistré dans `alias_pays` et appliqué aux listes collées suivantes (`GET` et `DELETE /api/alias-pays`). Pas encore d'écran pour revoir ces noms reliés.
+- **Table des pays** : noms usuels, communs et officiels de la norme ISO en français et en anglais, avec les formes retournées (« Corée, République de » → « République de Corée »).
