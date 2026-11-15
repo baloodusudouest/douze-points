@@ -402,6 +402,20 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     p.set_viewport_size(PAYSAGE)
     p.get_by_role("button", name="Dévoiler", exact=True).click()
     p.get_by_text("Touche l'écran pour commencer.").wait_for()
+    # un glissement du doigt vers la droite referme l'écran ; un glissement trop court ne fait rien
+    def glisser(dx):
+        p.evaluate("""(dx) => {
+          const cible = document.querySelector('[aria-label="Pas suivant"]').parentElement
+          const ev = (type, x) => { const e = new Event(type, { bubbles: true }); const t = [{ clientX: x, clientY: 200 }]
+            Object.defineProperty(e, 'touches', { value: t }); Object.defineProperty(e, 'changedTouches', { value: t }); cible.dispatchEvent(e) }
+          ev('touchstart', 100); ev('touchend', 100 + dx)
+        }""", dx)
+    glisser(40)
+    assert p.get_by_text("Touche l'écran pour commencer.").count() == 1
+    glisser(250)
+    p.get_by_text("Touche l'écran pour commencer.").wait_for(state="detached")
+    p.get_by_role("button", name="Reprendre le dévoilement").click()
+    p.get_by_text("Touche l'écran pour commencer.").wait_for()
     suivant, vus = p.get_by_role("button", name="Pas suivant"), set()
     for _ in range(40):
         if p.get_by_role("button", name="Terminer").count():
@@ -421,10 +435,22 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
             assert p.get_by_role("list", name="Top 5 du jury").locator("li").count() == 5
             p.wait_for_timeout(2600)
             regie.verifier("paysage-12-top5-jury")
+            # toutes les chansons sont dans le classement, et aucune ligne ne sort de l'écran
+            assert p.get_by_role("list", name="Classement du groupe").locator("li").count() == len(PAYS)
+            bas = p.get_by_role("list", name="Classement du groupe").locator("li").last.bounding_box()
+            assert bas["y"] + bas["height"] <= p.viewport_size["height"]
     assert vus == {"Les points du jury", "top", "Les points du public"}
     p.get_by_role("list", name="Podium").wait_for()
     p.wait_for_timeout(1800)                                     # le podium est monté, les cotillons tombent
     regie.verifier("paysage-13-podium")
+    p.get_by_role("button", name="Revenir").click()               # le classement complet, sur l'écran de la télé
+    p.set_viewport_size({"width": 1920, "height": 1080})
+    p.wait_for_timeout(1200)
+    regie.verifier("tv-13-classement")
+    p.set_viewport_size(PAYSAGE)
+    p.wait_for_timeout(1200)
+    regie.verifier("paysage-13-classement")
+    p.get_by_role("button", name="Tout afficher").click()
     p.get_by_role("button", name="Terminer").click()
     p.set_viewport_size(PC)
 

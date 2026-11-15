@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.10.1 — 15/11/2026
+
+- **Classement complet au dévoilement** : toutes les chansons tiennent dans la hauteur de l'écran ; les lignes rapetissent sur un iPhone au lieu d'être coupées, et gardent leur taille sur une télé.
+- **Glisser vers la droite pour sortir** du dévoilement sur l'iPhone (rappel discret en haut de l'écran sur les écrans tactiles).
+
 ## 0.10.0 — 15/11/2026
 
 - **Top 5 du jury** : dans le dévoilement « jury puis public », un écran entre les deux phases montre les cinq meilleurs du jury, du cinquième au premier, avant de passer aux points du public.

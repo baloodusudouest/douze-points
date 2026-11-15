@@ -19,7 +19,7 @@
   let pasTri = $state(0)
   let attenteTri
   const RETARD_TRI = 1300
-  let lignesVisibles = $state(10)
+  let hauteurEcran = $state(800)
 
   // Les pas.
   // « court » et « complet » : invité par invité, ses petits points d'un coup (court : 1 à 7), puis ses grands un par un.
@@ -93,7 +93,20 @@
     couleur: COULEURS[i % COULEURS.length], largeur: 6 + Math.random() * 6, tourne: Math.random() * 360, rond: i % 4 === 0,
   }))
 
-  function mesurer() { lignesVisibles = Math.max(5, Math.floor((window.innerHeight - 64) / 40)) }
+  function mesurer() { hauteurEcran = window.innerHeight }
+  // Toutes les chansons tiennent dans la hauteur de l'écran : sur la télé les lignes gardent leur taille,
+  // sur un iPhone elles rapetissent (quitte à devenir minuscules) plutôt que d'être coupées.
+  let hauteurLigne = $derived(d ? Math.min(46, Math.max(6, (hauteurEcran - 40 - (avecJury ? 20 : 0)) / d.chansons.length - 2)) : 36)
+
+  // Sur l'iPhone, un glissement du doigt de gauche à droite referme l'écran (les boutons deviennent petits).
+  let depart = null
+  function doigtPose(e) { const t = e.touches[0]; depart = { x: t.clientX, y: t.clientY } }
+  function doigtLeve(e) {
+    if (!depart) return
+    const t = e.changedTouches[0], dx = t.clientX - depart.x, dy = Math.abs(t.clientY - depart.y)
+    depart = null
+    if (dx > 90 && dy < dx / 2) onferme()
+  }
 
   onMount(async () => {
     mesurer()
@@ -126,7 +139,8 @@
 
 <svelte:window onresize={mesurer} onkeydown={touche} />
 
-<div class="fixed inset-0 z-30 bg-background" style="--jury: #7aa2e3; --public: var(--primary)">
+<div class="fixed inset-0 z-30 bg-background" style="--jury: #7aa2e3; --public: var(--primary)"
+     ontouchstart={doigtPose} ontouchend={doigtLeve}>
   {#if erreur}
     <div class="grid h-full place-items-center p-6 text-center">
       <div><p role="alert">{erreur}</p><button class="pastille mt-4" onclick={onferme}>Fermer</button></div>
@@ -140,14 +154,14 @@
         {#if avecJury}
           <p class="legende mb-1 flex gap-4 px-3 text-xs text-muted-foreground"><span><i class="pastille-jury"></i>Jury</span><span><i class="pastille-public"></i>Public</span></p>
         {/if}
-        <ol class="grid content-start gap-1 overflow-hidden" aria-label="Classement du groupe">
-          {#each tableau.slice(0, lignesVisibles) as l, i (l.chanson)}
+        <ol class="classement grid content-start overflow-hidden" aria-label="Classement du groupe" style="--h: {hauteurLigne}px">
+          {#each tableau as l, i (l.chanson)}
             <li animate:flip={{ duration: 900, easing: cubicInOut }}
-                class="ligne {recu.has(l.chanson) ? 'recu recu-' + teinte : i === 0 && pas > 0 ? 'en-tete' : ''}">
-              <span class="w-5 shrink-0 text-right text-xs opacity-60">{l.rang ?? i + 1}</span>
-              <span class="shrink-0 text-lg">{drapeau(l.c.pays, l.c.code_pays)}</span>
+                class="rangee {recu.has(l.chanson) ? 'recu recu-' + teinte : i === 0 && pas > 0 ? 'en-tete' : ''}">
+              <span class="rang shrink-0 text-right opacity-60">{l.rang ?? i + 1}</span>
+              <span class="drapeau shrink-0">{drapeau(l.c.pays, l.c.code_pays)}</span>
               <span class="min-w-0 flex-1 truncate">{l.c.pays}</span>
-              <span class="chiffre w-12 shrink-0 text-right text-xl"><Compteur valeur={l.total} retard={recu.has(l.chanson) ? 250 : 0} /></span>
+              <span class="total chiffre shrink-0 text-right"><Compteur valeur={l.total} retard={recu.has(l.chanson) ? 250 : 0} /></span>
               {#if avecJury}
                 <span class="barre" aria-hidden="true">
                   <i style="width: {(l.jury / plus) * 100}%; background: var(--jury)"></i><i style="width: {(l.pub / plus) * 100}%; background: var(--public)"></i>
@@ -253,6 +267,7 @@
 
     <div class="absolute inset-x-0 top-[max(0.5rem,env(safe-area-inset-top))] flex justify-end gap-2 px-4 text-xs">
       <p class="mr-auto self-center text-muted-foreground landscape:hidden">Tourne le téléphone en paysage.</p>
+      <p class="geste mr-auto hidden self-center text-muted-foreground portrait:hidden">Glisse vers la droite pour sortir</p>
       {#if pas > 0}<button class="commande" onclick={() => aller(pas - 1)}>Revenir</button>{/if}
       {#if !fini}<button class="commande" onclick={() => aller(fin)}>Tout afficher</button>{/if}
       {#if fini}<button class="commande plein" onclick={terminer}>Terminer</button>{:else}<button class="commande" onclick={onferme}>Fermer</button>{/if}
@@ -261,12 +276,19 @@
 </div>
 
 <style>
-  .ligne { position: relative; display: flex; height: 2.25rem; align-items: center; gap: 0.6rem; overflow: hidden; border-radius: 0.5rem; padding: 0 0.75rem; font-size: 1rem; background: var(--background);
+  /* La hauteur d'une ligne (--h) dépend du nombre de chansons et de la hauteur de l'écran ; le texte suit. */
+  .classement { gap: min(4px, calc(var(--h) * 0.08)); }
+  .rangee { position: relative; display: flex; height: var(--h); align-items: center; gap: calc(var(--h) * 0.25); overflow: hidden;
+    border-radius: min(0.5rem, calc(var(--h) * 0.2)); padding: 0 min(0.75rem, calc(var(--h) * 0.3)); font-size: clamp(5px, calc(var(--h) * 0.44), 1.25rem); background: var(--background);
     transition: background-color 0.5s, box-shadow 0.5s; }
-  .ligne.en-tete { background: var(--card); }
-  .ligne.recu { z-index: 1; }
-  .ligne.recu-jury { background: color-mix(in oklab, var(--jury) 30%, var(--background)); box-shadow: inset 4px 0 0 var(--jury); }
-  .ligne.recu-public { background: color-mix(in oklab, var(--public) 30%, var(--background)); box-shadow: inset 4px 0 0 var(--public); }
+  .rangee.en-tete { background: var(--card); }
+  .rangee.recu { z-index: 1; }
+  .rangee.recu-jury { background: color-mix(in oklab, var(--jury) 30%, var(--background)); box-shadow: inset 4px 0 0 var(--jury); }
+  .rangee.recu-public { background: color-mix(in oklab, var(--public) 30%, var(--background)); box-shadow: inset 4px 0 0 var(--public); }
+  .rangee .rang { width: 1.4em; font-size: 0.75em; }
+  .rangee .drapeau { font-size: 1.15em; line-height: 1; }
+  .rangee .total { width: 2.6em; font-size: 1.25em; }
+  @media (pointer: coarse) { .geste { display: block; } }
   .barre { position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0; display: flex; height: 3px; overflow: hidden; border-radius: 2px; opacity: 0.9; }
   .barre i { display: block; height: 100%; transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
   .legende i { display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.35rem; border-radius: 999px; vertical-align: -1px; }
