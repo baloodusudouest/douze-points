@@ -3,7 +3,7 @@
   // Aucune note ni aucun classement n'y apparaît avant le dévoilement : l'hôte note lui aussi.
   import { onMount, onDestroy } from 'svelte'
   import { api } from '$lib/api.js'
-  import { drapeau, EMISSIONS } from '$lib/pays.js'
+  import { drapeau, EMISSIONS, titreEvenement } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Accueil from './Accueil.svelte'
   import Devoilement from './Devoilement.svelte'
@@ -13,6 +13,7 @@
   let soirees = $state(null)      // toutes, la plus récente d'abord
   let s = $state(null)            // la soirée en cours de travail (non archivée la plus récente)
   let invites = $state([])
+  let concours = $state([])       // la liste réglée dans Réglages
   let erreur = $state('')
   let accueil = $state(false)
   let rejouer = $state(null)      // id d'une soirée dont on (re)joue le dévoilement
@@ -20,7 +21,10 @@
   let mode = $state('court')
   let collage = $state('')
   let prenom = $state('')
-  let nouvelle = $state({ concours: 'Eurovision', annee: new Date().getFullYear(), emission: 'finale', nom: '' })
+  let nouvelle = $state({ concours: 'Eurovision', annee: new Date().getFullYear(), emission: 'finale', ville: '' })
+  // Le titre se fabrique tout seul (concours, ville, année, émission) tant que l'hôte n'écrit pas le sien.
+  let titreEcrit = $state(null)
+  let titre = $derived(titreEcrit ?? titreEvenement(nouvelle))
   let minuterie
 
   async function essayer(action) {
@@ -37,6 +41,10 @@
       const courante = soirees.find((x) => x.etat !== 'archivee')
       s = courante ? await api.get('/api/soirees/' + courante.id) : null
       if (s?.etat === 'brouillon') invites = await api.get('/api/invites')
+      if (!s) {
+        concours = (await api.get('/api/concours')).filter((c) => c.actif).map((c) => c.nom)
+        if (!concours.includes(nouvelle.concours)) nouvelle.concours = concours[0]
+      }
     })
   }
 
@@ -47,7 +55,7 @@
   })
   onDestroy(() => clearInterval(minuterie))
 
-  const creer = (e) => { e.preventDefault(); essayer(async () => { await api.post('/api/soirees', nouvelle); await lire() }) }
+  const creer = (e) => { e.preventDefault(); essayer(async () => { await api.post('/api/soirees', { ...nouvelle, nom: titre }); titreEcrit = null; await lire() }) }
   const coller = () => essayer(async () => { await api.put(`/api/soirees/${s.id}/chansons`, { texte: collage }); collage = ''; await lire() })
   const attendus = () => new Set(s.participants.map((p) => p.prenom))
   async function basculer(invite) {
@@ -99,11 +107,9 @@
   {:else if !s}
     <form class="grid max-w-md gap-4 rounded-2xl border bg-card p-5" onsubmit={creer}>
       <h2 class="text-lg font-semibold">Nouvelle soirée</h2>
-      <label class="champ">Nom de l'évènement
-        <input bind:value={nouvelle.nom} required maxlength="80" placeholder="Finale à la maison" />
-      </label>
       <label class="champ">Concours
-        <select bind:value={nouvelle.concours}><option>Eurovision</option><option>Eurovision Asia</option></select>
+        <select bind:value={nouvelle.concours}>{#each concours as c}<option>{c}</option>{/each}</select>
+        <span class="text-xs text-muted-foreground">Un autre concours ? Ajoute-le dans les Réglages.</span>
       </label>
       <div class="grid grid-cols-2 gap-3">
         <label class="champ">Année<input type="number" bind:value={nouvelle.annee} min="1956" max="2100" required /></label>
@@ -113,6 +119,16 @@
           </select>
         </label>
       </div>
+      <label class="champ">Ville où le concours est organisé
+        <input bind:value={nouvelle.ville} maxlength="60" placeholder="Burgas" />
+      </label>
+      <label class="champ">Titre de l'évènement
+        <input value={titre} oninput={(e) => (titreEcrit = e.currentTarget.value)} required maxlength="80" />
+        <span class="text-xs text-muted-foreground">
+          {#if titreEcrit === null}Fabriqué d'après le concours, la ville, l'année et l'émission. Tu peux l'écrire autrement.
+          {:else}<button type="button" class="underline" onclick={() => (titreEcrit = null)}>Revenir au titre fabriqué</button>{/if}
+        </span>
+      </label>
       <Button type="submit" size="lg">Créer la soirée</Button>
     </form>
 

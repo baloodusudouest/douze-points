@@ -29,9 +29,16 @@ from .points import classement_groupe, classement_par_notes, inserer, points_du_
 
 ETAT: dict = {}
 PUBLIQUES = ("/api/connexion", "/api/session")
-CONCOURS = ("Eurovision", "Eurovision Asia")
 EMISSIONS = ("demi1", "demi2", "finale", "unique")
+LIBELLES = {"demi1": "première demi-finale", "demi2": "seconde demi-finale", "finale": "finale", "unique": ""}
 IMAGES = ("logo", "banniere", "poster")
+
+
+def titre_evenement(concours: str, annee: int, emission: str, ville: str = "") -> str:
+    """Le titre fabriqué quand l'hôte n'en écrit pas : « Eurovision Burgas 2027, finale ».
+    La même règle est écrite dans frontend/src/lib/pays.js (titreEvenement) : les deux vont ensemble."""
+    debut = " ".join(x for x in (concours, ville, str(annee)) if x)
+    return f"{debut}, {LIBELLES[emission]}" if LIBELLES.get(emission) else debut
 IMAGE_MAX = 6 * 1024 * 1024
 # Formats acceptés, reconnus à leurs premiers octets (jamais au nom du fichier). Pas de SVG : il peut porter du script.
 SIGNATURES = ((b"\x89PNG\r\n\x1a\n", "png", "image/png"), (b"\xff\xd8\xff", "jpg", "image/jpeg"))
@@ -201,7 +208,7 @@ def _images(s) -> dict:
 
 def _resume(s) -> dict:
     return {"id": s["id"], "concours": s["concours"], "annee": s["annee"], "emission": s["emission"],
-            "date": s["date"], "nom": s["nom"], "etat": s["etat"], "images": _images(s)}
+            "date": s["date"], "nom": s["nom"], "ville": s["ville"], "etat": s["etat"], "images": _images(s)}
 
 
 def _format_image(contenu: bytes):
@@ -256,6 +263,48 @@ def invite_modifier(invite_id: int, corps: dict = Body(...)):
     return {"ok": True}
 
 
+# ================================================================ régie : concours
+
+@app.get("/api/concours")
+def concours_lire():
+    """La liste des concours proposés à la création d'une soirée, avec le nombre de soirées de chacun."""
+    with base(cfg().data) as cx:
+        return [dict(r) for r in cx.execute(
+            "SELECT c.id, c.nom, c.actif, (SELECT COUNT(*) FROM soiree s WHERE s.concours=c.nom) AS soirees "
+            "FROM concours c ORDER BY c.nom COLLATE NOCASE")]
+
+
+@app.post("/api/concours")
+def concours_ajouter(corps: dict = Body(...)):
+    nom = " ".join(str(corps.get("nom", "")).split())[:60]
+    if not nom:
+        raise HTTPException(422, "Il faut un nom de concours.")
+    with base(cfg().data) as cx:
+        existant = cx.execute("SELECT id, actif FROM concours WHERE nom=?", (nom,)).fetchone()
+        if existant and existant["actif"]:
+            raise HTTPException(409, "Ce concours est déjà dans la liste.")
+        if existant:        # retiré auparavant : il revient
+            cx.execute("UPDATE concours SET actif=1, nom=? WHERE id=?", (nom, existant["id"]))
+            return {"id": existant["id"]}
+        return {"id": cx.execute("INSERT INTO concours(nom) VALUES(?)", (nom,)).lastrowid}
+
+
+@app.delete("/api/concours/{concours_id}")
+def concours_retirer(concours_id: int):
+    """Retiré de la liste proposée. Les soirées déjà créées gardent son nom ; sans soirée, il est effacé."""
+    with base(cfg().data) as cx:
+        c = cx.execute("SELECT nom FROM concours WHERE id=?", (concours_id,)).fetchone()
+        if not c:
+            raise HTTPException(404, "Concours inconnu.")
+        if cx.execute("SELECT COUNT(*) FROM concours WHERE actif=1 AND id<>?", (concours_id,)).fetchone()[0] == 0:
+            raise HTTPException(409, "Il faut garder au moins un concours dans la liste.")
+        if cx.execute("SELECT 1 FROM soiree WHERE concours=?", (c["nom"],)).fetchone():
+            cx.execute("UPDATE concours SET actif=0 WHERE id=?", (concours_id,))
+        else:
+            cx.execute("DELETE FROM concours WHERE id=?", (concours_id,))
+    return {"ok": True}
+
+
 # ================================================================ régie : soirées
 
 @app.get("/api/soirees")
@@ -268,16 +317,22 @@ def soirees():
 def soiree_creer(corps: dict = Body(...)):
     concours, emission = str(corps.get("concours", "")), str(corps.get("emission", ""))
     nom = " ".join(str(corps.get("nom", "")).split())[:80]
+    ville = " ".join(str(corps.get("ville", "")).split())[:60]
     try:
         annee = int(corps.get("annee"))
     except (TypeError, ValueError):
         raise HTTPException(422, "Il faut une année.")
-    if concours not in CONCOURS or emission not in EMISSIONS or not nom or not 1956 <= annee <= 2100:
-        raise HTTPException(422, "Concours, année, émission et nom de l'évènement sont nécessaires.")
+    if emission not in EMISSIONS or not 1956 <= annee <= 2100:
+        raise HTTPException(422, "Concours, année et émission sont nécessaires.")
     with base(cfg().data) as cx:
+        connu = cx.execute("SELECT nom FROM concours WHERE nom=? AND actif=1", (concours,)).fetchone()
+        if not connu:
+            raise HTTPException(422, "Ce concours n'est pas dans la liste : ajoute-le dans les Réglages.")
+        concours = connu["nom"]
+        nom = nom or titre_evenement(concours, annee, emission, ville)[:80]      # sans titre écrit : il est fabriqué
         soiree_id = cx.execute(
-            "INSERT INTO soiree(concours, annee, emission, date, nom, jeton_invite, cree_le) VALUES(?,?,?,?,?,?,?)",
-            (concours, annee, emission, str(corps.get("date") or "")[:10] or None, nom,
+            "INSERT INTO soiree(concours, annee, emission, date, nom, ville, jeton_invite, cree_le) VALUES(?,?,?,?,?,?,?,?)",
+            (concours, annee, emission, str(corps.get("date") or "")[:10] or None, nom, ville or None,
              secrets.token_urlsafe(18), maintenant())).lastrowid
         journal(cx, "soiree_creee", str(soiree_id))
     return {"id": soiree_id}

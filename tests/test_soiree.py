@@ -180,3 +180,19 @@ def test_qr_code_du_lien(client, soiree):
     assert r.status_code == 200 and r.headers["content-type"].startswith("image/svg") and b"<svg" in r.content
     client.cookies.clear()
     assert client.get(f"/api/soirees/{soiree.id}/qr.svg").status_code == 401
+
+
+def test_titre_fabrique_avec_la_ville(client):
+    connecter(client)
+    assert main.titre_evenement("Eurovision", 2027, "finale", "Burgas") == "Eurovision Burgas 2027, finale"
+    assert main.titre_evenement("Eurovision", 2027, "demi1", "") == "Eurovision 2027, première demi-finale"
+    assert main.titre_evenement("Eurovision Asia", 2026, "unique", "Bangkok") == "Eurovision Asia Bangkok 2026"
+    identifiant = client.post("/api/soirees", json={"concours": "Eurovision", "annee": 2027, "emission": "demi2",
+                                                    "ville": " Burgas "}).json()["id"]
+    lue = client.get(f"/api/soirees/{identifiant}").json()
+    assert lue["nom"] == "Eurovision Burgas 2027, seconde demi-finale" and lue["ville"] == "Burgas"
+    # un titre écrit par l'hôte est gardé tel quel
+    client.post(f"/api/soirees/{identifiant}/ouvrir")
+    autre = client.post("/api/soirees", json={"concours": "Eurovision", "annee": 2027, "emission": "finale",
+                                              "ville": "Burgas", "nom": "La grande finale"}).json()["id"]
+    assert client.get(f"/api/soirees/{autre}").json()["nom"] == "La grande finale"

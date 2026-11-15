@@ -292,3 +292,8 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 - **Images de l'évènement** : logo, bannière, poster, tous facultatifs, déposés depuis la régie (préparation et soirée ouverte). Le logo remplace le « 12 » partout où il sert d'emblème ; la bannière coiffe le téléphone des invités ; le poster accompagne le QR code sur l'écran d'accueil et l'affiche, et l'écran « Ça commence bientôt ». Formats PNG, JPEG, WebP reconnus à leurs premiers octets ; pas de SVG (il peut porter du script) ; 6 Mo au plus. Les invités les lisent par leur lien (`/invite/<jeton>/image/<sorte>`), qui ne rend rien d'autre.
 - Ces images sont celles que l'hôte choisit de déposer : l'appli n'en embarque aucune et le dépôt public non plus.
 - **Ouverture animée** (`frontend/src/lib/Ouverture.svelte`) : trois projecteurs, le « 12 » qui brille, la lumière qui révèle la page. Jouée à l'ouverture de la régie et du lien des invités, une fois par session.
+
+## Ajout de la 0.4.0 (15/11/2026, demande de l'hôte)
+
+- **Liste des concours réglable** (Réglages › Concours) : table `concours(id, nom, actif)`, qui part avec Eurovision et Eurovision Asia. Un concours retiré disparaît de la liste proposée ; les soirées déjà créées gardent son nom. Intervision ou toute autre soirée à notes s'ajoute donc sans nouvelle version.
+- **Ville et titre** : la création d'une soirée demande la ville où le concours est organisé (colonne `soiree.ville`) ; le titre est fabriqué (concours, ville, année, émission) tant que l'hôte n'écrit pas le sien. Même règle côté serveur (`titre_evenement`) et côté écran (`titreEvenement`).

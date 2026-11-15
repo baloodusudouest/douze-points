@@ -26,3 +26,10 @@ export const EMISSIONS = { demi1: 'Première demi-finale', demi2: 'Seconde demi-
 export const BAREME = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1]
 // 13.5 → « 13,5 » ; 12 → « 12 »
 export const note = (v) => (v == null ? '' : String(v).replace('.', ','))
+
+// Le titre fabriqué d'une soirée : « Eurovision Burgas 2027, finale ». Même règle que titre_evenement (app/main.py).
+const LIBELLES = { demi1: 'première demi-finale', demi2: 'seconde demi-finale', finale: 'finale', unique: '' }
+export function titreEvenement({ concours, annee, emission, ville }) {
+  const debut = [concours, (ville || '').trim(), annee].filter(Boolean).join(' ')
+  return LIBELLES[emission] ? `${debut}, ${LIBELLES[emission]}` : debut
+}

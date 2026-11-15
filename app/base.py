@@ -5,6 +5,8 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+CONCOURS_DE_DEPART = ("Eurovision", "Eurovision Asia")
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS soiree(
   id INTEGER PRIMARY KEY, concours TEXT NOT NULL, annee INTEGER NOT NULL, emission TEXT NOT NULL,
@@ -38,6 +40,8 @@ CREATE TABLE IF NOT EXISTS points(
   soiree_id INTEGER NOT NULL REFERENCES soiree(id) ON DELETE CASCADE,
   participation_id INTEGER NOT NULL, chanson_id INTEGER NOT NULL, rang INTEGER NOT NULL, points INTEGER NOT NULL,
   PRIMARY KEY(participation_id, chanson_id));
+CREATE TABLE IF NOT EXISTS concours(
+  id INTEGER PRIMARY KEY, nom TEXT NOT NULL UNIQUE COLLATE NOCASE, actif INTEGER NOT NULL DEFAULT 1);
 CREATE TABLE IF NOT EXISTS journal(
   id INTEGER PRIMARY KEY, date TEXT NOT NULL, action TEXT NOT NULL, cible TEXT, detail TEXT);
 """
@@ -61,9 +65,12 @@ def preparer(data: Path) -> None:
         cx.executescript(SCHEMA)
         # 0.3 : images de l'évènement. `logo` existait ; bannière et poster s'ajoutent aux bases déjà créées.
         colonnes = {r["name"] for r in cx.execute("PRAGMA table_info(soiree)")}
-        for colonne in ("banniere", "poster"):
+        for colonne in ("banniere", "poster", "ville"):      # 0.4 : ville où le concours est organisé
             if colonne not in colonnes:
                 cx.execute(f"ALTER TABLE soiree ADD COLUMN {colonne} TEXT")
+        # 0.4 : la liste des concours se règle dans l'appli. Une base neuve part avec ces deux-là.
+        if not cx.execute("SELECT 1 FROM concours").fetchone():
+            cx.executemany("INSERT INTO concours(nom) VALUES(?)", [(nom,) for nom in CONCOURS_DE_DEPART])
         cx.commit()
     finally:
         cx.close()

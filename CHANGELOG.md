@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 0.4.0 — 15/11/2026
+
+- Réglages › Concours : ajouter un concours à la liste proposée à la création d'une soirée, en retirer un (les soirées déjà faites gardent son nom ; il en reste toujours au moins un). La liste part avec Eurovision et Eurovision Asia.
+- Nouvelle soirée : on donne la ville où le concours est organisé, et le titre de l'évènement se fabrique tout seul (« Eurovision Burgas 2027, finale ») ; il reste modifiable.
+
 ## 0.3.0 — 15/11/2026
 
 - Images de l'évènement, déposées par l'hôte pendant la préparation ou la soirée : **logo** (à la place du « 12 » sur l'écran d'accueil, l'affiche, les écrans d'attente et le départ du dévoilement), **bannière** (en haut du téléphone des invités), **poster** (écran d'accueil, affiche, écran « Ça commence bientôt »). PNG, JPEG ou WebP, 6 Mo au plus, reconnus à leur contenu ; gardées dans `/data/images`.

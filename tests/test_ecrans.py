@@ -111,7 +111,18 @@ def test_une_soiree_entiere(serveur, navigateur):
     assert ouverture.count() == 0
     p.get_by_label("Mot de passe").fill(MOT_DE_PASSE)
     p.get_by_role("button", name="Se connecter").click()
-    p.get_by_label("Nom de l'évènement").fill("Finale de démonstration")
+    # Réglages : un nouveau concours entre dans la liste, puis sert à créer la soirée
+    p.get_by_role("link", name="Réglages").click()
+    p.get_by_label("Nom d'un nouveau concours").fill("Concours de démonstration")
+    p.get_by_role("button", name="Ajouter").click()
+    p.get_by_role("button", name="Retirer Concours de démonstration").wait_for()
+    regie.verifier("pc-0-reglages")
+    p.get_by_role("link", name="Soirée").click()
+    p.get_by_role("combobox").first.select_option("Concours de démonstration")
+    p.get_by_label("Ville où le concours est organisé").fill("Villeneuve")
+    titre = p.get_by_label("Titre de l'évènement")
+    assert titre.input_value() == f"Concours de démonstration Villeneuve {__import__('datetime').date.today().year}, finale"
+    titre.fill("Finale de démonstration")                        # l'hôte peut écrire le sien
     regie.verifier("pc-1-nouvelle-soiree")
     p.get_by_role("button", name="Créer la soirée").click()
     p.get_by_label("Coller la liste").fill("\n".join(f"{pays} ; Artiste {i} ; Titre {i}" for i, pays in enumerate(PAYS, 1)))
