@@ -1,25 +1,42 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 15/11/2026.
+À lire en premier. Mis à jour le 15/11/2026, version 0.1.0.
 
 ## Où on en est
 
-- Cadrage fait, dossier v0.3 écrit (`docs/dossier.md`), conseil passé (`docs/conseil.md`).
-- **Aucun code.** Rien n'a été essayé sur la vraie installation.
+- Dossier v0.3 (`docs/dossier.md`, avec les décisions prises en codant en fin de fichier), conseil passé (`docs/conseil.md`).
+- **Serveur écrit et testé** (`app/`) : soirées, liste des chansons (saisie ou collage), invités, porte invité (prénom, notes, classement, envoi), forcer, gel des points au barème 12-10-8…1, données du dévoilement, `/health`.
+- **Interface : presque rien.** Copie du socle renommée (couleur, icône, connexion, réglages) et une page qui liste les soirées. Aucun écran pour préparer une soirée, noter ou dévoiler.
+- **Jamais essayé sur la vraie installation.** L'appli n'est pas dans la stack.
+
+## Où est quoi
+
+- `app/points.py` : le calcul seul (classement d'un invité, barème, départage du groupe).
+- `app/base.py` : schéma SQLite, sauvegarde.
+- `app/main.py` : la régie sous `/api/…` (mot de passe commun), la porte invité sous `/invite/<jeton>/api/…` (en-tête `X-Telephone` : le jeton personnel du téléphone).
+- `tests/test_secret.py` : avant la fin du dévoilement, la porte invité ne rend rien des autres. **Toute nouvelle adresse sous `/invite/` doit y être ajoutée**, sinon le test échoue.
 
 ## Prochaine étape
 
-Les trois essais de l'étape 0 du dossier, avant toute ligne de code :
+Les écrans, dans cet ordre (plan du dossier, § 6) :
 
-1. un téléphone qui n'est pas du foyer ouvre une page du NAS sur le Wi-Fi de la maison (vérification rapide) ;
-2. une page animée sur l'iPhone de l'hôte, en paysage, recopiée sur la télé ;
-3. le chemin de la notification par Home Assistant.
+1. régie : préparer une soirée (liste, invités), écran d'accueil avec QR code, partage ;
+2. invité : prénom, notation, classement à glisser, envoi ;
+3. régie : états en direct, forcer, dévoilement (court, complet, « Tout afficher »).
 
-Puis l'étape 1 du plan : copie du socle.
+Puis synthèse, vrai résultat, grille papier ; soirée d'essai ; notification Home Assistant ; PDF ; entrée dans la stack (port 8088), Atlas, tuile de l'Anneau.
+
+Restent à écrire côté serveur : l'affiche (QR code et image à partager), la synthèse (écarts et affinités), le vrai résultat, la notification, le PDF.
+
+## Essais à faire sur place avant la première soirée
+
+- un téléphone qui n'est pas du foyer ouvre l'appli sur le Wi-Fi de la maison ;
+- le dévoilement sur l'iPhone en paysage, recopié sur la télé ;
+- la notification par Home Assistant.
 
 ## Points ouverts
 
-Voir `docs/dossier.md` § 7 : couleur, service de notification, logo, source du futur import. Tranchés : port 8088, tuile dans l'Anneau.
+Voir `docs/dossier.md` § 7 : service de notification, logo de l'affiche, source du futur import.
 
 ## Échéance
 

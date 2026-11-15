@@ -1,0 +1,19 @@
+# Service Douze points à placer dans la stack homelab.yml (Portainer).
+# Les variables viennent des « Environment variables » de la stack (voir .env.example).
+services:
+  douze-points:
+    image: ghcr.io/baloodusudouest/douze-points:latest
+    container_name: douze-points
+    restart: unless-stopped
+    ports:
+      - "${PORT_DOUZE_POINTS:-8088}:8088"                        # réseau local et Tailscale uniquement
+    environment:
+      - TZ=Europe/Paris
+      - DOUZE_POINTS_PASSWORD=${APPS_PASSWORD}                   # mot de passe commun des applis maison, obligatoire
+      - DOUZE_POINTS_ADRESSE=${DOUZE_POINTS_ADRESSE:-}           # adresse vue par les téléphones des invités (QR code, lien)
+      - DOUZE_POINTS_HA_WEBHOOK=${DOUZE_POINTS_HA_WEBHOOK:-}     # appelé quand tous ont envoyé ; vide : pas de notification
+    volumes:
+      - ${DOUZE_POINTS_DATA_DIR}:/data                           # douze-points.db, sauvegardes/
+    labels:
+      # comme les autres applis maison : mise à jour à la main
+      - "com.centurylinklabs.watchtower.enable=false"

@@ -263,3 +263,17 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 2. **Notification** : nom du service `notify` du téléphone de l'hôte, à lire dans le master doc Home Assistant.
 3. **Logo de Douze points** : à dessiner (étape 1 du plan, avec l'icône de l'appli).
 4. **Source de l'import**, plus tard : Wikipédia ou site de fans.
+
+---
+
+## Décisions prises en codant l'étape 1 (15/11/2026)
+
+- **Adresse de la porte invité** : `/invite/<jeton>` (et son API sous `/invite/<jeton>/api/…`), comme les autres applis maison, à la place du `/s/<jeton>` écrit au § 2.
+- **Le lien vaut de la création de la soirée à son archivage** (le tableau des portes disait « de l'ouverture à la clôture »). En brouillon, il ne rend que le nom de l'évènement.
+- **Couleur** : rose de scène `#e5559f`, contrôlée contre le tableau du socle (aucune appli en rose ; à ajouter au tableau).
+- **Une seule soirée ouverte à la fois.**
+- **Toucher à un classement envoyé le rouvre** (changer une note, déplacer une chanson) : il redevient « pas encore renvoyé ».
+- **Retirer une note** est possible ; la chanson sort alors du classement.
+- **Deux prénoms identiques** sont refusés dans la liste des invités : ajouter une initiale.
+- **Le journal ne contient aucun prénom**, seulement des numéros.
+- La première image (0.1.0) contient le serveur complet des étapes 2 à 5 (soirée, porte invité, gel des points, données du dévoilement) et une régie réduite à la liste des soirées. Les écrans viennent ensuite.
