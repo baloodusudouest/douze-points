@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 0.8.1 — 15/11/2026
+
+- **Drapeaux pour tous les pays** : la table des noms couvre maintenant tous les pays de la norme ISO, en français et en anglais (« Bhutan » comme « Bhoutan »), plus les noms courants (Corée du Sud, Kosovo, Royaume-Uni, Tchéquie…). Avant, seuls une soixantaine de noms en français étaient reconnus. Un drapeau collé en tête de ligne reste prioritaire.
+
 ## 0.8.0 — 15/11/2026
 
 - **Dévoilement plus lisible** : noms et chiffres plus petits, le pays sur une ligne et l'artiste et le titre en dessous, le total toujours visible dans le tableau. Les commandes ne recouvrent plus le titre.
