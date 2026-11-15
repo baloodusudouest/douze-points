@@ -3,7 +3,7 @@
   // Aucune note ni aucun classement n'y apparaît avant le dévoilement : l'hôte note lui aussi.
   import { onMount, onDestroy } from 'svelte'
   import { api } from '$lib/api.js'
-  import { drapeau, EMISSIONS, titreEvenement } from '$lib/pays.js'
+  import { drapeau, EMISSIONS, titreEvenement, normaliser } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Accueil from './Accueil.svelte'
   import Devoilement from './Devoilement.svelte'
@@ -80,6 +80,7 @@
       premiere = false
       try { choisie ? sessionStorage.setItem(CLE, choisie) : sessionStorage.removeItem(CLE) } catch { /* stockage fermé */ }
       s = choisie ? await api.get('/api/soirees/' + choisie) : null
+      if (s) s.chansons = s.chansons.map(normaliser)
       if (s?.etat === 'brouillon') invites = await api.get('/api/invites')
       if (!s) {
         concours = (await api.get('/api/concours')).filter((c) => c.actif).map((c) => c.nom)

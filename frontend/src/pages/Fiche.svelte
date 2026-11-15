@@ -4,7 +4,7 @@
   // Elle s'imprime (ou s'enregistre en PDF depuis l'impression) et se télécharge en tableau.
   import { onMount } from 'svelte'
   import { api } from '$lib/api.js'
-  import { drapeau, EMISSIONS, note } from '$lib/pays.js'
+  import { drapeau, EMISSIONS, note, normaliser } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
   let { soiree, onferme } = $props()
 
@@ -14,7 +14,10 @@
   let message = $state('')
 
   async function lire() {
-    try { f = await api.get(`/api/soirees/${soiree}/fiche`) } catch (e) { erreur = e.message }
+    try {
+      const lu = await api.get(`/api/soirees/${soiree}/fiche`)
+      f = { ...lu, chansons: lu.chansons.map(normaliser) }
+    } catch (e) { erreur = e.message }
   }
   onMount(lire)
 

@@ -318,3 +318,9 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 
 - **Plusieurs soirées à la fois** : la règle « une seule soirée ouverte » du 15/11 est levée. L'écran Soirée s'ouvre sur la liste des soirées non archivées (ou tout droit sur la soirée s'il n'y en a qu'une) ; celle qu'on a choisie est gardée le temps de la session, pour y revenir après la notation.
 - **Rejouer le démarrage** depuis l'écran d'accueil : l'écran éteint, le bouton et les projecteurs se rejouent ; la soirée, déjà ouverte, n'est pas touchée.
+
+## Ajouts de la 0.8.0 (15/11/2026, retour de l'hôte après un premier essai)
+
+- **Dévoilement** : jury en bleu (`--jury: #7aa2e3`), public en rose (couleur de l'appli). Barre à deux couleurs par ligne en mode jury. Aux points du public : « jury + public », puis le total qui compte (`lib/Compteur.svelte`, `Tween` de Svelte). L'ordre du tableau suit le pas avec 1,3 s de retard (`pasTri`) : d'abord l'addition, puis le glissement (`flip`, 900 ms, `cubicInOut`). Retour, « Tout afficher » et podium : sans retard.
+- **Pas du dévoilement** : 0 = attente, 1 à N = étapes, N + 1 = podium (la dernière étape était sautée).
+- **Listes collées** : `lire_collage` comprend « drapeau Pays: Artiste - Titre » ; `normaliser()` (frontend/src/lib/pays.js) découpe à l'affichage les chansons déjà enregistrées sous cette forme. La base n'est pas réécrite.

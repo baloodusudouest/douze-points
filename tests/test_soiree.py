@@ -19,9 +19,13 @@ def test_regie_fermee_sans_connexion(client):
 
 def test_collage_de_la_liste(client):
     lignes = main.lire_collage("1. ; France ; Une artiste ; Un titre\nSuède\tUn groupe\tUn autre titre\n\n3\tItalie")
-    assert lignes == [{"pays": "France", "artiste": "Une artiste", "titre": "Un titre"},
-                      {"pays": "Suède", "artiste": "Un groupe", "titre": "Un autre titre"},
-                      {"pays": "Italie", "artiste": "", "titre": ""}]
+    assert lignes == [{"pays": "France", "artiste": "Une artiste", "titre": "Un titre", "code_pays": ""},
+                      {"pays": "Suède", "artiste": "Un groupe", "titre": "Un autre titre", "code_pays": ""},
+                      {"pays": "Italie", "artiste": "", "titre": "", "code_pays": ""}]
+    # 0.8 : une liste copiée d'un site de fans, en un seul morceau, avec le drapeau en tête
+    copiees = main.lire_collage("\U0001F1EB\U0001F1F7 France: Une Artiste - Un Titre - Version longue\n\U0001F1F8\U0001F1EA Suède: Un Groupe")
+    assert copiees == [{"pays": "France", "artiste": "Une Artiste", "titre": "Un Titre - Version longue", "code_pays": "FR"},
+                       {"pays": "Suède", "artiste": "Un Groupe", "titre": "", "code_pays": "SE"}]
 
 
 def test_lien_avant_ouverture_puis_liste_figee(client):

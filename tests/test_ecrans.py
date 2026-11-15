@@ -364,7 +364,13 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
 
     api = p.request
     soiree = api.post(f"{serveur}/api/soirees", data={"concours": "Eurovision", "annee": 2027, "emission": "finale", "ville": "Villeneuve"}).json()["id"]
-    api.put(f"{serveur}/api/soirees/{soiree}/chansons", data={"texte": "\n".join(f"{pays} ; Artiste {i} ; Titre {i}" for i, pays in enumerate(PAYS, 1))})
+    # collée telle qu'un site de fans la donne : « 🇫🇷 France: Artiste - Titre », en un seul morceau
+    drapeaux = ["FR", "SE", "IT", "UA", "NO", "ES", "CH", "GR", "PT", "EE", "FI", "IS", "PL", "AT"]
+    emoji = lambda code: "".join(chr(0x1F1E6 + ord(x) - 65) for x in code)
+    api.put(f"{serveur}/api/soirees/{soiree}/chansons", data={"texte": "\n".join(
+        f"{emoji(code)} {pays}: Artiste {i} - Titre {i}" for i, (pays, code) in enumerate(zip(PAYS, drapeaux), 1))})
+    lue_chansons = api.get(f"{serveur}/api/soirees/{soiree}").json()["chansons"]
+    assert (lue_chansons[0]["pays"], lue_chansons[0]["code_pays"], lue_chansons[0]["artiste"]) == ("France", "FR", "Artiste 1")
     invites = [i["id"] for i in api.get(f"{serveur}/api/invites").json() if i["actif"]]
     api.put(f"{serveur}/api/soirees/{soiree}/attendus", data={"invites": invites})
     api.post(f"{serveur}/api/soirees/{soiree}/ouvrir")
@@ -394,6 +400,9 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
                 vus.add(phase)
                 p.wait_for_timeout(450)
                 regie.verifier("paysage-12-" + phase.rsplit(" ", 1)[1])
+                if phase == "Les points du public":
+                    p.wait_for_timeout(1300)                 # l'addition est faite, la ligne a pris sa place
+                    regie.verifier("paysage-12-public-apres")
     assert vus == {"Les points du jury", "Les points du public"}
     p.get_by_role("list", name="Podium").wait_for()
     p.wait_for_timeout(1800)                                     # le podium est monté, les cotillons tombent

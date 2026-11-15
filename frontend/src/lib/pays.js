@@ -33,3 +33,26 @@ export function titreEvenement({ concours, annee, emission, ville }) {
   const debut = [concours, (ville || '').trim(), annee].filter(Boolean).join(' ')
   return LIBELLES[emission] ? `${debut}, ${LIBELLES[emission]}` : debut
 }
+
+// Une liste collée telle quelle depuis un site de fans arrive souvent en un seul morceau :
+// « 🇧🇹 Bhutan: Artiste - Titre ». normaliser() en tire le drapeau, le pays, l'artiste et le titre,
+// pour l'affichage. Même règle côté serveur, pour les listes collées à partir de la 0.8 (lire_collage).
+const DRAPEAU_EN_TETE = /^\s*([\u{1F1E6}-\u{1F1FF}]{2})\s*/u
+export function normaliser(c) {
+  let { pays = '', artiste = '', titre = '', code_pays = '' } = c
+  const m = pays.match(DRAPEAU_EN_TETE)
+  if (m) {
+    code_pays = code_pays || [...m[1]].map((l) => String.fromCharCode(l.codePointAt(0) - 0x1f1e6 + 65)).join('')
+    pays = pays.slice(m[0].length)
+  }
+  if (!artiste && !titre) {
+    const i = pays.indexOf(': ')
+    if (i > 0) {
+      const suite = pays.slice(i + 2)
+      pays = pays.slice(0, i)
+      const j = suite.indexOf(' - ')
+      if (j > 0) { artiste = suite.slice(0, j); titre = suite.slice(j + 3) } else artiste = suite
+    }
+  }
+  return { ...c, pays: pays.trim(), artiste: artiste.trim(), titre: titre.trim(), code_pays }
+}

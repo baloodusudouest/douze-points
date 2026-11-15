@@ -6,7 +6,7 @@
   import ChevronUp from '@lucide/svelte/icons/chevron-up'
   import ChevronDown from '@lucide/svelte/icons/chevron-down'
   import Grip from '@lucide/svelte/icons/grip-vertical'
-  import { drapeau, EMISSIONS, BAREME, note } from '$lib/pays.js'
+  import { drapeau, EMISSIONS, BAREME, note, normaliser } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Embleme from '$lib/Embleme.svelte'
   import Ouverture from '$lib/Ouverture.svelte'
@@ -103,7 +103,7 @@
   }
 
   const image = (sorte) => (e?.images?.[sorte] ? `/invite/${jeton}/image/${sorte}?v=${e.images[sorte]}` : null)
-  let chansons = $derived(e?.chansons || [])
+  let chansons = $derived((e?.chansons || []).map(normaliser))
   let parId = $derived(Object.fromEntries(chansons.map((c) => [c.id, c])))
   let notes = $derived(e?.moi?.notes || {})
   let ordre = $derived(e?.moi?.classement || [])

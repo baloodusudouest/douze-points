@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 0.8.0 — 15/11/2026
+
+- **Dévoilement plus lisible** : noms et chiffres plus petits, le pays sur une ligne et l'artiste et le titre en dessous, le total toujours visible dans le tableau. Les commandes ne recouvrent plus le titre.
+- **Deux couleurs** : le jury en bleu, le public en rose (titre de l'étape, ligne qui reçoit, grands chiffres). En mode « jury puis public », chaque ligne porte une barre fine à deux couleurs : sa part de jury et sa part de public, et une légende en haut.
+- **L'addition** : aux points du public, on voit « points du jury + points du public », puis le total qui compte jusqu'à sa nouvelle valeur ; les totaux du tableau comptent aussi au lieu de sauter.
+- **Déplacement en deux temps, plus doux** : les points s'ajoutent sur place, puis la ligne glisse à sa nouvelle place (près d'une seconde, mouvement adouci au départ et à l'arrivée).
+- **La dernière étape n'est plus sautée** : avant, le podium arrivait à la place de la dernière annonce.
+- **Listes collées d'un site de fans** : une ligne « 🇧🇹 Pays: Artiste - Titre » en un seul morceau est découpée (drapeau, pays, artiste, titre). Les soirées déjà saisies ainsi s'affichent découpées elles aussi, sans rien réécrire.
+
 ## 0.7.0 — 15/11/2026
 
 - **Plusieurs soirées** : on en crée autant qu'on veut (les deux demi-finales et la finale, par exemple) ; l'écran Soirée en montre la liste, et un clic ouvre celle qu'on veut. Plusieurs peuvent être en cours en même temps, chacune avec son lien, ses invités et ses notes. « Toutes les soirées » ramène à la liste.

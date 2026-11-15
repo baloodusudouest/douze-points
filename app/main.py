@@ -13,6 +13,7 @@ import hmac
 import io
 import json
 import random
+import re
 import secrets
 import time
 from collections import defaultdict, deque
@@ -458,17 +459,30 @@ def qr(soiree_id: int):
     return Response(tampon.getvalue(), media_type="image/svg+xml")
 
 
+DRAPEAU_EN_TETE = re.compile("^\\s*([\U0001F1E6-\U0001F1FF]{2})\\s*")
+
+
 def lire_collage(texte: str) -> list[dict]:
     """Une chanson par ligne ; champs séparés par une tabulation ou un point-virgule : pays, artiste, titre.
-    Un numéro de passage en tête de ligne est accepté et ignoré : c'est l'ordre des lignes qui compte."""
+    Un numéro de passage en tête de ligne est accepté et ignoré : c'est l'ordre des lignes qui compte.
+    0.8 : une ligne copiée d'un site de fans, « 🇧🇹 Bhutan: Artiste - Titre », est aussi comprise : le drapeau
+    donne le code du pays, puis le pays avant « : », l'artiste et le titre de part et d'autre de « - »."""
     chansons = []
     for ligne in texte.splitlines():
         champs = [c.strip() for c in (ligne.split("\t") if "\t" in ligne else ligne.split(";"))]
         if champs and champs[0].rstrip(".").isdigit():
             champs = champs[1:]
         champs = [c for c in champs] + ["", "", ""]
-        if champs[0]:
-            chansons.append({"pays": champs[0], "artiste": champs[1], "titre": champs[2]})
+        pays, artiste, titre, code = champs[0], champs[1], champs[2], ""
+        m = DRAPEAU_EN_TETE.match(pays)
+        if m:
+            code = "".join(chr(ord(x) - 0x1F1E6 + 65) for x in m.group(1))
+            pays = pays[m.end():]
+        if not artiste and not titre and ": " in pays:
+            pays, suite = pays.split(": ", 1)
+            artiste, _, titre = suite.partition(" - ")
+        if pays.strip():
+            chansons.append({"pays": pays.strip(), "artiste": artiste.strip(), "titre": titre.strip(), "code_pays": code})
     return chansons
 
 

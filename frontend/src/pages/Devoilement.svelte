@@ -3,15 +3,22 @@
   // Toucher l'écran : pas suivant. Le pas est gardé côté serveur : après une coupure, on reprend où l'on était.
   import { onMount } from 'svelte'
   import { flip } from 'svelte/animate'
+  import { cubicInOut } from 'svelte/easing'
   import { fade, scale } from 'svelte/transition'
   import { api } from '$lib/api.js'
-  import { drapeau, note } from '$lib/pays.js'
+  import { drapeau, note, normaliser } from '$lib/pays.js'
   import Embleme from '$lib/Embleme.svelte'
+  import Compteur from '$lib/Compteur.svelte'
   let { soiree, onferme } = $props()
 
   let d = $state(null)
   let erreur = $state('')
   let pas = $state(0)
+  // L'ordre du tableau suit le pas avec un temps de retard : d'abord les points s'additionnent dans la ligne,
+  // puis la ligne glisse à sa nouvelle place.
+  let pasTri = $state(0)
+  let attenteTri
+  const RETARD_TRI = 1300
   let lignesVisibles = $state(10)
 
   // Les pas.
@@ -34,7 +41,7 @@
         sortie.push({ phase: 'jury', chanson: c.id, lot: jury[c.id], total: somme(jury[c.id]) })
       const remontee = [...d.chansons].sort((x, y) => somme(jury[x.id]) - somme(jury[y.id]) || y.ordre - x.ordre)
       for (const c of remontee)
-        sortie.push({ phase: 'public', chanson: c.id, lot: publicc[c.id], total: somme(publicc[c.id]) })
+        sortie.push({ phase: 'public', chanson: c.id, lot: publicc[c.id], total: somme(publicc[c.id]), avant: somme(jury[c.id]) })
       return sortie
     }
     for (const inv of d.invites) {
@@ -45,20 +52,37 @@
     }
     return sortie
   })
-  let fini = $derived(d && pas >= etapes.length)
+  // pas 0 : l'attente ; pas 1 à N : les étapes ; pas N + 1 : le podium.
+  let fin = $derived(etapes.length + 1)
+  let fini = $derived(!!d && pas >= fin)
   let courant = $derived(pas > 0 && !fini ? etapes[pas - 1] : null)
   let chansons = $derived(d ? Object.fromEntries(d.chansons.map((c) => [c.id, c])) : {})
+  let avecJury = $derived(d?.mode === 'jury')
 
   // Le tableau : pendant le jeu, les totaux des pas déjà joués ; à la fin, le classement du serveur (égalités départagées).
+  // Points reçus jusqu'à un pas donné, séparés jury / public (en mode « jury puis public »)
+  function cumul(jusque) {
+    const jury = Object.fromEntries(d.chansons.map((c) => [c.id, 0]))
+    const pub = Object.fromEntries(d.chansons.map((c) => [c.id, 0]))
+    for (const e of etapes.slice(0, jusque)) for (const p of e.lot) (e.phase === 'jury' ? jury : pub)[p.chanson] += p.points
+    return { jury, pub }
+  }
   let tableau = $derived.by(() => {
     if (!d) return []
-    if (fini) return d.classement.map((l) => ({ ...l, c: chansons[l.chanson] }))
-    const totaux = Object.fromEntries(d.chansons.map((c) => [c.id, 0]))
-    for (const e of etapes.slice(0, pas)) for (const p of e.lot) totaux[p.chanson] += p.points
-    return d.chansons.map((c) => ({ chanson: c.id, total: totaux[c.id], c }))
-      .sort((a, b) => b.total - a.total || a.c.ordre - b.c.ordre)
+    const affiche = cumul(Math.min(pas, etapes.length))
+    const lignes = d.chansons.map((c) => ({ chanson: c.id, c, jury: affiche.jury[c.id], pub: affiche.pub[c.id],
+                                           total: affiche.jury[c.id] + affiche.pub[c.id] }))
+    if (pasTri >= fin) {          // le classement du serveur, avec ses égalités départagées
+      const rang = Object.fromEntries(d.classement.map((l, i) => [l.chanson, { i, rang: l.rang }]))
+      return lignes.map((l) => ({ ...l, rang: rang[l.chanson].rang })).sort((a, b) => rang[a.chanson].i - rang[b.chanson].i)
+    }
+    const tri = cumul(Math.min(pasTri, etapes.length))
+    const t = (id) => tri.jury[id] + tri.pub[id]
+    return lignes.sort((a, b) => t(b.chanson) - t(a.chanson) || a.c.ordre - b.c.ordre)
   })
+  let plus = $derived(Math.max(1, ...tableau.map((l) => l.total)))
   let recu = $derived(new Set(courant ? (courant.phase ? [courant.chanson] : courant.lot.map((p) => p.chanson)) : []))
+  let teinte = $derived(courant?.phase === 'jury' ? 'jury' : 'public')
 
   // Cotillons du podium : une centaine de papiers, chacun avec sa place, sa couleur, sa durée et son retard.
   const COULEURS = ['#e5559f', '#f2ece2', '#a98fd8', '#7f9cc4', '#8fae6b', '#e0884a']
@@ -67,18 +91,25 @@
     couleur: COULEURS[i % COULEURS.length], largeur: 6 + Math.random() * 6, tourne: Math.random() * 360, rond: i % 4 === 0,
   }))
 
-  function mesurer() { lignesVisibles = Math.max(5, Math.floor((window.innerHeight - 40) / 44)) }
+  function mesurer() { lignesVisibles = Math.max(5, Math.floor((window.innerHeight - 64) / 40)) }
 
   onMount(async () => {
     mesurer()
     try {
-      d = await api.get(`/api/soirees/${soiree}/devoilement`)
-      pas = Math.min(d.pas, etapes.length)
+      const lu = await api.get(`/api/soirees/${soiree}/devoilement`)
+      d = { ...lu, chansons: lu.chansons.map(normaliser) }
+      pas = pasTri = Math.min(d.pas, fin)
     } catch (e) { erreur = e.message }
   })
 
   function aller(n) {
-    pas = Math.max(0, Math.min(etapes.length, n))
+    n = Math.max(0, Math.min(fin, n))
+    clearTimeout(attenteTri)
+    if (n === pas + 1 && n <= etapes.length) {
+      // un pas en avant : les points s'ajoutent sur place, puis la ligne prend sa nouvelle place
+      attenteTri = setTimeout(() => (pasTri = n), RETARD_TRI)
+    } else pasTri = n               // retour, « Tout afficher » ou podium : tout de suite
+    pas = n
     api.post(`/api/soirees/${soiree}/pas`, { pas }).catch(() => {})   // une soirée déjà dévoilée ne garde plus le pas : sans importance
   }
   async function terminer() {
@@ -93,7 +124,7 @@
 
 <svelte:window onresize={mesurer} onkeydown={touche} />
 
-<div class="fixed inset-0 z-30 bg-background">
+<div class="fixed inset-0 z-30 bg-background" style="--jury: #7aa2e3; --public: var(--primary)">
   {#if erreur}
     <div class="grid h-full place-items-center p-6 text-center">
       <div><p role="alert">{erreur}</p><button class="pastille mt-4" onclick={onferme}>Fermer</button></div>
@@ -103,18 +134,29 @@
     <button class="absolute inset-0 cursor-default" aria-label="Pas suivant" onclick={() => (fini ? null : aller(pas + 1))}></button>
 
     <div class="pointer-events-none relative grid h-full gap-x-8 p-[max(1rem,env(safe-area-inset-top))] landscape:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
-      <ol class="grid content-start gap-1 overflow-hidden" aria-label="Classement du groupe">
-        {#each tableau.slice(0, lignesVisibles) as l, i (l.chanson)}
-          <li animate:flip={{ duration: 450 }} class="flex h-10 items-center gap-3 rounded-lg px-3 text-lg {recu.has(l.chanson) ? 'bg-primary text-primary-foreground' : i === 0 && pas > 0 ? 'bg-card' : ''}">
-            <span class="w-6 text-right text-sm opacity-60">{fini ? l.rang : i + 1}</span>
-            <span class="text-xl">{drapeau(l.c.pays, l.c.code_pays)}</span>
-            <span class="truncate">{l.c.pays}</span>
-            <span class="chiffre ml-auto text-2xl">{l.total}</span>
-          </li>
-        {/each}
-      </ol>
+      <div class="min-w-0">
+        {#if avecJury}
+          <p class="legende mb-1 flex gap-4 px-3 text-xs text-muted-foreground"><span><i class="pastille-jury"></i>Jury</span><span><i class="pastille-public"></i>Public</span></p>
+        {/if}
+        <ol class="grid content-start gap-1 overflow-hidden" aria-label="Classement du groupe">
+          {#each tableau.slice(0, lignesVisibles) as l, i (l.chanson)}
+            <li animate:flip={{ duration: 900, easing: cubicInOut }}
+                class="ligne {recu.has(l.chanson) ? 'recu recu-' + teinte : i === 0 && pas > 0 ? 'en-tete' : ''}">
+              <span class="w-5 shrink-0 text-right text-xs opacity-60">{l.rang ?? i + 1}</span>
+              <span class="shrink-0 text-lg">{drapeau(l.c.pays, l.c.code_pays)}</span>
+              <span class="min-w-0 flex-1 truncate">{l.c.pays}</span>
+              <span class="chiffre w-12 shrink-0 text-right text-xl"><Compteur valeur={l.total} retard={recu.has(l.chanson) ? 250 : 0} /></span>
+              {#if avecJury}
+                <span class="barre" aria-hidden="true">
+                  <i style="width: {(l.jury / plus) * 100}%; background: var(--jury)"></i><i style="width: {(l.pub / plus) * 100}%; background: var(--public)"></i>
+                </span>
+              {/if}
+            </li>
+          {/each}
+        </ol>
+      </div>
 
-      <div class="grid content-center justify-items-center overflow-hidden pt-10 text-center portrait:hidden">
+      <div class="grid min-w-0 content-center justify-items-center overflow-hidden pt-14 text-center portrait:hidden">
         {#if pas === 0}
           <p style="font-size: 30vh; line-height: 1"><Embleme src={d.images.logo ? `/api/soirees/${soiree}/image/logo?v=${d.images.logo}` : null} /></p>
           <p class="mt-2 text-2xl font-light">Le classement de la soirée</p>
@@ -140,13 +182,23 @@
           {#key pas}
             {#if courant.phase}
               {@const c = chansons[courant.chanson]}
-              <div in:fade={{ duration: 200 }}>
-                <p class="text-2xl font-light text-muted-foreground">{courant.phase === 'jury' ? 'Les points du jury' : 'Les points du public'}</p>
-                <p class="mt-2 font-light tracking-tight" style="font-size: clamp(1.8rem, 11vh, 4rem); line-height: 1.1">{drapeau(c.pays, c.code_pays)} {c.pays}</p>
-                <p class="chiffre mt-1 text-primary" style="font-size: 24vh" in:scale={{ start: 0.7, duration: 350 }}>{courant.total}</p>
-                <p class="text-lg text-muted-foreground">{courant.total > 1 ? 'points' : 'point'}</p>
-                {#if courant.phase === 'jury' && courant.lot.length}
-                  <p class="mx-auto mt-2 line-clamp-2 max-w-md text-base text-muted-foreground">{[...courant.lot].sort((x, y) => y.points - x.points).map((p) => `${p.points} de ${p.prenom}`).join(', ')}</p>
+              <div class="w-full min-w-0" in:fade={{ duration: 200 }}>
+                <p class="text-lg font-light" style="color: var(--{courant.phase})">{courant.phase === 'jury' ? 'Les points du jury' : 'Les points du public'}</p>
+                <p class="mt-1 truncate font-light tracking-tight" style="font-size: clamp(1.3rem, 7vh, 2.6rem); line-height: 1.15">{drapeau(c.pays, c.code_pays)} {c.pays}</p>
+                {#if c.artiste || c.titre}<p class="truncate text-sm text-muted-foreground">{c.artiste}{c.titre ? ' – ' + c.titre : ''}</p>{/if}
+                {#if courant.phase === 'jury'}
+                  <p class="chiffre mt-1" style="font-size: 18vh; line-height: 1.05; color: var(--jury)" in:scale={{ start: 0.7, duration: 350 }}>{courant.total}</p>
+                  <p class="text-base text-muted-foreground">{courant.total > 1 ? 'points' : 'point'}</p>
+                  {#if courant.lot.length}
+                    <p class="mx-auto mt-1 line-clamp-1 max-w-md text-sm text-muted-foreground">{[...courant.lot].sort((x, y) => y.points - x.points).map((p) => `${p.points} de ${p.prenom}`).join(', ')}</p>
+                  {/if}
+                {:else}
+                  <!-- les points du public s'ajoutent à ceux du jury : 14 + 9 = 23 -->
+                  <p class="addition mt-2" aria-label="{courant.avant} points du jury, plus {courant.total} du public">
+                    <span style="color: var(--jury)">{courant.avant}</span><span class="signe">+</span><span class="arrive" style="color: var(--public)">{courant.total}</span>
+                  </p>
+                  <p class="chiffre" style="font-size: 16vh; line-height: 1.05"><Compteur valeur={courant.avant + courant.total} depart={courant.avant} retard={450} duree={1000} /></p>
+                  <p class="text-base text-muted-foreground">points en tout</p>
                 {/if}
               </div>
             {:else}
@@ -157,9 +209,9 @@
               {/if}
               {#if courant.annonce}
                 {@const c = chansons[courant.annonce.chanson]}
-                <p class="chiffre mt-1 text-primary" style="font-size: 24vh" in:scale={{ start: 0.7, duration: 350 }}>{courant.annonce.points}</p>
+                <p class="chiffre mt-1 text-primary" style="font-size: 18vh; line-height: 1.05" in:scale={{ start: 0.7, duration: 350 }}>{courant.annonce.points}</p>
                 <p class="text-lg text-muted-foreground">{courant.annonce.points === 12 ? 'Douze points' : 'points'}</p>
-                <p class="mt-1 font-light tracking-tight" style="font-size: clamp(1.8rem, 11vh, 4rem); line-height: 1.1">{drapeau(c.pays, c.code_pays)} {c.pays}</p>
+                <p class="mt-1 max-w-full truncate font-light tracking-tight" style="font-size: clamp(1.3rem, 7vh, 2.6rem); line-height: 1.15">{drapeau(c.pays, c.code_pays)} {c.pays}</p>
                 <p class="text-base text-muted-foreground">noté {note(courant.annonce.note)} sur 20</p>
                 {#if courant.annonce.commentaire}<p class="mx-auto mt-1 line-clamp-2 max-w-md text-lg">« {courant.annonce.commentaire} »</p>{/if}
               {:else}
@@ -183,13 +235,29 @@
     <div class="absolute inset-x-0 top-[max(0.5rem,env(safe-area-inset-top))] flex justify-end gap-2 px-4 text-xs">
       <p class="mr-auto self-center text-muted-foreground landscape:hidden">Tourne le téléphone en paysage.</p>
       {#if pas > 0}<button class="commande" onclick={() => aller(pas - 1)}>Revenir</button>{/if}
-      {#if !fini}<button class="commande" onclick={() => aller(etapes.length)}>Tout afficher</button>{/if}
+      {#if !fini}<button class="commande" onclick={() => aller(fin)}>Tout afficher</button>{/if}
       {#if fini}<button class="commande plein" onclick={terminer}>Terminer</button>{:else}<button class="commande" onclick={onferme}>Fermer</button>{/if}
     </div>
   {/if}
 </div>
 
 <style>
+  .ligne { position: relative; display: flex; height: 2.25rem; align-items: center; gap: 0.6rem; overflow: hidden; border-radius: 0.5rem; padding: 0 0.75rem; font-size: 1rem; background: var(--background);
+    transition: background-color 0.5s, box-shadow 0.5s; }
+  .ligne.en-tete { background: var(--card); }
+  .ligne.recu { z-index: 1; }
+  .ligne.recu-jury { background: color-mix(in oklab, var(--jury) 30%, var(--background)); box-shadow: inset 4px 0 0 var(--jury); }
+  .ligne.recu-public { background: color-mix(in oklab, var(--public) 30%, var(--background)); box-shadow: inset 4px 0 0 var(--public); }
+  .barre { position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0; display: flex; height: 3px; overflow: hidden; border-radius: 2px; opacity: 0.9; }
+  .barre i { display: block; height: 100%; transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }
+  .legende i { display: inline-block; width: 0.6rem; height: 0.6rem; margin-right: 0.35rem; border-radius: 999px; vertical-align: -1px; }
+  .pastille-jury { background: var(--jury); }
+  .pastille-public { background: var(--public); }
+  .addition { display: flex; align-items: baseline; justify-content: center; gap: 0.6rem; font-size: 7vh; font-weight: 300; line-height: 1; font-variant-numeric: tabular-nums; }
+  .addition .signe { color: var(--muted-foreground); }
+  .addition .arrive { animation: arriver 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both; }
+  @keyframes arriver { from { opacity: 0; transform: translateY(-2vh) scale(1.3); } to { opacity: 1; transform: none; } }
+
   .commande { min-height: 2.75rem; border-radius: 999px; border: 1px solid var(--border); background: var(--background); padding: 0 1rem; color: var(--muted-foreground); }
   .commande.plein { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
 
@@ -213,6 +281,6 @@
   }
   @media (prefers-reduced-motion: reduce) {
     .cotillons { display: none; }
-    .marche { animation: none; }
+    .marche, .addition .arrive { animation: none; }
   }
 </style>
