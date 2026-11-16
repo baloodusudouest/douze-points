@@ -9,11 +9,14 @@ services:
       - "${PORT_DOUZE_POINTS:-8088}:8088"                        # réseau local et Tailscale uniquement
     environment:
       - TZ=Europe/Paris
-      - DOUZE_POINTS_PASSWORD=${APPS_PASSWORD}                   # mot de passe commun des applis maison, obligatoire
-      - DOUZE_POINTS_ADRESSE=${DOUZE_POINTS_ADRESSE:-}           # adresse vue par les téléphones des invités (QR code, lien)
+      # 1.1 : variables communes de la maison (module app/maison.py) ; les anciennes restent lues en repli
+      - MAISON_PASSWORD=${MAISON_PASSWORD}                       # mot de passe commun des applis, obligatoire (repli : DOUZE_POINTS_PASSWORD)
+      - MAISON_JETON=${MAISON_JETON:-}                           # jeton commun : demandes à carnet, lecture de l'annuaire de l'Anneau
+      # - DOUZE_POINTS_PASSWORD=${DOUZE_POINTS_PASSWORD}         # ancien nom, lu si MAISON_PASSWORD est vide
+      # - DOUZE_POINTS_CARNET_JETON=${DOUZE_POINTS_CARNET_JETON:-}   # ancien jeton partagé avec carnet, envoyé d'abord tant qu'il est posé
+      - DOUZE_POINTS_ADRESSE=${DOUZE_POINTS_ADRESSE:-}           # repli de l'adresse vue par les invités (QR code, lien) ; l'Anneau (tuile « Douze points », adresse locale) passe d'abord
       - DOUZE_POINTS_HA_WEBHOOK=${DOUZE_POINTS_HA_WEBHOOK:-}     # appelé quand tous ont envoyé ; vide : pas de notification
       - DOUZE_POINTS_CARNET_URL=http://carnet:8096               # carnet vu depuis le conteneur (même stack)
-      - DOUZE_POINTS_CARNET_JETON=${DOUZE_POINTS_CARNET_JETON:-} # même valeur que CARNET_JETON_DOUZE_POINTS côté carnet ; vide : carnet pas lu
     volumes:
       - ${DOUZE_POINTS_DATA_DIR}:/data                           # douze-points.db, sauvegardes/
     labels:

@@ -23,7 +23,7 @@ import segno
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import __version__, carnet
+from . import __version__, carnet, maison
 from .auth import COMMUN, DUREE, Sessions
 from .base import base, preparer, sauvegarder
 from .config import APPLI, Config, charger
@@ -53,6 +53,16 @@ def maintenant() -> str:
 
 def cfg() -> Config:
     return ETAT["cfg"]
+
+
+ANNUAIRE = maison.Annuaire()
+
+
+def adresse() -> str:
+    """1.1 : adresse de Douze points pour les téléphones des invités (QR code, lien), lue dans l'Anneau
+    (tuile « Douze points »). Toujours l'adresse locale : les invités ne sont pas sur Tailscale, même quand
+    la régie est ouverte par lui. Repli : DOUZE_POINTS_ADRESSE."""
+    return ANNUAIRE.adresse("Douze points", prive=False, repli=cfg().adresse)
 
 
 def _lire_generation(c: Config) -> int:
@@ -122,7 +132,7 @@ def sante():
 @app.get("/api/session")
 def session(request: Request):
     return {"connecte": ETAT["sessions"].connecte(request.cookies), "version": __version__,
-            "adresse": cfg().adresse, "notification": bool(cfg().ha_webhook), "carnet": carnet.regle(cfg())}
+            "adresse": adresse(), "notification": bool(cfg().ha_webhook), "carnet": carnet.regle(cfg())}
 
 
 @app.post("/api/connexion")
@@ -294,7 +304,7 @@ def services(verifier: bool = False):
     """Écran Connexion : une tuile par service extérieur. « Vérifier » relit carnet pour de bon, sans rien écrire."""
     c = {"id": "carnet", "nom": "carnet", "regle": carnet.regle(cfg()), "ok": None, "detail": "",
          "lit": "Le prénom et le nom des fiches, pour choisir les invités en tapant leur nom. Rien d'autre.",
-         "ecrit": "Rien.", "reglage": "DOUZE_POINTS_CARNET_URL et DOUZE_POINTS_CARNET_JETON (même valeur que CARNET_JETON_DOUZE_POINTS côté carnet)"}
+         "ecrit": "Rien.", "reglage": "DOUZE_POINTS_CARNET_URL, et le jeton commun MAISON_JETON (ou DOUZE_POINTS_CARNET_JETON, même valeur que CARNET_JETON_DOUZE_POINTS côté carnet)"}
     if c["regle"] and verifier:
         try:
             c.update(ok=True, detail=f"{len(carnet.personnes(cfg(), frais=True))} personnes lues.")
@@ -429,7 +439,7 @@ def soiree_lire(soiree_id: int):
                 "mode_devoilement": s["mode_devoilement"], "pas_devoilement": s["pas_devoilement"],
                 "forcee": bool(s["forcee"]), "chansons": _chansons(cx, soiree_id), "participants": gens,
                 "tous_envoye": bool(attendus) and all(g["etat"] == "envoye" for g in attendus),
-                "lien": f"{cfg().adresse}/invite/{s['jeton_invite']}" if cfg().adresse else ""}
+                "lien": f"{lien}/invite/{s['jeton_invite']}" if (lien := adresse()) else ""}
 
 
 @app.put("/api/soirees/{soiree_id}/image/{sorte}")
@@ -479,10 +489,11 @@ def qr(soiree_id: int):
     """Le QR code du lien des invités, pour l'écran d'accueil. Clair sur fond sombre, bord compris."""
     with base(cfg().data) as cx:
         s = _soiree(cx, soiree_id)
-    if not cfg().adresse:
-        raise HTTPException(409, "Aucune adresse n'est réglée dans la stack (DOUZE_POINTS_ADRESSE).")
+    lien = adresse()
+    if not lien:
+        raise HTTPException(409, "Aucune adresse : ni tuile « Douze points » dans l'Anneau, ni DOUZE_POINTS_ADRESSE dans la stack.")
     tampon = io.BytesIO()
-    segno.make(f"{cfg().adresse}/invite/{s['jeton_invite']}", error="m").save(
+    segno.make(f"{lien}/invite/{s['jeton_invite']}", error="m").save(
         tampon, kind="svg", scale=10, border=3, dark="#151311", light="#f2ece2", xmldecl=False)
     return Response(tampon.getvalue(), media_type="image/svg+xml")
 

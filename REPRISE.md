@@ -1,9 +1,10 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 15/11/2026, version 1.0.1.
+À lire en premier. Mis à jour le 16/11/2026, version 1.1.0.
 
 ## Où on en est
 
+- **1.1.0 (16/11/2026)** : variables communes (module `app/maison.py`, copie du socle 0.5.0 : ne pas le modifier ici, `python tools/diffuser_maison.py ../douze-points` depuis le socle). `config.charger` lit `MAISON_PASSWORD` (repli `DOUZE_POINTS_PASSWORD`) et le jeton pour carnet par `maison.jeton_a_envoyer("DOUZE_POINTS_CARNET_JETON")` ; `main.adresse()` + `ANNUAIRE` donnent l'adresse des invités (tuile « Douze points », toujours la locale, repli `DOUZE_POINTS_ADRESSE`). Aucune porte ne reçoit de jeton d'une autre appli ; pas de lecture seule. Jamais essayé sur la vraie installation : les nouvelles variables ne sont pas encore dans la stack (tout passe par les anciens noms). Tests : `tests/test_maison.py`.
 - Dossier v0.3 (`docs/dossier.md`, avec les décisions prises en codant en fin de fichier), conseil passé (`docs/conseil.md`).
 - **Une soirée se joue de bout en bout** : préparer, écran d'accueil et QR code, ouvrir, noter et classer sur les téléphones, envoyer, forcer, dévoiler en paysage, résultats sur les téléphones, archiver, rejouer.
 - **Jamais essayé sur la vraie installation**, ni sur un vrai iPhone : tout a été vu dans le navigateur des tests (PC, 390 × 844, 844 × 390). Le glisser au doigt, la recopie d'écran et le partage de l'image depuis Safari en http restent à constater.

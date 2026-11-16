@@ -1,5 +1,15 @@
 # Journal des versions
 
+## 1.1.0 — 16/11/2026
+
+- **Variables communes de la maison** (module `app/maison.py` du socle 0.5.0, copié tel quel) :
+  - mot de passe : `MAISON_PASSWORD`, repli sur `DOUZE_POINTS_PASSWORD` (toujours 12 caractères au moins) ;
+  - jeton envoyé à carnet (`/douze-points/personnes`) : `DOUZE_POINTS_CARNET_JETON` tant qu'il est dans la stack, puis le jeton commun `MAISON_JETON` (carnet ≥ 2.25.0 l'accepte) ;
+  - adresse des invités (QR code, lien) : l'adresse **locale** de la tuile « Douze points » de l'Anneau (`/externe/services`, Anneau 0.7.0), même quand la régie est ouverte par Tailscale, car les téléphones des invités n'y sont pas ; repli sur `DOUZE_POINTS_ADRESSE`.
+- Pas de lecture seule : Douze points n'écrit chez aucun service. `DOUZE_POINTS_HA_WEBHOOK` et les liens des invités (`/invite/…`) ne changent pas.
+- Rien ne change tant que la stack n'a pas les nouvelles variables : chaque ancien nom reste lu.
+- Tests : copie du module non retouchée, mot de passe commun puis repli, jeton envoyé (ancien d'abord), le jeton commun n'ouvre pas la régie, adresse par l'Anneau puis repli.
+
 ## 1.0.1 — 15/11/2026
 
 - **Curseur de la note plus gros** : barre épaisse remplie de rose jusqu'à la note, gros bouton rond facile à tenir au pouce (façon A choisie par l'hôte parmi quatre propositions).

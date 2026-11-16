@@ -99,7 +99,7 @@
     {#if session.adresse}
       Le QR code et le lien mènent à <span class="text-foreground">{session.adresse}</span>. Ils ne répondent que sur le Wi-Fi de la maison.
     {:else}
-      Aucune adresse n'est réglée : sans elle, pas de QR code ni de lien. À renseigner dans la stack (DOUZE_POINTS_ADRESSE).
+      Aucune adresse n'est réglée : sans elle, pas de QR code ni de lien. À renseigner dans la tuile « Douze points » de l'Anneau (adresse locale), ou dans la stack (DOUZE_POINTS_ADRESSE).
     {/if}
   </p>
 </section>
