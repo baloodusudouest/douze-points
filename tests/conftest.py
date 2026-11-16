@@ -2,18 +2,24 @@
 import pytest
 from fastapi.testclient import TestClient
 
-from app import main
+from app import main, maison
 from app.config import Config
 
 MOT_DE_PASSE = "mot-de-passe-de-test"
 PRENOMS = ["Aglaé", "Barnabé", "Célestine", "Désiré"]
 
 
+def faux_annuaire(services):
+    """L'annuaire de l'Anneau sans réseau (adresses de la plage de documentation)."""
+    return maison.Annuaire(url="http://anneau.exemple", jeton="jeton-commun", lire=lambda: services)
+
+
 @pytest.fixture()
-def client(tmp_path):
+def client(tmp_path, monkeypatch):
     main.ETAT.clear()
+    monkeypatch.setattr(main, "ANNUAIRE", faux_annuaire([{"nom": "Douze points", "locale": "http://192.0.2.10:8088"}]))
     main.ETAT["cfg"] = Config(password=MOT_DE_PASSE, data=tmp_path, static=tmp_path / "static",
-                              attente_connexion=False, adresse="http://192.0.2.10:8088", limite_invite=100000)
+                              attente_connexion=False, limite_invite=100000)
     with TestClient(main.app) as c:
         yield c
     main.ETAT.clear()

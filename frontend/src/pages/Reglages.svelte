@@ -13,12 +13,76 @@
   async function lire() {
     concours = (await api.get('/api/concours')).filter((c) => c.actif)
     invites = (await api.get('/api/invites')).filter((i) => i.actif)
-    pasNote = (await api.get('/api/reglages')).pas_note
+    prendre(await api.get('/api/reglages'))
   }
   let pasNote = $state(0.5)
+  let webhook = $state('')
+  let webhookMessage = $state('')
+  let webhookErreur = $state('')
+  let charges = $state(false)      // le champ attend les réglages lus avant d'être modifiable
+  function prendre(r) {
+    pasNote = r.pas_note
+    webhook = r.ha_webhook ?? ''
+    charges = true
+  }
   async function reglerPas(v) {
     erreur = ''
-    try { pasNote = (await api.put('/api/reglages', { pas_note: v })).pas_note } catch (x) { erreur = x.message }
+    try { prendre(await api.put('/api/reglages', { pas_note: v })) } catch (x) { erreur = x.message }
+  }
+  async function enregistrerWebhook(e) {
+    e.preventDefault()
+    webhookMessage = ''
+    webhookErreur = ''
+    try {
+      prendre(await api.put('/api/reglages', { ha_webhook: webhook }))
+      webhookMessage = webhook ? 'Adresse enregistrée.' : 'Adresse effacée : pas de notification.'
+    } catch (x) { webhookErreur = x.message }
+  }
+
+  // 1.2 : restaurer les réglages depuis une sauvegarde gardée par l'Anneau (réglages seulement)
+  const NOMS = { pas_note: 'Pas de la note', ha_webhook: 'Webhook de Home Assistant' }
+  const PAS = { 1: 'au point', 0.5: 'au demi-point', 0.25: 'au quart de point' }
+  const montrer = (cle, v) => (cle === 'pas_note' ? (PAS[v] ?? String(v)) : v === '' || v == null ? '(vide)' : String(v))
+  let dates = $state([])
+  let jour = $state('')
+  let ecarts = $state(null)
+  let versionSauvee = $state('')
+  let restaurerMessage = $state('')
+  let restaurerErreur = $state('')
+  let restaurerAttente = $state(false)
+  async function voirSauvegardes() {
+    restaurerMessage = ''
+    restaurerErreur = ''
+    ecarts = null
+    restaurerAttente = true
+    try {
+      dates = (await api.get('/api/restaurer')).dates
+      jour = dates[0] ?? ''
+      if (jour) await voirEcarts()
+    } catch (x) { dates = []; restaurerErreur = x.message } finally { restaurerAttente = false }
+  }
+  async function voirEcarts() {
+    restaurerMessage = ''
+    restaurerErreur = ''
+    ecarts = null
+    if (!jour) return
+    try {
+      const r = await api.get('/api/restaurer?le=' + encodeURIComponent(jour))
+      ecarts = r.differences
+      versionSauvee = r.version
+    } catch (x) { restaurerErreur = x.message }
+  }
+  async function restaurer() {
+    restaurerErreur = ''
+    restaurerAttente = true
+    try {
+      const r = await api.post('/api/restaurer', { le: jour })
+      prendre(r.reglages)
+      restaurerMessage = r.restaures.length
+        ? `Réglages du ${jour} restaurés : ${r.restaures.map((c) => NOMS[c] ?? c).join(', ')}.`
+        : 'Rien à changer : les réglages sont déjà ceux de cette sauvegarde.'
+      ecarts = []
+    } catch (x) { restaurerErreur = x.message } finally { restaurerAttente = false }
   }
   async function regler(invite, corps) {
     erreur = ''
@@ -75,6 +139,51 @@
 </section>
 
 <section class="mt-4 rounded-2xl border bg-card p-5">
+  <h2 class="text-lg font-semibold">Notification Home Assistant</h2>
+  <p class="mt-1 text-sm text-muted-foreground">Adresse du webhook de Home Assistant, pour être prévenu quand tous les invités ont envoyé. Vide : pas de notification, la régie seule l'affiche. Elle n'est jamais copiée dans les sauvegardes. La notification elle-même n'est pas encore branchée.</p>
+  <form class="mt-3 flex flex-wrap gap-2" onsubmit={enregistrerWebhook}>
+    <input class="saisie min-w-0 flex-1" type="text" inputmode="url" bind:value={webhook} placeholder="http://…/api/webhook/…" maxlength="300"
+      aria-label="Adresse du webhook de Home Assistant" autocomplete="off" spellcheck="false" disabled={!charges} />
+    <Button type="submit" disabled={!charges}>Enregistrer</Button>
+  </form>
+  {#if webhookErreur}<p class="mt-2 text-sm text-destructive" role="alert">{webhookErreur}</p>{/if}
+  {#if webhookMessage}<p class="mt-2 text-sm text-muted-foreground" role="status">{webhookMessage}</p>{/if}
+</section>
+
+<section class="mt-4 rounded-2xl border bg-card p-5">
+  <h2 class="text-lg font-semibold">Restaurer les réglages</h2>
+  <p class="mt-1 text-sm text-muted-foreground">L'Anneau garde chaque nuit une copie des réglages de Douze points (pas de la note). Choisis un jour, regarde ce qui changerait, puis confirme. Les soirées, les invités et les notes ne bougent pas.</p>
+  <div class="mt-3 flex flex-wrap items-center gap-2">
+    <Button variant="outline" onclick={voirSauvegardes} disabled={restaurerAttente}>Voir les sauvegardes</Button>
+    {#if dates.length}
+      <select class="saisie min-w-0" bind:value={jour} onchange={voirEcarts} aria-label="Date de la sauvegarde">
+        {#each dates as d}<option value={d}>{d}</option>{/each}
+      </select>
+    {/if}
+  </div>
+  {#if restaurerErreur}<p class="mt-2 text-sm text-destructive" role="alert">{restaurerErreur}</p>{/if}
+  {#if ecarts}
+    {#if ecarts.length}
+      <ul class="mt-3 grid gap-2" aria-label="Différences avec la sauvegarde">
+        {#each ecarts as d (d.cle)}
+          <li class="flex flex-wrap items-baseline gap-x-2 rounded-xl border px-3 py-2 text-sm">
+            <span class="font-medium">{NOMS[d.cle] ?? d.cle}</span>
+            <span class="text-muted-foreground">{montrer(d.cle, d.actuel)} → <span class="text-foreground">{montrer(d.cle, d.sauve)}</span></span>
+          </li>
+        {/each}
+      </ul>
+      <div class="mt-3 flex flex-wrap items-center gap-3">
+        <Button onclick={restaurer} disabled={restaurerAttente}>Restaurer ces réglages</Button>
+        {#if versionSauvee}<span class="text-sm text-muted-foreground">sauvegardés par la version {versionSauvee}</span>{/if}
+      </div>
+    {:else if !restaurerMessage}
+      <p class="mt-3 text-sm text-muted-foreground">Rien à changer : les réglages sont déjà ceux du {jour}.</p>
+    {/if}
+  {/if}
+  {#if restaurerMessage}<p class="mt-2 text-sm text-muted-foreground" role="status">{restaurerMessage}</p>{/if}
+</section>
+
+<section class="mt-4 rounded-2xl border bg-card p-5">
   <h2 class="text-lg font-semibold">Invités : jury ou public</h2>
   <p class="mt-1 text-sm text-muted-foreground">Coche les membres du jury ; les autres sont le public. Au dévoilement « jury puis public », les points du jury arrivent d'abord, chanson par chanson, puis ceux du public en partant du bas du classement. Tous les points comptent pareil.</p>
   {#if invites.length}
@@ -99,7 +208,7 @@
     {#if session.adresse}
       Le QR code et le lien mènent à <span class="text-foreground">{session.adresse}</span>. Ils ne répondent que sur le Wi-Fi de la maison.
     {:else}
-      Aucune adresse n'est réglée : sans elle, pas de QR code ni de lien. À renseigner dans la tuile « Douze points » de l'Anneau (adresse locale), ou dans la stack (DOUZE_POINTS_ADRESSE).
+      Aucune adresse n'est réglée : sans elle, pas de QR code ni de lien. Elle vient de l'Anneau : tuile « Douze points », adresse locale. Si l'Anneau ne répond pas, il n'y a pas de QR code.
     {/if}
   </p>
 </section>

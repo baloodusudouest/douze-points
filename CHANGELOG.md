@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 1.2.0 — 16 novembre 2026
+
+- **Les réglages se changent dans l'appli.** L'adresse du webhook de Home Assistant quitte la stack pour l'écran Réglages, à côté du pas de la note. Au premier démarrage, elle est reprise une fois de `DOUZE_POINTS_HA_WEBHOOK` si la stack la porte encore (une ligne au journal), puis la variable n'est plus lue.
+- **Sauvegarde par l'Anneau** : `GET /externe/sauvegarde`, ouvert par le jeton commun seul, rend le pas de la note et la version. Le webhook n'en sort jamais.
+- **Restaurer les réglages** dans Réglages : choisir un jour, voir ce qui changerait (avant → sauvegardé), confirmer. Anneau injoignable ou rien de sauvegardé : un message clair.
+- **Anciens noms retirés** : `DOUZE_POINTS_PASSWORD` (seul `MAISON_PASSWORD` compte), `DOUZE_POINTS_CARNET_JETON` (seul `MAISON_JETON` part vers carnet), `DOUZE_POINTS_ADRESSE` (l'adresse des invités vient seulement de l'Anneau ; sans lui, pas de QR code et un message le dit).
+- Un réglage de mauvais type est refusé avec un message (400) ; rien n'est changé.
+- Tests : reprise une seule fois, réglages, porte de sauvegarde (jeton commun seul, rien de secret), restauration, et un écran Réglages vérifié sur PC et sur iPhone.
+
 ## 1.1.0 — 16/11/2026
 
 - **Variables communes de la maison** (module `app/maison.py` du socle 0.5.0, copié tel quel) :

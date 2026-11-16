@@ -19,6 +19,8 @@ import time
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import datetime
+import urllib.error
+
 import segno
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
@@ -56,13 +58,28 @@ def cfg() -> Config:
 
 
 ANNUAIRE = maison.Annuaire()
+SANS_ADRESSE = ("Aucune adresse pour les invités : l'Anneau ne répond pas, ou sa tuile « Douze points » n'a pas "
+                "d'adresse locale. Pas de QR code ni de lien tant qu'elle manque.")
 
 
 def adresse() -> str:
-    """1.1 : adresse de Douze points pour les téléphones des invités (QR code, lien), lue dans l'Anneau
-    (tuile « Douze points »). Toujours l'adresse locale : les invités ne sont pas sur Tailscale, même quand
-    la régie est ouverte par lui. Repli : DOUZE_POINTS_ADRESSE."""
-    return ANNUAIRE.adresse("Douze points", prive=False, repli=cfg().adresse)
+    """Adresse de Douze points pour les téléphones des invités (QR code, lien), lue dans l'Anneau (tuile
+    « Douze points »). Toujours l'adresse locale : les invités ne sont pas sur Tailscale, même quand la régie est
+    ouverte par lui. 1.2 : plus de variable de repli ; sans Anneau, pas de QR code (message clair)."""
+    return ANNUAIRE.adresse("Douze points", prive=False)
+
+
+# ================================================================ réglages d'usage (1.2)
+# `pas_note` reste dans la table `reglage` de la base (1.0) ; les autres sont dans /data/reglages.json
+# (maison.Reglages) : repris une fois de l'ancienne variable de la stack au premier démarrage, puis seul l'écran
+# Réglages fait foi.
+REGLAGES_DEFAUTS = {"ha_webhook": ""}
+REGLAGES_VARIABLES = {"ha_webhook": "DOUZE_POINTS_HA_WEBHOOK"}
+# Jamais dans une sauvegarde (maison.est_secret l'écarte déjà ; la liste le dit en clair).
+EXCLUS_SAUVEGARDE = ("ha_webhook",)
+PAS_NOTE = {1.0: "1", 0.5: "0.5", 0.25: "0.25"}
+LIRE_ANNEAU = None          # tests : un faux Anneau pour maison.lire_sauvegarde (argument lire=)
+DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 
 
 def _lire_generation(c: Config) -> int:
@@ -77,7 +94,13 @@ async def cycle(app: FastAPI):
     c = ETAT.get("cfg") or charger()
     c.data.mkdir(parents=True, exist_ok=True)
     preparer(c.data)
-    ETAT.update(cfg=c, sessions=Sessions(APPLI, c.password, _lire_generation(c)), debits=defaultdict(deque))
+    reglages = maison.Reglages(c.data / "reglages.json", REGLAGES_DEFAUTS, REGLAGES_VARIABLES)
+    if reglages.repris:
+        with base(c.data) as cx:
+            for k in reglages.repris:      # le nom de la variable seulement, jamais sa valeur
+                journal(cx, "reglage_repris", k, {"variable": REGLAGES_VARIABLES[k]})
+    ETAT.update(cfg=c, reglages=reglages, sessions=Sessions(APPLI, c.password, _lire_generation(c)),
+                debits=defaultdict(deque))
     yield
 
 
@@ -132,7 +155,8 @@ def sante():
 @app.get("/api/session")
 def session(request: Request):
     return {"connecte": ETAT["sessions"].connecte(request.cookies), "version": __version__,
-            "adresse": adresse(), "notification": bool(cfg().ha_webhook), "carnet": carnet.regle(cfg())}
+            "adresse": adresse(), "notification": bool(ETAT["reglages"].get("ha_webhook")),
+            "carnet": carnet.regle(cfg())}
 
 
 @app.post("/api/connexion")
@@ -304,7 +328,7 @@ def services(verifier: bool = False):
     """Écran Connexion : une tuile par service extérieur. « Vérifier » relit carnet pour de bon, sans rien écrire."""
     c = {"id": "carnet", "nom": "carnet", "regle": carnet.regle(cfg()), "ok": None, "detail": "",
          "lit": "Le prénom et le nom des fiches, pour choisir les invités en tapant leur nom. Rien d'autre.",
-         "ecrit": "Rien.", "reglage": "DOUZE_POINTS_CARNET_URL, et le jeton commun MAISON_JETON (ou DOUZE_POINTS_CARNET_JETON, même valeur que CARNET_JETON_DOUZE_POINTS côté carnet)"}
+         "ecrit": "Rien.", "reglage": "DOUZE_POINTS_CARNET_URL, et le jeton commun MAISON_JETON"}
     if c["regle"] and verifier:
         try:
             c.update(ok=True, detail=f"{len(carnet.personnes(cfg(), frais=True))} personnes lues.")
@@ -335,24 +359,129 @@ def _reglage(cx, cle: str) -> str:
     return r["valeur"] if r else ""
 
 
+def tous_reglages(cx) -> dict:
+    return {"pas_note": float(_reglage(cx, "pas_note")), **ETAT["reglages"].tout()}
+
+
+def _pas_note(v) -> str:
+    if isinstance(v, bool):
+        raise HTTPException(400, "Le pas de la note est 1, 0,5 ou 0,25.")
+    try:
+        cle_pas = PAS_NOTE.get(float(v))
+    except (TypeError, ValueError):
+        cle_pas = None
+    if cle_pas is None:
+        raise HTTPException(400, "Le pas de la note est 1, 0,5 ou 0,25.")
+    return cle_pas
+
+
+def _ha_webhook(v) -> str:
+    if v is None:
+        return ""
+    if not isinstance(v, str):
+        raise HTTPException(400, "L'adresse du webhook de Home Assistant est un texte.")
+    v = v.strip()
+    if v and not re.match(r"^https?://\S+$", v):
+        raise HTTPException(400, "L'adresse du webhook de Home Assistant commence par http:// ou https://, ou reste vide.")
+    return v
+
+
+def changer_reglages(cx, corps: dict) -> dict:
+    """Vérifie tout avant d'écrire (une valeur fausse : 400, rien n'est changé). Clés inconnues ignorées.
+    Le journal garde la valeur du pas, jamais l'adresse du webhook."""
+    if not isinstance(corps, dict):
+        raise HTTPException(400, "Réglages attendus sous forme d'objet.")
+    pas = _pas_note(corps["pas_note"]) if "pas_note" in corps else None
+    propres = {}
+    if "ha_webhook" in corps:
+        propres["ha_webhook"] = _ha_webhook(corps["ha_webhook"])
+    if pas is not None:
+        cx.execute("INSERT INTO reglage(cle, valeur) VALUES('pas_note', ?) "
+                   "ON CONFLICT(cle) DO UPDATE SET valeur=excluded.valeur", (pas,))
+        journal(cx, "reglage", "pas_note", {"valeur": pas})
+    if propres:
+        try:
+            ETAT["reglages"].changer(propres)
+        except (TypeError, ValueError) as e:
+            raise HTTPException(400, f"Réglage refusé : {e}.")
+        for k, v in propres.items():
+            journal(cx, "reglage", k, {"rempli": bool(v)})
+    return tous_reglages(cx)
+
+
 @app.get("/api/reglages")
 def reglages_lire():
     with base(cfg().data) as cx:
-        return {"pas_note": float(_reglage(cx, "pas_note"))}
+        return tous_reglages(cx)
 
 
 @app.put("/api/reglages")
 def reglages_ecrire(corps: dict = Body(...)):
-    """`pas_note` : 1, 0.5 ou 0.25. Les notes déjà données restent telles quelles ; les suivantes suivent le pas."""
-    pas_note = str(corps.get("pas_note"))
-    pas_note = {"1.0": "1", "1": "1", "0.5": "0.5", "0.25": "0.25"}.get(pas_note)
-    if pas_note is None:
-        raise HTTPException(422, "Le pas de la note est 1, 0,5 ou 0,25.")
+    """`pas_note` : 1, 0.5 ou 0.25 (les notes déjà données restent telles quelles ; les suivantes suivent le pas).
+    `ha_webhook` : adresse du webhook de Home Assistant, ou vide."""
     with base(cfg().data) as cx:
-        cx.execute("INSERT INTO reglage(cle, valeur) VALUES('pas_note', ?) ON CONFLICT(cle) DO UPDATE SET valeur=excluded.valeur",
-                   (pas_note,))
-        journal(cx, "reglage", "pas_note", {"valeur": pas_note})
-    return {"pas_note": float(pas_note)}
+        return changer_reglages(cx, corps)
+
+
+# ---------------------------------------------------------------- restaurer (sauvegardes gardées par l'Anneau)
+
+def _lire_anneau(le: str = "") -> dict:
+    """Une sauvegarde de Douze points chez l'Anneau ; erreurs traduites en messages clairs (404 / 503)."""
+    try:
+        r = maison.lire_sauvegarde(APPLI, le, lire=LIRE_ANNEAU)
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            raise HTTPException(404, "L'Anneau n'a pas de sauvegarde de Douze points"
+                                     + (f" pour le {le}." if le else "."))
+        raise HTTPException(503, f"L'Anneau a refusé la demande ({e.code}) : rien n'est restauré.")
+    except Exception as e:      # Anneau arrêté, réseau, réponse illisible : jamais d'erreur de page
+        raise HTTPException(503, f"L'Anneau ne répond pas ({type(e).__name__}) : rien n'est restauré.")
+    if not isinstance(r, dict):
+        raise HTTPException(503, "L'Anneau a répondu quelque chose d'illisible : rien n'est restauré.")
+    return r
+
+
+def _date(le) -> str:
+    le = str(le or "").strip()
+    if not DATE.match(le):
+        raise HTTPException(400, "Date attendue sous la forme AAAA-MM-JJ.")
+    return le
+
+
+def _sauves(le: str) -> dict:
+    r = _lire_anneau(le)
+    if not isinstance(r.get("reglages"), dict):
+        raise HTTPException(404, f"L'Anneau n'a pas de réglages de Douze points pour le {le}.")
+    return r
+
+
+@app.get("/api/restaurer")
+def restaurer_lire(le: str = ""):
+    """Sans date : les jours sauvegardés chez l'Anneau. Avec une date : ce qui changerait (avant → sauvegardé)."""
+    if not le:
+        dates = _lire_anneau().get("dates") or []
+        if not dates:
+            raise HTTPException(404, "L'Anneau n'a encore aucune sauvegarde de Douze points.")
+        return {"dates": [str(d) for d in dates]}
+    le = _date(le)
+    r = _sauves(le)
+    with base(cfg().data) as cx:
+        actuels = tous_reglages(cx)
+    return {"le": le, "version": r.get("version", ""),
+            "differences": maison.differences(actuels, r["reglages"], EXCLUS_SAUVEGARDE)}
+
+
+@app.post("/api/restaurer")
+def restaurer(corps: dict = Body(...)):
+    """Applique les réglages sauvegardés ce jour-là qui diffèrent d'aujourd'hui (réglages seulement : ni soirée,
+    ni invité, ni note). Permis même en lecture seule : rien n'est écrit chez un autre service."""
+    le = _date(corps.get("le") if isinstance(corps, dict) else "")
+    r = _sauves(le)
+    with base(cfg().data) as cx:
+        diffs = maison.differences(tous_reglages(cx), r["reglages"], EXCLUS_SAUVEGARDE)
+        reglages = changer_reglages(cx, {d["cle"]: d["sauve"] for d in diffs}) if diffs else tous_reglages(cx)
+        journal(cx, "reglages_restaures", le, {"cles": [d["cle"] for d in diffs]})
+    return {"le": le, "restaures": [d["cle"] for d in diffs], "reglages": reglages}
 
 
 @app.get("/api/concours")
@@ -491,7 +620,7 @@ def qr(soiree_id: int):
         s = _soiree(cx, soiree_id)
     lien = adresse()
     if not lien:
-        raise HTTPException(409, "Aucune adresse : ni tuile « Douze points » dans l'Anneau, ni DOUZE_POINTS_ADRESSE dans la stack.")
+        raise HTTPException(409, SANS_ADRESSE)
     tampon = io.BytesIO()
     segno.make(f"{lien}/invite/{s['jeton_invite']}", error="m").save(
         tampon, kind="svg", scale=10, border=3, dark="#151311", light="#f2ece2", xmldecl=False)
@@ -1186,6 +1315,20 @@ def invite_resultats(jeton: str):
         return {**_devoilement(cx, s), "vrais": [{"chanson": c["id"], **c["officiel"], "notre_rang": c["rang"]}
                                                  for c in f["chansons"]],
                 "comparaison": f["comparaison"]}
+
+
+# ================================================================ sauvegarde des réglages (pour l'Anneau)
+
+@app.get("/externe/sauvegarde")
+def externe_sauvegarde(request: Request):
+    """Les réglages d'usage, collectés chaque nuit par l'Anneau. Porte ouverte par le jeton commun seul ;
+    MAISON_JETON vide : porte fermée. Jamais de variable, de chemin ni de secret (ha_webhook exclu)."""
+    acceptes = maison.jetons()
+    if not acceptes or not maison.jeton_valide(maison.jeton_propose(request.headers), acceptes):
+        raise HTTPException(404, "Introuvable.")
+    with base(cfg().data) as cx:
+        reglages = tous_reglages(cx)
+    return maison.sauvegarde(APPLI, __version__, reglages, exclus=EXCLUS_SAUVEGARDE)
 
 
 # ================================================================ interface

@@ -14,7 +14,7 @@ import httpx
 import pytest
 import uvicorn
 
-from app import carnet, main
+from app import carnet, main, maison
 from app.config import Config
 
 playwright = pytest.importorskip("playwright.sync_api")
@@ -28,6 +28,14 @@ PAYS = ["France", "Suède", "Italie", "Ukraine", "Norvège", "Espagne", "Suisse"
         "Finlande", "Islande", "Pologne", "Autriche"]
 
 
+def faux_anneau(adresse, jeton):
+    """Deux sauvegardes inventées : la plus récente au pas actuel, l'autre au quart de point."""
+    if "?le=" not in adresse:
+        return {"dates": ["2026-11-15", "2026-11-14"]}
+    le = adresse.rsplit("=", 1)[1]
+    return {"le": le, "version": "1.2.0", "reglages": {"pas_note": 0.5 if le == "2026-11-15" else 0.25}}
+
+
 @pytest.fixture(scope="module")
 def serveur(tmp_path_factory):
     if not (STATIQUE / "index.html").is_file():
@@ -38,8 +46,13 @@ def serveur(tmp_path_factory):
     adresse = f"http://127.0.0.1:{port}"
     main.ETAT.clear()
     main.ETAT["cfg"] = Config(password=MOT_DE_PASSE, data=tmp_path_factory.mktemp("demo"), static=STATIQUE,
-                              attente_connexion=False, adresse=adresse, limite_invite=100000,
+                              attente_connexion=False, limite_invite=100000,
                               carnet_url="http://carnet.exemple", carnet_jeton="jeton-de-test")
+    # l'Anneau est remplacé par des faux : l'annuaire (adresse des invités) et les sauvegardes des réglages
+    vrai_annuaire, vrai_anneau = main.ANNUAIRE, main.LIRE_ANNEAU
+    main.ANNUAIRE = maison.Annuaire(url="http://anneau.exemple", jeton="jeton-de-test",
+                                    lire=lambda: [{"nom": "Douze points", "locale": adresse}])
+    main.LIRE_ANNEAU = faux_anneau
     # carnet est remplacé par un faux (personnes inventées), écrit d'après /douze-points/personnes
     vrai_appel, carnet.appeler = carnet.appeler, lambda url, jeton: [
         {"carnet_id": "AAAA-1", "prenom": "Hélène", "nom": "Hélène DUBOIS"},
@@ -58,6 +71,7 @@ def serveur(tmp_path_factory):
     srv.should_exit = True
     fil.join(timeout=5)
     main.ETAT.clear()
+    main.ANNUAIRE, main.LIRE_ANNEAU = vrai_annuaire, vrai_anneau
     carnet.appeler = vrai_appel
     carnet.oublier()
 
@@ -531,3 +545,49 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     p.get_by_role("heading", name="Nouvelle soirée").wait_for()
     assert httpx.get(f"{serveur}/invite/{jeton}/api/etat").status_code == 404
     regie.verifier("pc-18-apres-suppression")
+
+
+def test_reglages_webhook_et_restaurer(serveur, navigateur):
+    """1.2 : le webhook de Home Assistant se règle dans Réglages ; « Restaurer les réglages » relit une sauvegarde
+    chez l'Anneau (faux Anneau), montre les différences et les applique. Sur PC et sur iPhone."""
+    for taille, nom in ((PC, "pc"), (TELEPHONE, "tel")):
+        ecran = Ecran(navigateur, taille, tactile=taille is TELEPHONE)
+        p = ecran.page
+        p.goto(serveur)
+        p.get_by_role("button", name="Passer l'ouverture").click()
+        p.get_by_label("Mot de passe").fill(MOT_DE_PASSE)
+        p.get_by_role("button", name="Se connecter").click()
+        p.get_by_role("heading", name="Nouvelle soirée").wait_for()
+        p.get_by_role("link", name="Réglages").click()
+        p.get_by_role("button", name="Au demi-point (12,5)", pressed=True).wait_for()
+
+        champ = p.get_by_label("Adresse du webhook de Home Assistant")
+        champ.fill("pas une adresse")
+        p.get_by_role("button", name="Enregistrer").click()
+        p.get_by_role("alert").filter(has_text="http://").wait_for()
+        champ.fill("http://ha.exemple:8123/api/webhook/essai")
+        p.get_by_role("button", name="Enregistrer").click()
+        p.get_by_text("Adresse enregistrée.").wait_for()
+        ecran.verifier(f"{nom}-20-webhook")
+
+        p.get_by_role("button", name="Voir les sauvegardes").click()
+        p.get_by_text("Rien à changer : les réglages sont déjà ceux du 2026-11-15.").wait_for()
+        p.get_by_label("Date de la sauvegarde").select_option("2026-11-14")
+        ecarts = p.get_by_role("list", name="Différences avec la sauvegarde")
+        ecarts.get_by_text("au quart de point").wait_for()
+        assert "Webhook" not in ecarts.inner_text()                  # jamais dans une sauvegarde
+        ecran.verifier(f"{nom}-21-restaurer")
+        p.get_by_role("button", name="Restaurer ces réglages").click()
+        p.get_by_text("Réglages du 2026-11-14 restaurés : Pas de la note.").wait_for()
+        p.get_by_role("button", name="Au quart de point (12,25)", pressed=True).wait_for()
+        ecran.verifier(f"{nom}-22-restaure")
+
+        # retour à l'état de départ
+        p.get_by_role("button", name="Au demi-point (12,5)").click()
+        p.get_by_role("button", name="Au demi-point (12,5)", pressed=True).wait_for()
+        champ.fill("")
+        p.get_by_role("button", name="Enregistrer").click()
+        p.get_by_text("Adresse effacée : pas de notification.").wait_for()
+        assert httpx.get(f"{serveur}/externe/sauvegarde").status_code == 404     # sans jeton : porte fermée
+        ecran.verifier(f"{nom}-23-fin")
+        ecran.contexte.close()

@@ -147,6 +147,10 @@ Home Assistant est touché : le master doc est à relire puis à compléter (aut
 
 ### Variables de la stack (V1)
 
+> **Dépassé depuis la 1.2.0 (16/11/2026)** : la stack ne porte plus que `MAISON_PASSWORD`, `MAISON_JETON`,
+> `DOUZE_POINTS_CARNET_URL` et le volume. L'adresse des invités vient de l'annuaire de l'Anneau ; le webhook de
+> Home Assistant se règle dans l'écran Réglages. Voir `REPRISE.md`. Le bloc ci-dessous est gardé pour l'histoire.
+
 ```
 DOUZE_POINTS_PASSWORD=      # mot de passe commun des applis maison, obligatoire
 DOUZE_POINTS_ADRESSE=       # adresse de l'appli vue par les téléphones des invités (sert à fabriquer le QR code)

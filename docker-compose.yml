@@ -9,16 +9,15 @@ services:
       - "${PORT_DOUZE_POINTS:-8088}:8088"                        # réseau local et Tailscale uniquement
     environment:
       - TZ=Europe/Paris
-      # 1.1 : variables communes de la maison (module app/maison.py) ; les anciennes restent lues en repli
-      - MAISON_PASSWORD=${MAISON_PASSWORD}                       # mot de passe commun des applis, obligatoire (repli : DOUZE_POINTS_PASSWORD)
-      - MAISON_JETON=${MAISON_JETON:-}                           # jeton commun : demandes à carnet, lecture de l'annuaire de l'Anneau
-      # - DOUZE_POINTS_PASSWORD=${DOUZE_POINTS_PASSWORD}         # ancien nom, lu si MAISON_PASSWORD est vide
-      # - DOUZE_POINTS_CARNET_JETON=${DOUZE_POINTS_CARNET_JETON:-}   # ancien jeton partagé avec carnet, envoyé d'abord tant qu'il est posé
-      - DOUZE_POINTS_ADRESSE=${DOUZE_POINTS_ADRESSE:-}           # repli de l'adresse vue par les invités (QR code, lien) ; l'Anneau (tuile « Douze points », adresse locale) passe d'abord
-      - DOUZE_POINTS_HA_WEBHOOK=${DOUZE_POINTS_HA_WEBHOOK:-}     # appelé quand tous ont envoyé ; vide : pas de notification
+      # Variables communes de la maison (module app/maison.py)
+      - MAISON_PASSWORD=${MAISON_PASSWORD}                       # mot de passe commun des applis, obligatoire (12 caractères au moins)
+      - MAISON_JETON=${MAISON_JETON:-}                           # jeton commun : demandes à carnet, annuaire et sauvegardes de l'Anneau ; vide : rien de tout cela
       - DOUZE_POINTS_CARNET_URL=http://carnet:8096               # carnet vu depuis le conteneur (même stack)
+      # 1.2 : l'adresse donnée aux invités (QR code, lien) vient de l'annuaire de l'Anneau (tuile « Douze points »,
+      # adresse locale). Le webhook de Home Assistant se règle dans l'écran Réglages de l'appli : il est repris une
+      # seule fois de DOUZE_POINTS_HA_WEBHOOK au premier démarrage de la 1.2 si la stack la porte encore, puis plus lu.
     volumes:
-      - ${DOUZE_POINTS_DATA_DIR}:/data                           # douze-points.db, sauvegardes/
+      - ${DOUZE_POINTS_DATA_DIR}:/data                           # douze-points.db, reglages.json, sauvegardes/
     labels:
       # comme les autres applis maison : mise à jour à la main
       - "com.centurylinklabs.watchtower.enable=false"

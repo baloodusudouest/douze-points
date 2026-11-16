@@ -112,7 +112,7 @@
   {#if soiree.lien}
     <img src={qr} alt="QR code du lien des invités" class="rounded-2xl" style="width: min(50vh, 70vw); height: auto" />
   {:else}
-    <p class="max-w-xs rounded-2xl border p-5 text-sm">Aucune adresse n'est réglée (tuile « Douze points » de l'Anneau, ou DOUZE_POINTS_ADRESSE dans la stack) : pas de QR code ni de lien.</p>
+    <p class="max-w-xs rounded-2xl border p-5 text-sm">Aucune adresse pour les invités : l'Anneau ne répond pas, ou sa tuile « Douze points » n'a pas d'adresse locale. Pas de QR code ni de lien.</p>
   {/if}
 
   <div class="fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-wrap items-center justify-center gap-2 px-4">
