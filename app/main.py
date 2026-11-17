@@ -118,13 +118,22 @@ async def garde(request: Request, appel):
             return JSONResponse({"detail": "Connexion nécessaire."}, status_code=401)
     elif chemin.startswith("/invite/") and "/api/" in chemin:
         # Porte invité : un plafond de demandes par téléphone (ou par adresse), sur une minute glissante
-        cle = request.headers.get("x-telephone") or (request.client.host if request.client else "?")
-        file, t = ETAT["debits"][cle], time.monotonic()
-        while file and t - file[0] > 60:
-            file.popleft()
-        if len(file) >= cfg().limite_invite:
-            return JSONResponse({"detail": "Trop de demandes : attends un instant."}, status_code=429)
-        file.append(t)
+        # 1.3.3 : plafond par téléphone (en-tête X-Telephone, ou adresse) ET plafond par adresse (20 téléphones) :
+        # changer d'en-tête à chaque demande ne contourne plus la limite ; la table est purgée
+        adresse = request.client.host if request.client else "?"
+        debits, t, limite = ETAT["debits"], time.monotonic(), cfg().limite_invite
+        if len(debits) > 2000:
+            for k in [k for k, f in debits.items() if not f or t - f[-1] > 60]:
+                del debits[k]
+        files = [(debits[("tel", request.headers.get("x-telephone") or adresse)], limite),
+                 (debits[("adresse", adresse)], limite * 20)]
+        for file, plafond in files:
+            while file and t - file[0] > 60:
+                file.popleft()
+            if len(file) >= plafond:
+                return JSONResponse({"detail": "Trop de demandes : attends un instant."}, status_code=429)
+        for file, _ in files:
+            file.append(t)
     reponse = await appel(request)
     if "/api/" in chemin:
         reponse.headers["Cache-Control"] = "no-store"

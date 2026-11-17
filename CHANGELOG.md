@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 1.3.3 — 17 novembre 2026 (corrections de l'audit, suite)
+- Porte des invités : changer l'en-tête `X-Telephone` à chaque demande ne contourne plus la limite de débit (plafond par téléphone, plus un plafond par adresse égal à 20 téléphones) ; la table des débits est purgée au-delà de 2 000 entrées.
+
 ## 1.3.2 — 17 novembre 2026 (connexion plus sûre)
 - **Connexion plus sûre** (audit du 17/11/2026, même correctif dans toutes les applis maison) :
   - un cookie portant un caractère non ASCII donnait une erreur 500 sur toute l'API ; il est maintenant simplement refusé ;

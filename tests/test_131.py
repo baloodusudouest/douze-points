@@ -29,3 +29,11 @@ def test_prenom_pris_entre_la_lecture_et_l_ecriture(client, soiree, monkeypatch)
     assert r.status_code == 409
     with base_mod.base(main.cfg().data) as cx:
         assert cx.execute("SELECT jeton_telephone FROM participation WHERE id=?", (pid,)).fetchone()[0] == "deja-pris"
+
+
+def test_limite_non_contournable_par_l_en_tete(client, soiree, monkeypatch):
+    """1.3.3 : changer X-Telephone à chaque demande ne contourne plus la limite (plafond par adresse)."""
+    import dataclasses
+    monkeypatch.setitem(main.ETAT, "cfg", dataclasses.replace(main.cfg(), limite_invite=2))
+    codes = [client.get(soiree.url("etat"), headers={"X-Telephone": f"faux-{i}"}).status_code for i in range(60)]
+    assert codes.count(429) > 0 and codes[:40].count(200) == 40
