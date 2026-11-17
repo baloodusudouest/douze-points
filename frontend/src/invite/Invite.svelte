@@ -13,12 +13,31 @@
   import Spectacle from './Spectacle.svelte'
   import Podium from './Podium.svelte'
   import VraisVotes from './VraisVotes.svelte'
+  import Affinites from '$lib/Affinites.svelte'
   let { jeton } = $props()
 
   const CLE = 'douze-points:' + jeton
   // Le jeton personnel du téléphone : gardé par le navigateur quand il le permet (pas en navigation privée stricte).
   let tel = ''
-  try { tel = localStorage.getItem(CLE) || '' } catch { /* stockage fermé : le prénom tiendra le temps de la page */ }
+  // 1.3 : grille papier. L'hôte ouvre cette page par un lien « #saisie=<jeton> » pour recopier la grille d'un
+  // invité. Ce jeton reste dans cet onglet (sessionStorage) : le prénom de l'hôte, gardé par le navigateur, n'est pas touché.
+  const CLE_SAISIE = CLE + ':saisie'
+  let saisie = false
+  const lienSaisie = location.hash.match(/saisie=([\w-]+)/)
+  try {
+    if (lienSaisie) {
+      tel = lienSaisie[1]; saisie = true
+      sessionStorage.setItem(CLE_SAISIE, tel)
+      history.replaceState(null, '', location.pathname)      // le jeton ne reste pas dans la barre d'adresse
+    } else if (sessionStorage.getItem(CLE_SAISIE)) {
+      tel = sessionStorage.getItem(CLE_SAISIE); saisie = true
+    } else tel = localStorage.getItem(CLE) || ''
+  } catch { if (lienSaisie) { tel = lienSaisie[1]; saisie = true } /* stockage fermé : le prénom tiendra le temps de la page */ }
+  function finirSaisie() {
+    try { sessionStorage.removeItem(CLE_SAISIE) } catch { /* rien */ }
+    window.close()
+    location.reload()             // si l'onglet ne se ferme pas, il redevient la page de l'hôte
+  }
 
   let e = $state(null)             // l'état de la soirée vu par ce téléphone
   let erreur = $state('')
@@ -116,7 +135,7 @@
     const d = await ecrire('POST', 'prenom', { participation_id: p.id })
     if (!d) return
     tel = d.jeton_telephone
-    try { localStorage.setItem(CLE, tel) } catch { /* voir plus haut */ }
+    try { saisie ? sessionStorage.setItem(CLE_SAISIE, tel) : localStorage.setItem(CLE, tel) } catch { /* voir plus haut */ }
     await lire()
   }
 
@@ -211,6 +230,12 @@
       <p class="text-sm text-muted-foreground">{e.concours} {e.annee}, {EMISSIONS[e.emission].toLowerCase()}{e.moi ? ` · ${e.moi.prenom}` : ''}</p>
     </header>
     {#if erreur}<p class="mb-3 rounded-xl border border-destructive/60 px-4 py-2 text-sm" role="alert">{erreur}</p>{/if}
+    {#if saisie && e.moi && e.etat === 'ouverte'}
+      <div class="mb-4 flex flex-wrap items-center gap-3 rounded-2xl border border-primary/60 bg-card p-4 text-sm" role="status">
+        <p class="mr-auto"><strong>Grille papier de {e.moi.prenom}</strong> : tu recopies ses notes et son classement, puis tu envoies à sa place. Cet onglet est à part : ton propre prénom n'est pas touché.</p>
+        <Button variant="outline" size="sm" onclick={finirSaisie}>Fermer la saisie</Button>
+      </div>
+    {/if}
 
     {#if e.etat === 'brouillon'}
       <div class="mt-16 text-center"><p class="flex justify-center text-8xl"><Embleme src={image('logo')} /></p><p class="mt-6 text-xl font-light">Ça commence bientôt.</p>
@@ -240,6 +265,11 @@
             </li>
           {/each}
         </ol>
+        {#if resultats.affinites}
+          <h2 class="mt-6 mb-3 text-lg font-semibold">Écarts et affinités</h2>
+          <Affinites compact affinites={resultats.affinites} chansons={parId}
+                     prenoms={Object.fromEntries(resultats.invites.map((i) => [i.id, i.prenom]))} />
+        {/if}
         {#each resultats.invites as inv (inv.id)}
           <h3 class="mt-6 font-semibold">{inv.prenom}</h3>
           <ul class="mt-2 grid gap-1 text-sm">
@@ -266,7 +296,7 @@
     {:else}
       {#if nbNotees === 0}
         <p class="mb-4 rounded-2xl border bg-card p-4 text-sm">Note chaque chanson sur 20. À la fin, range tes chansons : tes dix premières reçoivent 12, 10, 8, 7… 1 point. C'est ce classement qui compte.
-          <button class="mt-1 block text-muted-foreground underline" onclick={() => { e.moi = null; tel = ''; try { localStorage.removeItem(CLE) } catch { /* rien */ } }}>Ce n'est pas mon prénom</button></p>
+          <button class="mt-1 block text-muted-foreground underline" onclick={() => { e.moi = null; tel = ''; try { saisie ? sessionStorage.removeItem(CLE_SAISIE) : localStorage.removeItem(CLE) } catch { /* rien */ } }}>Ce n'est pas mon prénom</button></p>
       {/if}
 
       {#if onglet === 'chansons'}

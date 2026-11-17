@@ -53,3 +53,100 @@ def classement_groupe(chansons: list[int], points: dict[int, dict[int, int]],
     for l in lignes:
         del l["_cle"]
     return lignes
+
+
+# ---------------------------------------------------------------- écarts et affinités (1.3)
+
+AFFINITES_MINIMUM = 3       # sous trois invités, ces rubriques ne disent rien : elles ne sont pas données
+COMMUNES_MINIMUM = 3        # deux invités ne se comparent que sur au moins trois chansons notées par les deux
+
+
+def affinites(notes: dict[int, dict[int, int]], ordres: dict[int, list[int]], points: dict[int, dict[int, int]],
+              ordre_passage: dict[int, int]) -> dict | None:
+    """Écarts et affinités d'une soirée, à partir des notes (en unités d'ECHELLE), du classement retenu de chacun
+    et des points figés. Tout est rendu par identifiants (invités, chansons) ; les notes sont rendues sur 20.
+
+    - clivante / consensuelle : la chanson dont les notes vont du plus loin au plus près (écart entre la plus haute
+      et la plus basse note), notée par au moins trois invités ; à écart égal, l'ordre de passage ;
+    - proches / eloignes : les deux invités dont les notes se ressemblent le plus / le moins (écart moyen sur les
+      chansons notées par les deux, trois au moins) ;
+    - severe / genereux : la plus basse et la plus haute moyenne des notes ;
+    - coups_de_coeur : un 12 donné à une chanson qui n'a reçu aucun autre point de personne ;
+    - contre_note : dans le classement d'un invité, une chanson placée devant une autre mieux notée par lui
+      (les trois plus grands écarts de note de la soirée, un par invité au plus).
+    Rend None sous trois invités."""
+    gens = [g for g in notes if notes[g]]
+    if len(gens) < AFFINITES_MINIMUM:
+        return None
+    sur20 = lambda v: round(v / ECHELLE, 2)
+
+    # chansons : écart entre la plus haute et la plus basse note
+    parChanson: dict[int, list[tuple[int, int]]] = {}
+    for g in gens:
+        for c, v in notes[g].items():
+            parChanson.setdefault(c, []).append((v, g))
+    candidates = [(c, vs) for c, vs in parChanson.items() if len(vs) >= AFFINITES_MINIMUM]
+
+    def chanson(c, vs):
+        haut, bas = max(vs), min(vs)
+        return {"chanson": c, "ecart": sur20(haut[0] - bas[0]), "haute": {"invite": haut[1], "note": sur20(haut[0])},
+                "basse": {"invite": bas[1], "note": sur20(bas[0])}, "moyenne": sur20(sum(v for v, _ in vs) / len(vs))}
+
+    clivante = consensuelle = None
+    if candidates:
+        ecart = lambda cv: max(cv[1])[0] - min(cv[1])[0]
+        cliv = sorted(candidates, key=lambda cv: (-ecart(cv), ordre_passage.get(cv[0], 0)))[0]
+        cons = sorted(candidates, key=lambda cv: (ecart(cv), ordre_passage.get(cv[0], 0)))[0]
+        clivante, consensuelle = chanson(*cliv), chanson(*cons)
+        if clivante["chanson"] == consensuelle["chanson"]:       # toutes les chansons au même écart : rien à dire
+            clivante = consensuelle = None
+
+    # paires d'invités : écart moyen de leurs notes sur les chansons communes
+    paires = []
+    for i, a in enumerate(gens):
+        for b in gens[i + 1:]:
+            communes = set(notes[a]) & set(notes[b])
+            if len(communes) >= COMMUNES_MINIMUM:
+                moyen = sum(abs(notes[a][c] - notes[b][c]) for c in communes) / len(communes)
+                paires.append((moyen, a, b, len(communes)))
+    paire = lambda p: {"invites": [p[1], p[2]], "ecart_moyen": sur20(p[0]), "communes": p[3]}
+    proches = eloignes = None
+    if len(paires) >= 2:
+        paires.sort(key=lambda p: (p[0], p[1], p[2]))
+        proches, eloignes = paire(paires[0]), paire(paires[-1])
+        if paires[0][0] == paires[-1][0]:
+            proches = eloignes = None
+
+    # sévère et généreux : moyenne des notes
+    moyennes = sorted((sum(notes[g].values()) / len(notes[g]), g) for g in gens)
+    severe = genereux = None
+    if moyennes[0][0] != moyennes[-1][0]:
+        severe = {"invite": moyennes[0][1], "moyenne": sur20(moyennes[0][0])}
+        genereux = {"invite": moyennes[-1][1], "moyenne": sur20(moyennes[-1][0])}
+
+    # coups de cœur solitaires : un 12, et aucun autre point de personne pour cette chanson
+    coups = []
+    for g in gens:
+        for c, pts in (points.get(g) or {}).items():
+            if pts == BAREME[0] and not any(points.get(h, {}).get(c) for h in gens if h != g):
+                coups.append({"invite": g, "chanson": c, "note": sur20(notes[g][c]) if c in notes[g] else None})
+    coups.sort(key=lambda x: ordre_passage.get(x["chanson"], 0))
+
+    # classées à contre-note : le plus grand écart de note entre une chanson et une autre placée devant elle
+    contre = []
+    for g in gens:
+        ordre = [c for c in ordres.get(g) or [] if c in notes[g]]
+        meilleur = None
+        for i, devant in enumerate(ordre):
+            for derriere in ordre[i + 1:]:
+                d = notes[g][derriere] - notes[g][devant]
+                if d > 0 and (meilleur is None or d > meilleur[0]):
+                    meilleur = (d, devant, derriere)
+        if meilleur:
+            d, devant, derriere = meilleur
+            contre.append({"invite": g, "devant": devant, "derriere": derriere, "note_devant": sur20(notes[g][devant]),
+                           "note_derriere": sur20(notes[g][derriere]), "ecart": sur20(d)})
+    contre.sort(key=lambda x: (-x["ecart"], x["invite"]))
+
+    return {"clivante": clivante, "consensuelle": consensuelle, "proches": proches, "eloignes": eloignes,
+            "severe": severe, "genereux": genereux, "coups_de_coeur": coups, "contre_note": contre[:3]}

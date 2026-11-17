@@ -9,6 +9,8 @@
   import Devoilement from './Devoilement.svelte'
   import Images from './Images.svelte'
   import Fiche from './Fiche.svelte'
+  import Grille from './Grille.svelte'
+  import Pencil from '@lucide/svelte/icons/pencil'
   import Lancement from './Lancement.svelte'
   import AlerteDrapeaux from './AlerteDrapeaux.svelte'
   import Ouverture from '$lib/Ouverture.svelte'
@@ -30,6 +32,9 @@
   let forcer = $state(null)       // aperçu de ce que « forcer » ferait
   let fiche = $state(null)        // id d'une soirée dont on lit la fiche
   let aSupprimer = $state(null)   // soirée dont la suppression attend une confirmation
+  let grille = $state(false)      // 1.3 : la grille papier à imprimer est à l'écran
+  let aSaisir = $state(null)      // 1.3 : invité dont on va recopier la grille (confirmation si son téléphone le tient)
+  let edition = $state(null)      // 1.3 : chanson dont on corrige le libellé, soirée ouverte
   const mode = 'auto'          // 1.0 : jury puis public s'il y a les deux, sinon tout le monde ensemble
   let collage = $state('')
   let prenom = $state('')
@@ -129,6 +134,22 @@
   })
   const enCours = (id) => essayer(async () => { await api.post(`/api/soirees/${s.id}/chanson-en-cours`, { chanson_id: id }); await lire() })
   const liberer = (p) => essayer(async () => { await api.post(`/api/soirees/${s.id}/liberer`, { participation_id: p.id }); await lire() })
+  // 1.3 : recopier la grille papier d'un invité. L'onglet s'ouvre tout de suite (sinon Safari le bloque après l'attente),
+  // puis reçoit l'écran de notation au nom de l'invité.
+  async function saisir(p) {
+    aSaisir = null
+    const onglet = window.open('', '_blank')
+    const lien = await essayer(async () => (await api.post(`/api/soirees/${s.id}/saisie`, { participation_id: p.id })).lien)
+    if (lien && onglet) onglet.location = lien
+    else if (lien) location.href = lien
+    else onglet?.close()
+    await lire()
+  }
+  const corriger = (e) => { e.preventDefault(); essayer(async () => {
+    await api.put(`/api/chansons/${edition.id}`, { pays: edition.pays, artiste: edition.artiste, titre: edition.titre })
+    edition = null
+    await lire()
+  }) }
   const voirForcer = () => essayer(async () => { forcer = await api.get(`/api/soirees/${s.id}/forcer`) })
   const devoiler = (force) => essayer(async () => {
     await api.post(`/api/soirees/${s.id}/devoiler`, { forcer: force, mode })
@@ -159,6 +180,8 @@
   <Devoilement soiree={rejouer} onferme={() => { rejouer = null; lire() }} />
 {:else if fiche}
   <Fiche soiree={fiche} onferme={() => (fiche = null)} />
+{:else if grille && s}
+  <Grille soiree={s} onferme={() => (grille = false)} />
 {:else if lancement === 'eteint' && s}
   <Lancement soiree={s} ondemarre={demarrer} onferme={() => { lancement = ''; erreur = '' }} {erreur} />
 {:else if lancement === 'projecteurs'}
@@ -272,6 +295,7 @@
         <h2 class="text-lg font-semibold">Prêt ?</h2>
         <p class="text-sm text-muted-foreground">Le lien des invités existe déjà : tu peux l'envoyer avant de démarrer. Une fois la soirée démarrée, la liste ne change plus.</p>
       </div>
+      <Button variant="outline" onclick={() => (grille = true)} disabled={!s.chansons.length}>Grille papier</Button>
       <Button variant="outline" onclick={() => (accueil = true)}>Écran d'accueil</Button>
       <Button size="lg" onclick={() => (lancement = 'eteint')} disabled={!s.chansons.length || !s.participants.length}>Démarrer la soirée</Button>
     </section>
@@ -283,6 +307,7 @@
           {envoyes}<span class="text-3xl text-muted-foreground">/{s.participants.length}</span>
         </p>
         <p class="mr-auto pb-1 text-sm text-muted-foreground">classements envoyés</p>
+        <Button variant="outline" onclick={() => (grille = true)}>Grille papier</Button>
         <Button variant="outline" onclick={() => (accueil = true)}>Écran d'accueil</Button>
       </div>
       <ul class="mt-4 grid gap-2 sm:grid-cols-2">
@@ -293,9 +318,17 @@
             {#if p.jury}<span class="rounded-full border px-2 text-xs text-muted-foreground">jury</span>{/if}
             <span class="mr-auto text-sm text-muted-foreground">{libelle[p.etat]}{p.etat === 'en_cours' ? ` ${p.notees} / ${s.chansons.length}` : ''}</span>
             {#if p.pris}<button class="text-xs text-muted-foreground underline" onclick={() => liberer(p)} title="Téléphone changé ou mauvais prénom : les notes sont gardées">Libérer</button>{/if}
+            {#if p.etat !== 'ecarte'}<button class="text-xs text-muted-foreground underline" onclick={() => (p.pris ? (aSaisir = p) : saisir(p))} title="Recopier sa grille papier à sa place">Saisir sa grille</button>{/if}
           </li>
         {/each}
       </ul>
+      {#if aSaisir}
+        <div class="mt-3 rounded-xl border border-primary/50 p-4 text-sm" role="alertdialog" aria-label="Saisir la grille de {aSaisir.prenom}">
+          <p class="font-medium">Le téléphone de {aSaisir.prenom} tient encore son prénom.</p>
+          <p class="mt-1 text-muted-foreground">En recopiant sa grille papier ici, ce téléphone perd la main (comme « Libérer »). Ses notes déjà faites restent.</p>
+          <div class="mt-3 flex gap-2"><Button onclick={() => saisir(aSaisir)}>Saisir sa grille</Button><Button variant="outline" onclick={() => (aSaisir = null)}>Annuler</Button></div>
+        </div>
+      {/if}
 
       <div class="mt-5 flex flex-wrap items-center gap-3 border-t pt-4">
         <p class="mr-auto max-w-md text-sm text-muted-foreground">Le dévoilement se joue sur le téléphone de chacun{avecJury ? ' : le jury d\'un coup, puis le public chanson par chanson' : ', chanson par chanson'}. Tu le mènes depuis ton téléphone ; cet écran suit, si tu veux aussi l'afficher.</p>
@@ -324,11 +357,23 @@
       <p class="text-sm text-muted-foreground">Facultatif : touche la chanson qui passe, les téléphones la mettent en avant.</p>
       <ol class="mt-3 grid gap-1 sm:grid-cols-2">
         {#each s.chansons as c (c.id)}
-          <li><button class="ligne" aria-pressed={s.chanson_en_cours === c.id} onclick={() => enCours(s.chanson_en_cours === c.id ? null : c.id)}>
+          <li class="flex items-center gap-1"><button class="ligne flex-1" aria-pressed={s.chanson_en_cours === c.id} onclick={() => enCours(s.chanson_en_cours === c.id ? null : c.id)}>
             <span class="w-6 text-right text-muted-foreground">{c.ordre}</span><span>{drapeau(c.pays, c.code_pays)} {c.pays}</span>
-          </button></li>
+            <span class="truncate text-sm text-muted-foreground">{c.artiste}{c.titre ? ', ' + c.titre : ''}</span>
+          </button>
+          <button class="grid size-9 shrink-0 place-items-center rounded-lg text-muted-foreground hover:text-foreground" aria-label="Corriger le libellé : {c.pays}"
+                  onclick={() => (edition = { id: c.id, pays: c.pays, artiste: c.artiste || '', titre: c.titre || '' })}><Pencil class="size-4" aria-hidden="true" /></button></li>
         {/each}
       </ol>
+      {#if edition}
+        <form class="mt-4 grid gap-3 rounded-xl border p-4 sm:grid-cols-3" onsubmit={corriger} aria-label="Corriger le libellé">
+          <label class="champ">Pays<input bind:value={edition.pays} maxlength="60" required /></label>
+          <label class="champ">Artiste<input bind:value={edition.artiste} maxlength="120" /></label>
+          <label class="champ">Titre<input bind:value={edition.titre} maxlength="120" /></label>
+          <p class="text-xs text-muted-foreground sm:col-span-3">L'ordre de passage ne change plus une fois la soirée ouverte. Les téléphones voient la correction à leur prochaine lecture.</p>
+          <div class="flex gap-2 sm:col-span-3"><Button type="submit">Enregistrer</Button><Button type="button" variant="outline" onclick={() => (edition = null)}>Annuler</Button></div>
+        </form>
+      {/if}
     </section>
 
   {:else if s.etat === 'devoilement'}

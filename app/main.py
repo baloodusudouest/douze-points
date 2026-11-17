@@ -29,7 +29,7 @@ from . import __version__, carnet, maison
 from .auth import COMMUN, DUREE, Sessions
 from .base import base, preparer, sauvegarder
 from .config import APPLI, Config, charger
-from .points import ECHELLE, classement_groupe, classement_par_notes, inserer, points_du_classement
+from .points import ECHELLE, affinites, classement_groupe, classement_par_notes, inserer, points_du_classement
 
 ETAT: dict = {}
 PUBLIQUES = ("/api/connexion", "/api/session")
@@ -689,7 +689,11 @@ def chansons_remplacer(soiree_id: int, corps: dict = Body(...)):
 @app.put("/api/chansons/{chanson_id}")
 def chanson_corriger(chanson_id: int, corps: dict = Body(...)):
     """Corriger un libellé, à tout moment. L'ordre ne change plus une fois la soirée ouverte."""
+    if "pays" in corps and not " ".join(str(corps["pays"] or "").split()):
+        raise HTTPException(422, "Il faut le pays.")
     with base(cfg().data) as cx:
+        if not cx.execute("SELECT 1 FROM chanson WHERE id=?", (chanson_id,)).fetchone():
+            raise HTTPException(404, "Chanson inconnue.")
         for champ, taille in (("pays", 60), ("artiste", 120), ("titre", 120), ("code_pays", 2)):
             if champ in corps:
                 cx.execute(f"UPDATE chanson SET {champ}=? WHERE id=?", (str(corps[champ] or "").strip()[:taille], chanson_id))
@@ -778,6 +782,28 @@ def liberer(soiree_id: int, corps: dict = Body(...)):
                    (int(corps.get("participation_id", 0)), soiree_id))
         journal(cx, "prenom_libere", str(soiree_id), {"participation": corps.get("participation_id")})
     return {"ok": True}
+
+
+@app.post("/api/soirees/{soiree_id}/saisie")
+def saisie_papier(soiree_id: int, corps: dict = Body(...)):
+    """1.3 : grille papier. L'hôte recopie la grille d'un invité : il reçoit un lien vers l'écran de notation au nom
+    de cet invité (un jeton de téléphone neuf, dans la partie « # » du lien : jamais envoyé au serveur par le
+    navigateur, jamais écrit dans le journal). Le téléphone qui tenait ce prénom le perd ; notes et classement
+    déjà faits restent. Cette adresse ne rend aucune note : la régie ne voit rien avant le dévoilement."""
+    with base(cfg().data) as cx:
+        s = _soiree(cx, soiree_id)
+        if s["etat"] != "ouverte":
+            raise HTTPException(409, "La saisie d'une grille papier se fait pendant la soirée ouverte.")
+        p = cx.execute("SELECT * FROM participation WHERE id=? AND soiree_id=?",
+                       (int(corps.get("participation_id", 0)), soiree_id)).fetchone()
+        if not p or p["etat"] == "ecarte":
+            raise HTTPException(404, "Invité inconnu pour cette soirée.")
+        jeton = secrets.token_urlsafe(24)
+        cx.execute("UPDATE participation SET jeton_telephone=?, arrive_le=COALESCE(arrive_le, ?), "
+                   "etat=CASE WHEN etat='attendu' THEN 'en_cours' ELSE etat END WHERE id=?",
+                   (jeton, maintenant(), p["id"]))
+        journal(cx, "saisie_papier", str(soiree_id), {"participation": p["id"], "telephone_remplace": bool(p["jeton_telephone"])})
+    return {"lien": f"/invite/{s['jeton_invite']}#saisie={jeton}"}
 
 
 # ================================================================ régie : dévoilement
@@ -993,8 +1019,11 @@ def _fiche(cx, s) -> dict:
                 "ecart_moyen": round(sum(abs(nous[c] - eux[c]) for c in communs) / len(communs), 1), "chansons": len(communs)}
 
     a_jury = any(i["jury"] for i in d["invites"])
+    # 1.3 : écarts et affinités, sur les classements figés au dévoilement (rendus par identifiants)
+    ordres = {i: sorted(r, key=r.get) for i, r in rangs.items()}
     return {
         "soiree": {**_resume(s), "forcee": bool(s["forcee"])}, "a_jury": a_jury,
+        "affinites": affinites(notes, ordres, points, passage),
         "invites": [{"id": i["id"], "prenom": i["prenom"], "jury": i["jury"], "notees": i["notees"],
                      "moyenne": round(sum(notes[i["id"]].values()) / len(notes[i["id"]]) / ECHELLE, 2)} for i in d["invites"]],
         "chansons": [{
@@ -1314,7 +1343,7 @@ def invite_resultats(jeton: str):
         f = _fiche(cx, s)
         return {**_devoilement(cx, s), "vrais": [{"chanson": c["id"], **c["officiel"], "notre_rang": c["rang"]}
                                                  for c in f["chansons"]],
-                "comparaison": f["comparaison"]}
+                "comparaison": f["comparaison"], "affinites": f["affinites"]}
 
 
 # ================================================================ sauvegarde des réglages (pour l'Anneau)

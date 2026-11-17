@@ -591,3 +591,97 @@ def test_reglages_webhook_et_restaurer(serveur, navigateur):
         assert httpx.get(f"{serveur}/externe/sauvegarde").status_code == 404     # sans jeton : porte fermée
         ecran.verifier(f"{nom}-23-fin")
         ecran.contexte.close()
+
+
+def test_grille_papier_saisie_libelle_et_affinites(serveur, navigateur):
+    """1.3 : la grille papier à imprimer, « Saisir sa grille » (un onglet au nom de l'invité), la correction d'un
+    libellé soirée ouverte, puis les écarts et affinités dans la fiche et sur un téléphone. Sur PC et sur iPhone."""
+    regie = Ecran(navigateur, PC)
+    p = regie.page
+    p.goto(serveur)
+    p.get_by_role("button", name="Passer l'ouverture").click()
+    p.get_by_label("Mot de passe").fill(MOT_DE_PASSE)
+    p.get_by_role("button", name="Se connecter").click()
+    p.get_by_role("heading", name="Nouvelle soirée").wait_for()
+    api = p.request
+    soiree = api.post(f"{serveur}/api/soirees", data={"concours": "Eurovision", "annee": 2027, "emission": "demi1",
+                                                       "nom": "Soirée de la grille"}).json()["id"]
+    api.put(f"{serveur}/api/soirees/{soiree}/chansons",
+            data={"texte": "\n".join(f"{pays} ; Artiste {i} ; Titre {i}" for i, pays in enumerate(PAYS[:8], 1))})
+    for prenom in ("Aglaé", "Barnabé", "Célestine"):          # déjà là si la première soirée a tourné (409 : rien)
+        api.post(f"{serveur}/api/invites", data={"prenom": prenom})
+    invites = [i["id"] for i in api.get(f"{serveur}/api/invites").json() if i["actif"]]
+    api.put(f"{serveur}/api/soirees/{soiree}/attendus", data={"invites": invites})
+    api.post(f"{serveur}/api/soirees/{soiree}/ouvrir")
+    lue = api.get(f"{serveur}/api/soirees/{soiree}").json()
+    jeton = lue["jeton_invite"]
+
+    p.reload()
+    p.get_by_role("heading", name="Soirée de la grille").wait_for()
+    # la grille papier : une page par invité attendu, plus une vierge
+    p.get_by_role("button", name="Grille papier").click()
+    p.get_by_role("region", name="Grille vierge").wait_for()
+    assert p.get_by_role("region", name=f"Grille de {lue['participants'][0]['prenom']}").count() == 1
+    assert p.locator("section.page").count() == len(lue["participants"]) + 1
+    regie.verifier("pc-30-grille")
+    p.emulate_media(media="print")
+    regie.verifier("pc-30-grille-impression")
+    p.emulate_media(media="screen")
+    p.get_by_role("button", name="Retour").click()
+
+    # corriger un libellé, soirée ouverte
+    p.get_by_role("button", name="Corriger le libellé : France").click()
+    formulaire = p.get_by_role("form", name="Corriger le libellé")
+    formulaire.get_by_label("Titre").fill("Titre corrigé")
+    regie.verifier("pc-31-libelle")
+    formulaire.get_by_role("button", name="Enregistrer").click()
+    p.get_by_text("Artiste 1, Titre corrigé").wait_for()
+    assert httpx.get(f"{serveur}/invite/{jeton}/api/etat").json()["chansons"][0]["titre"] == "Titre corrigé"
+
+    # saisir la grille d'un invité : un onglet à part, à son nom
+    premier = lue["participants"][0]
+    with p.context.expect_page() as attente:
+        p.get_by_role("button", name="Saisir sa grille").first.click()
+    onglet = attente.value
+    onglet.set_viewport_size(TELEPHONE)
+    onglet.get_by_text(f"Grille papier de {premier['prenom']}").wait_for(timeout=10000)
+    assert "saisie=" not in onglet.url                                   # le jeton ne reste pas dans l'adresse
+    ecran_saisie = Ecran.__new__(Ecran)
+    ecran_saisie.contexte, ecran_saisie.page, ecran_saisie.erreurs = p.context, onglet, []
+    ecran_saisie.verifier("tel-32-saisie")
+    onglet.close()
+    p.get_by_text("Note").first.wait_for()                               # la régie voit l'invité « en train de noter »
+
+    # tout le monde note (l'invité saisi est d'abord libéré), puis dévoilement et fin
+    api.post(f"{serveur}/api/soirees/{soiree}/liberer", data={"participation_id": premier["id"]})
+    tels = {}
+    for k, g in enumerate(lue["participants"]):
+        tel = {"X-Telephone": httpx.post(f"{serveur}/invite/{jeton}/api/prenom", json={"participation_id": g["id"]}).json()["jeton_telephone"]}
+        tels[g["prenom"]] = tel
+        for i, c in enumerate(lue["chansons"]):
+            httpx.put(f"{serveur}/invite/{jeton}/api/note", headers=tel, json={"chanson_id": c["id"], "valeur": ((i * (k + 5)) % 41) / 2})
+        httpx.post(f"{serveur}/invite/{jeton}/api/envoyer", headers=tel)
+    assert api.post(f"{serveur}/api/soirees/{soiree}/devoiler", data={"forcer": True}).ok
+    assert api.post(f"{serveur}/api/soirees/{soiree}/terminer").ok
+    p.reload()
+    p.get_by_role("button", name="Fiche de la soirée").click()
+    p.get_by_role("heading", name="Écarts et affinités").wait_for()
+    p.get_by_text("La chanson qui divise").wait_for()
+    regie.verifier("pc-33-fiche-affinites")
+
+    # sur un téléphone d'invité, après le dévoilement
+    tel = Ecran(navigateur, TELEPHONE, tactile=True)
+    t = tel.page
+    prenom, jeton_tel = next(iter(tels.items()))
+    t.goto(f"{serveur}/invite/{jeton}")
+    t.get_by_role("button", name="Passer l'ouverture").click()
+    t.evaluate("([cle, valeur]) => localStorage.setItem(cle, valeur)", [f"douze-points:{jeton}", jeton_tel["X-Telephone"]])
+    t.reload()                                                           # l'ouverture ne se rejoue pas
+    t.get_by_role("heading", name="Écarts et affinités").wait_for(timeout=10000)
+    t.get_by_role("heading", name="Écarts et affinités").scroll_into_view_if_needed()
+    tel.verifier("tel-33-affinites")
+    tel.contexte.close()
+
+    # ménage : la soirée de test disparaît
+    assert api.delete(f"{serveur}/api/soirees/{soiree}", data={"confirmation": True}).ok
+    regie.contexte.close()

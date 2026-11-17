@@ -7,6 +7,7 @@
   import { EMISSIONS, note, normaliser } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Drapeau from '$lib/Drapeau.svelte'
+  import Affinites from '$lib/Affinites.svelte'
   let { soiree, onferme } = $props()
 
   let f = $state(null)
@@ -108,6 +109,14 @@
         </table>
       </div>
     </section>
+
+    {#if f.affinites}
+      <section class="bloc">
+        <h2>Écarts et affinités</h2>
+        <Affinites affinites={f.affinites} prenoms={Object.fromEntries(f.invites.map((i) => [i.id, i.prenom]))}
+                   chansons={Object.fromEntries(f.chansons.map((c) => [c.id, c]))} />
+      </section>
+    {/if}
 
     {#if aOfficiel}
       <section class="bloc">

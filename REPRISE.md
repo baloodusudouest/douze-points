@@ -1,9 +1,13 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 16/11/2026, version 1.2.0.
+À lire en premier. Mis à jour le 17/11/2026, version 1.3.0.
 
 ## Où on en est
 
+- **1.3.0 (17/11/2026)** : écarts et affinités (fiche + téléphones après le dévoilement), grille papier à imprimer, « Saisir sa grille » par l'hôte, correction d'un libellé soirée ouverte. Voir CHANGELOG et `docs/dossier.md` (Ajouts de la 1.3.0).
+  - `app/points.py` : `affinites()` (pur, testé seul) ; `app/main.py` : `_fiche` → `affinites`, `invite_resultats` → `affinites`, `POST /api/soirees/<id>/saisie`, `chanson_corriger` (pays vide 422, chanson inconnue 404).
+  - Frontend : `lib/Affinites.svelte`, `pages/Grille.svelte`, `pages/Soiree.svelte` (boutons Grille papier, Saisir sa grille, crayon des libellés), `invite/Invite.svelte` (mode saisie : `sessionStorage`, bandeau « Grille papier de … »).
+  - **Jamais essayé sur la vraie installation** : impression réelle de la grille, ouverture de l'onglet de saisie sur iPhone (Safari et les fenêtres ouvertes par une page), affinités avec de vraies notes.
 - **1.2.0 (16/11/2026)** : réglages dans l'appli, sauvegarde et restauration ; anciens noms retirés. Module `app/maison.py` au contrat 2 (copie du socle, ne pas le modifier ici).
   - `app/config.py` : `maison.mot_de_passe()` seul (« MAISON_PASSWORD est absent ou trop court… »), `carnet_jeton = maison.jeton_a_envoyer()` seul. Plus de champs `adresse` ni `ha_webhook` dans `Config`.
   - `app/main.py`, bloc « réglages d'usage (1.2) » : `pas_note` reste dans la table `reglage` ; `ha_webhook` est dans `/data/reglages.json` (`maison.Reglages`, repris une fois de `DOUZE_POINTS_HA_WEBHOOK`, ligne `reglage_repris` au journal avec le nom de la variable, jamais la valeur). `GET/PUT /api/reglages` (400 si mauvais type), `GET/POST /api/restaurer` (faux Anneau dans les tests : `main.LIRE_ANNEAU`), `GET /externe/sauvegarde` (jeton commun ; `EXCLUS_SAUVEGARDE = ("ha_webhook",)`).
@@ -32,14 +36,13 @@
 
 ## Prochaine étape
 
-1. Déploiement sur le NAS (stack avec `MAISON_PASSWORD` et `MAISON_JETON`, tuile « Douze points » avec son adresse locale), puis essais sur place.
+1. Déployée sur le NAS le 16/11/2026 (1.2.0) : mettre la 1.3.0 (tirer `:latest`, redémarrer, aucune variable nouvelle), puis essais sur place (grille imprimée, saisie depuis l'iPhone).
 2. Soirée d'essai avec de vrais invités.
 3. Notification par Home Assistant quand tous ont envoyé (master doc à relire et compléter).
-4. Grille papier de secours ; « écarts et affinités » (qui note comme qui) dans la fiche.
 
 Fait depuis la 0.3 : concours réglables, ville et titre fabriqué, carnet, jury et public, podium, fiche de la soirée avec vrais votes, suppression.
 
-Petits manques connus : ordre du dévoilement non modifiable ; pas de correction d'un libellé de chanson à l'écran après l'ouverture (l'adresse existe côté serveur).
+Petits manques connus : aucun noté (l'ordre du dévoilement reste tiré au sort, choix de l'hôte du 17/11/2026).
 
 ## Essais à faire sur place avant la première soirée
 

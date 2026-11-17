@@ -1,5 +1,14 @@
 # Journal des versions
 
+## 1.3.0 — 17 novembre 2026
+
+- **Écarts et affinités** dans la fiche de la soirée, et sur les téléphones des invités une fois le dévoilement fini : la chanson qui divise et celle qui rassemble (écart entre la plus haute et la plus basse note, trois notes au moins), les deux invités qui notent le plus pareil et ceux qui ne sont d'accord sur rien (écart moyen sur trois chansons communes au moins), le plus sévère et le plus généreux, les coups de cœur solitaires (un 12 sans aucun autre point de personne), les chansons classées à contre-note (les trois plus grands écarts). Rien sous trois invités. Calcul dans `app/points.py` (`affinites`), sur les classements figés au dévoilement.
+- **Grille papier de secours** (écran Soirée, « Grille papier », en préparation et pendant la soirée) : une page à imprimer par invité attendu, à son prénom, et une vierge : chansons dans l'ordre de passage, note sur 20, mot, puis les dix lignes du classement.
+- **Saisir sa grille** (soirée ouverte, à côté de chaque invité) : l'hôte recopie une grille papier remplie. Un onglet s'ouvre sur l'écran de notation au nom de l'invité ; il note, range et envoie à sa place. Le jeton est dans la partie « # » du lien (jamais envoyé au serveur ni écrit au journal) et reste dans cet onglet : le prénom de l'hôte, gardé par son navigateur, n'est pas touché. Si le téléphone de l'invité tenait son prénom, une confirmation le dit : il perd la main, ses notes restent. `POST /api/soirees/<id>/saisie` (régie seulement, aucune note rendue).
+- **Corriger un libellé** de chanson pendant la soirée (crayon dans « Chanson en cours ») : pays, artiste, titre ; l'ordre ne change pas. Un pays vide est refusé, une chanson inconnue répond 404.
+- Retirés de la liste, au choix de l'hôte : ordre du dévoilement modifiable, retrait d'un invité à l'écran (déjà possible).
+- Tests : `tests/test_affinites.py`, `tests/test_grille.py`, écran `test_grille_papier_saisie_libelle_et_affinites` (PC et iPhone, grille en impression comprise).
+
 ## 1.2.0 — 16 novembre 2026
 
 - **Les réglages se changent dans l'appli.** L'adresse du webhook de Home Assistant quitte la stack pour l'écran Réglages, à côté du pas de la note. Au premier démarrage, elle est reprise une fois de `DOUZE_POINTS_HA_WEBHOOK` si la stack la porte encore (une ligne au journal), puis la variable n'est plus lue.

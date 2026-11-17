@@ -289,7 +289,7 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 - **Affiche à partager** : dessinée dans le navigateur (pas de PNG fabriqué par le serveur). En http, « Partager l'image » enregistre l'image et « Copier le lien » sélectionne le lien quand le presse-papiers est fermé aux pages.
 - **Logo** (0.2.1) : le « 12 » sous un projecteur, dessin propre à l'appli (`frontend/src/lib/Logo.svelte`, `frontend/public/icone.svg`). Le logo d'un concours n'y entre pas, même stylisé : ce sont des marques déposées. Le dépôt d'une image par soirée est fait en 0.3.0 (voir plus bas).
 - **Drapeaux** : déduits du nom du pays en français (table dans `frontend/src/lib/pays.js`) ; un pays inconnu de la table n'a pas de drapeau.
-- **Ordre du dévoilement** : tiré au sort ; il ne se modifie pas encore.
+- **Ordre du dévoilement** : tiré au sort ; il ne se modifie pas (choix de l'hôte du 17/11/2026 : le jury d'un coup puis le public chanson par chanson suffit).
 
 ## Ajouts de la 0.3.0 (15/11/2026, demandes de l'hôte)
 
@@ -340,3 +340,10 @@ Les étapes 1 à 7 font la soirée ; 8 et 9 ne la conditionnent pas.
 - **Résultats des invités** : podium de la soirée et de l'invité (`invite/Podium.svelte`), vrais votes et comparaison (`invite/VraisVotes.svelte`, saisie par l'hôte).
 - **Fiche** : images de la soirée, drapeaux en images (`lib/Drapeau.svelte`, paquet `flag-icons`, MIT).
 - **Pas de la note** : table `reglage` (`pas_note` 1 / 0.5 / 0.25, `echelle_notes`), `GET/PUT /api/reglages` ; notes stockées en quarts de point (`points.ECHELLE`).
+
+## Ajouts de la 1.3.0 (17/11/2026, demandes de l'hôte)
+
+- **Écarts et affinités** (`points.affinites`, `lib/Affinites.svelte`) : dans la fiche et dans `GET /invite/<jeton>/api/resultats` (seulement soirée dévoilée). Rubriques du § Synthèse ; rendu par identifiants, prénoms et pays posés par l'écran.
+- **Grille papier** (`pages/Grille.svelte`) : une page par invité attendu + une vierge, impression du navigateur. **Saisie par l'hôte** : `POST /api/soirees/<id>/saisie` donne `/invite/<jeton>#saisie=<jeton de téléphone>` ; `Invite.svelte` garde ce jeton dans `sessionStorage` (onglet), jamais dans `localStorage`, et retire le « # » de l'adresse. Choix de l'hôte : impression + saisie (plutôt qu'impression seule).
+- **Libellés** : correction soirée ouverte depuis l'écran Soirée (`PUT /api/chansons/<id>`, déjà là côté serveur).
+- Non retenus : ordre du dévoilement modifiable ; écarter un invité à l'écran pendant la soirée.
