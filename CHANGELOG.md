@@ -1,5 +1,12 @@
 # Journal des versions
 
+## 1.3.1 — 17 novembre 2026 (corrections de l'audit)
+- **Bug** : dans le tableau pour tableur (`fiche.csv`), chaque cellule vide sortait en « ' » (artistes absents, commentaires vides). Elle reste vide ; les débuts de formule (`= + - @`, tabulation, retour chariot) sont toujours désamorcés.
+- Deux téléphones qui touchent le même prénom au même instant : seul le premier l'obtient, le second reçoit « déjà pris » (avant, il écrasait le jeton du premier, qui ne pouvait plus noter).
+- Un double appui sur « Dévoiler » ne relance plus le tirage de l'ordre pendant l'animation (409 « déjà lancé »).
+- Une note `NaN` ou infinie est refusée proprement (422) au lieu d'une erreur 500.
+- Intégration continue : l'image n'est plus publiée si les tests échouent.
+
 ## 1.3.0 — 17 novembre 2026
 
 - **Écarts et affinités** dans la fiche de la soirée, et sur les téléphones des invités une fois le dévoilement fini : la chanson qui divise et celle qui rassemble (écart entre la plus haute et la plus basse note, trois notes au moins), les deux invités qui notent le plus pareil et ceux qui ne sont d'accord sur rien (écart moyen sur trois chansons communes au moins), le plus sévère et le plus généreux, les coups de cœur solitaires (un 12 sans aucun autre point de personne), les chansons classées à contre-note (les trois plus grands écarts). Rien sous trois invités. Calcul dans `app/points.py` (`affinites`), sur les classements figés au dévoilement.

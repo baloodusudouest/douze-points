@@ -60,6 +60,7 @@ def test_tableau_pour_tableur(client, soiree):
     assert lignes[0] == "Finale de démonstration" and lignes[1].startswith("Passage;Pays;Artiste;Titre;Moyenne /20")
     assert len(lignes) == 2 + 12 + 1 and "12,5" in lignes[2]           # virgule décimale
     assert "'=SOMME(A1)" in lignes[2]                                   # pas de formule glissée dans le tableur
+    assert ";';" not in texte and not texte.rstrip().endswith(";'")   # 1.3.1 : une cellule vide reste vide
     client.cookies.clear()
     assert client.get(f"/api/soirees/{soiree.id}/fiche.csv").status_code == 401
 

@@ -12,6 +12,7 @@ import csv
 import hmac
 import io
 import json
+import math
 import random
 import re
 import secrets
@@ -867,8 +868,11 @@ def devoiler(soiree_id: int, corps: dict = Body(default={})):
             cx.execute("UPDATE participation SET etat='ecarte' WHERE id=?", (p["id"],))
         passage = [p["id"] for p in retenus]
         random.shuffle(passage)
-        cx.execute("UPDATE soiree SET etat='devoilement', forcee=?, mode_devoilement=?, ordre_devoilement=?, "
-                   "pas_devoilement=0 WHERE id=?", (1 if forcer else 0, mode, json.dumps(passage), soiree_id))
+        # 1.3.1 : un double appui ne relance pas le tirage pendant l'animation
+        if not cx.execute("UPDATE soiree SET etat='devoilement', forcee=?, mode_devoilement=?, ordre_devoilement=?, "
+                          "pas_devoilement=0 WHERE id=? AND etat='ouverte'",
+                          (1 if forcer else 0, mode, json.dumps(passage), soiree_id)).rowcount:
+            raise HTTPException(409, "Le dévoilement est déjà lancé.")
         journal(cx, "devoilement_lance", str(soiree_id),
                 {"force": forcer, "retenus": len(retenus), "ecartes": len(ecartes)})
     return {"ok": True}
@@ -1083,7 +1087,8 @@ def fiche_csv(soiree_id: int):
             v = c["invites"].get(str(i["id"]))
             ligne += [fr(v["note"]), fr(v["rang"]), v["points"], v["commentaire"]] if v else ["", "", "", ""]
         # une cellule qui commence par = + - @ serait lue comme une formule par un tableur : on la désamorce
-        tableau.writerow([("'" + x) if isinstance(x, str) and x[:1] in "=+-@" else x for x in ligne])
+        # 1.3.1 : une cellule vide restait « ' » (x[:1] vaut "" et "" est dans toute chaîne)
+        tableau.writerow([("'" + x) if isinstance(x, str) and x and x[0] in "=+-@\t\r" else x for x in ligne])
     return Response("\ufeff" + sortie.getvalue(), media_type="text/csv; charset=utf-8",
                     headers={"Content-Disposition": f'attachment; filename="douze-points-soiree-{soiree_id}.csv"'})
 
@@ -1195,9 +1200,13 @@ def invite_prenom(jeton: str, request: Request, corps: dict = Body(...)):
             cx.execute("UPDATE participation SET jeton_telephone=NULL, etat='attendu', arrive_le=NULL WHERE id=?",
                        (ancien["id"],))
         nouveau = secrets.token_urlsafe(24)
-        cx.execute("UPDATE participation SET jeton_telephone=?, arrive_le=COALESCE(arrive_le, ?), "
-                   "etat=CASE WHEN etat='attendu' THEN 'en_cours' ELSE etat END WHERE id=?",
-                   (nouveau, maintenant(), cible["id"]))
+        # 1.3.1 : deux téléphones sur le même prénom au même instant : seul le premier l'obtient
+        pris = cx.execute("UPDATE participation SET jeton_telephone=?, arrive_le=COALESCE(arrive_le, ?), "
+                          "etat=CASE WHEN etat='attendu' THEN 'en_cours' ELSE etat END "
+                          "WHERE id=? AND jeton_telephone IS NULL",
+                          (nouveau, maintenant(), cible["id"])).rowcount
+        if not pris:
+            raise HTTPException(409, "Ce prénom est déjà pris sur un autre téléphone : demande à l'hôte de le libérer.")
         return {"jeton_telephone": nouveau}
 
 
@@ -1224,7 +1233,7 @@ def invite_noter(jeton: str, request: Request, corps: dict = Body(...)):
                 unites = float(corps["valeur"]) * ECHELLE
             except (TypeError, ValueError):
                 raise HTTPException(422, message)
-            if unites != int(unites) or not 0 <= unites <= 20 * ECHELLE or unites % (pas_note * ECHELLE):
+            if not math.isfinite(unites) or unites != int(unites) or not 0 <= unites <= 20 * ECHELLE or unites % (pas_note * ECHELLE):
                 raise HTTPException(422, message)
 
             commentaire = str(corps.get("commentaire") or "").strip()[:COMMENTAIRE_MAX]
