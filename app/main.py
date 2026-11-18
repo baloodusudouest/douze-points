@@ -8,6 +8,7 @@ Deux portes :
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import csv
 import hmac
 import io
@@ -28,7 +29,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 
 from . import __version__, carnet, maison
 from .auth import COMMUN, DUREE, Sessions, en_https
-from .base import base, preparer, sauvegarder
+from .base import base, fichier, preparer, sauvegarder
 from .config import APPLI, Config, charger
 from .points import ECHELLE, affinites, classement_groupe, classement_par_notes, inserer, points_du_classement
 
@@ -102,7 +103,16 @@ async def cycle(app: FastAPI):
                 journal(cx, "reglage_repris", k, {"variable": REGLAGES_VARIABLES[k]})
     ETAT.update(cfg=c, reglages=reglages, sessions=Sessions(APPLI, c.password, _lire_generation(c)),
                 debits=defaultdict(deque))
-    yield
+    # 1.4 (socle 0.9.0) : copie cohérente de douze-points.db chaque nuit (heure de Paris, maison.HEURES_COPIE)
+    # vers <data>/copies ; c'est la seule tâche de fond de l'appli (tâche « copie-des-bases » dans /health).
+    copie = asyncio.create_task(maison.planifier_copie(APPLI, [fichier(c.data)], c.data / "copies",
+                                                       maison.HEURES_COPIE[APPLI]))
+    try:
+        yield
+    finally:
+        copie.cancel()                    # arrêt propre de la boucle de copie
+        with contextlib.suppress(asyncio.CancelledError):
+            await copie
 
 
 app = FastAPI(title=APPLI, version=__version__, lifespan=cycle, docs_url=None, redoc_url=None)
@@ -149,15 +159,19 @@ def journal(cx, action: str, cible: str = "", detail: dict | None = None) -> Non
 # ================================================================ public
 
 @app.get("/health")
-def sante():
-    """Pour la tuile de l'Anneau : des nombres, aucun nom."""
+def sante(request: Request):
+    """Pour la tuile de l'Anneau : des nombres, aucun nom. 1.4 : + version_socle, taches, copie_base (socle 0.9.0) ;
+    messages d'erreur des tâches seulement avec le jeton commun MAISON_JETON ou une session."""
     with base(cfg().data) as cx:
         archivees = cx.execute("SELECT COUNT(*) FROM soiree WHERE etat IN ('devoilee','archivee')").fetchone()[0]
         en_cours = cx.execute("SELECT id FROM soiree WHERE etat IN ('ouverte','devoilement') ORDER BY id DESC").fetchone()
         attendus = cx.execute("SELECT COUNT(*) FROM participation WHERE soiree_id=? AND etat IN ('attendu','en_cours')",
                               (en_cours["id"],)).fetchone()[0] if en_cours else 0
+    sessions = ETAT.get("sessions")
     return {"ok": True, "version": __version__, "soirees": archivees,
-            "soiree_en_cours": bool(en_cours), "classements_attendus": attendus}
+            "soiree_en_cours": bool(en_cours), "classements_attendus": attendus,
+            **maison.sante(request, jeton_commun=maison.jetons(),
+                           session_ok=bool(sessions and sessions.connecte(request.cookies)))}
 
 
 # ================================================================ connexion (régie)

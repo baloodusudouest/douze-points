@@ -1,9 +1,10 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 17/11/2026, version 1.3.0.
+À lire en premier. Mis à jour le 18/11/2026, version 1.4.0.
 
 ## Où on en est
 
+- **1.4.0 (18/11/2026)** : santé des tâches de fond (socle 0.9.0, `app/maison.py` recopié, ne pas le modifier). `main.cycle` lance `maison.planifier_copie("douze-points", [base.fichier(data)], <data>/copies, "01:20")` (tâche asyncio annulée à l'arrêt) ; aucune autre tâche déclarée (pas de boucle de fond ni de tâche longue). `/health` fusionne `maison.sante(request, jeton_commun=maison.jetons(), session_ok=...)`. Un seul worker uvicorn (registre en mémoire). Tests : `tests/test_sante_taches.py` ; `test_sante_inchangee` et `test_sante_publique_sans_aucun_nom` relisent les anciens champs et acceptent les nouveaux. **Jamais essayé sur la vraie installation** (ni la copie de nuit, ni la remise en place d'une copie).
 - **1.3.0 (17/11/2026)** : écarts et affinités (fiche + téléphones après le dévoilement), grille papier à imprimer, « Saisir sa grille » par l'hôte, correction d'un libellé soirée ouverte. Voir CHANGELOG et `docs/dossier.md` (Ajouts de la 1.3.0).
   - `app/points.py` : `affinites()` (pur, testé seul) ; `app/main.py` : `_fiche` → `affinites`, `invite_resultats` → `affinites`, `POST /api/soirees/<id>/saisie`, `chanson_corriger` (pays vide 422, chanson inconnue 404).
   - Frontend : `lib/Affinites.svelte`, `pages/Grille.svelte`, `pages/Soiree.svelte` (boutons Grille papier, Saisir sa grille, crayon des libellés), `invite/Invite.svelte` (mode saisie : `sessionStorage`, bandeau « Grille papier de … »).

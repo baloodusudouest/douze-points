@@ -122,7 +122,9 @@ def test_sauvegarde_fermee_si_jeton_commun_vide(client, env):
 
 def test_sante_inchangee(client):
     r = client.get("/health").json()
-    assert set(r) == {"ok", "version", "soirees", "soiree_en_cours", "classements_attendus"}
+    # 1.4 : les champs d'avant restent, la santé des tâches s'ajoute (socle 0.9.0)
+    assert set(r) == {"ok", "version", "soirees", "soiree_en_cours", "classements_attendus",
+                      "version_socle", "taches", "copie_base"}
 
 
 # ---------------------------------------------------------------- restaurer

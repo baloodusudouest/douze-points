@@ -7,8 +7,10 @@ def test_sante_publique_sans_aucun_nom(client, soiree):
     soiree.entrer("Aglaé")
     r = client.get("/health")
     assert r.status_code == 200
-    assert r.json() == {"ok": True, "version": main.__version__, "soirees": 0, "soiree_en_cours": True,
-                        "classements_attendus": 4}
+    d = r.json()
+    assert {k: d[k] for k in ("ok", "version", "soirees", "soiree_en_cours", "classements_attendus")} == \
+        {"ok": True, "version": main.__version__, "soirees": 0, "soiree_en_cours": True, "classements_attendus": 4}
+    assert {"version_socle", "taches", "copie_base"} <= set(d)              # 1.4 : santé des tâches
     assert not any(p in r.text for p in PRENOMS)
 
 

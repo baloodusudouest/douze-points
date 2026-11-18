@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 1.4.0 — 18 novembre 2026 (santé des tâches de fond)
+- **Tâches suivies dans `/health`** (module commun `maison.py` du socle 0.9.1) : `/health` garde ses champs (des nombres, aucun nom) et ajoute `version_socle`, `taches` et `copie_base`. Les messages d'erreur des tâches n'y paraissent qu'avec le jeton commun `MAISON_JETON` ou une session.
+  - Douze points n'a ni boucle régulière ni tâche longue à elle (tout se fait pendant la requête) : la seule tâche suivie est `copie-des-bases` (régulière, 24 h).
+- **Copie cohérente de la base chaque nuit à 01:20, heure de Paris** : `douze-points.db` copiée par l'API de sauvegarde de SQLite et vérifiée vers `/data/copies/douze-points-derniere.db` (écrasée chaque nuit ; Hyper Backup tient l'historique). Les copies d'avant dévoilement et d'avant suppression (`/data/sauvegardes`) ne changent pas.
+- Rien d'autre ne change.
+
 ## 1.3.7 — 18 novembre 2026 (réglages secrets reconnus par mots)
 - `maison.py` du socle 0.8.2 (audit M3) : les réglages secrets sont reconnus par mots (« motdepasse », « apiKey », « login »…) et une adresse avec identifiant est écartée ; la sauvegarde dit ce qu'elle a écarté (champ `ecartes`, noms seulement).
 
