@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 1.3.6 — 18 novembre 2026 (texte de la notification)
+- Réglages : la notification Home Assistant est dite **pas encore active** (titre et texte), l'écran ne la promet plus ; « Adresse enregistrée (rien n'est encore envoyé) » (décision du 18/11/2026, Q7 de l'audit). La notification reste une idée.
+
 ## 1.3.5 — 18 novembre 2026 (cookies Secure)
 - **Cookies `Secure` en https** (audit du 17/11/2026, même correctif dans toutes les applis maison) : ouverte en https (directement, derrière Tailscale Serve qui le dit par `X-Forwarded-Proto`, ou d'après l'origine de la page), l'appli pose ses cookies de session avec l'attribut `Secure` : ils ne partent jamais en clair. En http (adresse locale), rien ne change.
 - `entrypoint.sh` refuse de lancer l'appli en root quand `/data` appartient à root (dossier créé par Docker) et dit le remède ; dépannage seulement : `MAISON_ROOT_ACCEPTE=oui`.

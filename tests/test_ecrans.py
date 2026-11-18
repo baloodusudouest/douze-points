@@ -567,7 +567,7 @@ def test_reglages_webhook_et_restaurer(serveur, navigateur):
         p.get_by_role("alert").filter(has_text="http://").wait_for()
         champ.fill("http://ha.exemple:8123/api/webhook/essai")
         p.get_by_role("button", name="Enregistrer").click()
-        p.get_by_text("Adresse enregistrée.").wait_for()
+        p.get_by_text("Adresse enregistrée (rien n'est encore envoyé).").wait_for()
         ecran.verifier(f"{nom}-20-webhook")
 
         p.get_by_role("button", name="Voir les sauvegardes").click()

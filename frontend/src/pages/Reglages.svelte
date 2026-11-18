@@ -35,7 +35,7 @@
     webhookErreur = ''
     try {
       prendre(await api.put('/api/reglages', { ha_webhook: webhook }))
-      webhookMessage = webhook ? 'Adresse enregistrée.' : 'Adresse effacée : pas de notification.'
+      webhookMessage = webhook ? 'Adresse enregistrée (rien n\'est encore envoyé).' : 'Adresse effacée : pas de notification.'
     } catch (x) { webhookErreur = x.message }
   }
 
@@ -139,8 +139,8 @@
 </section>
 
 <section class="mt-4 rounded-2xl border bg-card p-5">
-  <h2 class="text-lg font-semibold">Notification Home Assistant</h2>
-  <p class="mt-1 text-sm text-muted-foreground">Adresse du webhook de Home Assistant, pour être prévenu quand tous les invités ont envoyé. Vide : pas de notification, la régie seule l'affiche. Elle n'est jamais copiée dans les sauvegardes. La notification elle-même n'est pas encore branchée.</p>
+  <h2 class="text-lg font-semibold">Notification Home Assistant <span class="text-sm font-normal text-muted-foreground">(pas encore active)</span></h2>
+  <p class="mt-1 text-sm text-muted-foreground">Pas encore branchée : rien n'est envoyé à Home Assistant. L'adresse du webhook est gardée pour le jour où elle le sera (prévenir ton téléphone quand tous les invités ont envoyé). En attendant, c'est la régie qui montre que tout le monde a envoyé. L'adresse n'est jamais copiée dans les sauvegardes.</p>
   <form class="mt-3 flex flex-wrap gap-2" onsubmit={enregistrerWebhook}>
     <input class="saisie min-w-0 flex-1" type="text" inputmode="url" bind:value={webhook} placeholder="http://…/api/webhook/…" maxlength="300"
       aria-label="Adresse du webhook de Home Assistant" autocomplete="off" spellcheck="false" disabled={!charges} />
