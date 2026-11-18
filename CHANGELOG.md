@@ -1,5 +1,8 @@
 # Journal des versions
 
+## 1.3.7 — 18 novembre 2026 (réglages secrets reconnus par mots)
+- `maison.py` du socle 0.8.2 (audit M3) : les réglages secrets sont reconnus par mots (« motdepasse », « apiKey », « login »…) et une adresse avec identifiant est écartée ; la sauvegarde dit ce qu'elle a écarté (champ `ecartes`, noms seulement).
+
 ## 1.3.6 — 18 novembre 2026 (texte de la notification)
 - Réglages : la notification Home Assistant est dite **pas encore active** (titre et texte), l'écran ne la promet plus ; « Adresse enregistrée (rien n'est encore envoyé) » (décision du 18/11/2026, Q7 de l'audit). La notification reste une idée.
 
