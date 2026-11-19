@@ -81,6 +81,15 @@ def preparer(data: Path) -> None:
         # 1.5 : envoi de la soirée vers carnet en attente d'un nouvel essai
         cx.execute("CREATE TABLE IF NOT EXISTS envoi_carnet(soiree_id INTEGER PRIMARY KEY, essais INTEGER NOT NULL DEFAULT 0, "
                    "erreur TEXT NOT NULL DEFAULT '', le TEXT NOT NULL)")
+        # 1.6 : photos de la soirée, gardées ici jusqu'à leur arrivée complète dans Immich ; album Immich de la soirée
+        if "immich_album" not in {r["name"] for r in cx.execute("PRAGMA table_info(soiree)")}:
+            cx.execute("ALTER TABLE soiree ADD COLUMN immich_album TEXT")
+        cx.execute("CREATE TABLE IF NOT EXISTS photo(id INTEGER PRIMARY KEY, "
+                   "soiree_id INTEGER NOT NULL REFERENCES soiree(id) ON DELETE CASCADE, participation_id INTEGER NOT NULL, "
+                   "duo_participation_id INTEGER, fichier TEXT NOT NULL, type TEXT NOT NULL, taille INTEGER NOT NULL, "
+                   "recue_le TEXT NOT NULL, immich_id TEXT, dans_album INTEGER NOT NULL DEFAULT 0, "
+                   "decrite INTEGER NOT NULL DEFAULT 0, taguee INTEGER NOT NULL DEFAULT 0, envoyee_le TEXT, "
+                   "essais INTEGER NOT NULL DEFAULT 0, erreur TEXT NOT NULL DEFAULT '')")
         # 0.5 : jury ou public. `invite.jury` se règle dans l'appli ; `participation.jury` est figé au dévoilement.
         for table in ("invite", "participation"):
             if "jury" not in {r["name"] for r in cx.execute(f"PRAGMA table_info({table})")}:

@@ -14,7 +14,7 @@ import httpx
 import pytest
 import uvicorn
 
-from app import carnet, main, maison
+from app import carnet, immich, main, maison
 from app.config import Config
 
 playwright = pytest.importorskip("playwright.sync_api")
@@ -47,7 +47,12 @@ def serveur(tmp_path_factory):
     main.ETAT.clear()
     main.ETAT["cfg"] = Config(password=MOT_DE_PASSE, data=tmp_path_factory.mktemp("demo"), static=STATIQUE,
                               attente_connexion=False, limite_invite=100000,
-                              carnet_url="http://carnet.exemple", carnet_jeton="jeton-de-test")
+                              carnet_url="http://carnet.exemple", carnet_jeton="jeton-de-test",
+                              immich_url="http://immich.exemple", immich_cle="cle-de-test")
+    # 1.6 : Immich est remplacé par un faux (tests/test_photos_16.py)
+    from tests.test_photos_16 import FauxImmich
+    vrai_client = immich.CLIENT
+    immich.CLIENT = httpx.Client(transport=httpx.MockTransport(FauxImmich()))
     # l'Anneau est remplacé par des faux : l'annuaire (adresse des invités) et les sauvegardes des réglages
     vrai_annuaire, vrai_anneau = main.ANNUAIRE, main.LIRE_ANNEAU
     main.ANNUAIRE = maison.Annuaire(url="http://anneau.exemple", jeton="jeton-de-test",
@@ -74,6 +79,7 @@ def serveur(tmp_path_factory):
     main.ANNUAIRE, main.LIRE_ANNEAU = vrai_annuaire, vrai_anneau
     carnet.appeler = vrai_appel
     carnet.oublier()
+    immich.CLIENT = vrai_client
 
 
 @pytest.fixture(scope="module")
@@ -149,7 +155,7 @@ def test_une_soiree_entiere(serveur, navigateur):
     regie.verifier("pc-0-reglages")
     # Connexion : la tuile de carnet, ce qui y est lu, et « Vérifier »
     p.get_by_role("link", name="Connexion").click()
-    p.get_by_role("button", name="Vérifier").click()
+    p.get_by_role("button", name="Vérifier").first.click()      # carnet (Immich a sa tuile aussi, 1.6)
     p.get_by_text("2 personnes lues.").wait_for()
     regie.verifier("pc-0-connexion")
     p.get_by_role("link", name="Soirée").click()
@@ -320,6 +326,11 @@ def test_une_soiree_entiere(serveur, navigateur):
     t.get_by_role("button", name="Les invités").click()
     t.get_by_text("A envoyé").wait_for()
     invite.verifier("tel-7-invites")
+    # 1.6 : l'icône photo, pendant toute la soirée ; la photo part vers l'album (faux Immich)
+    t.get_by_role("button", name="Ajouter des photos de la soirée").wait_for()
+    t.locator('input[type="file"]').first.set_input_files(image_de_demo("40x30", "photo-soiree"))
+    t.get_by_text("Photo envoyée").wait_for()
+    invite.verifier("tel-7-photo-envoyee")
 
     # ---------------- les deux autres passent par l'adresse des invités, sans écran
     jeton = lien.rsplit("/", 1)[1]
@@ -366,6 +377,21 @@ def test_une_soiree_entiere(serveur, navigateur):
     t.wait_for_timeout(1300)
     invite.verifier("tel-8-podium")
     p.get_by_role("button", name="Terminer").click()
+    # 1.6 : la télé passe aux jumeaux de vote, tous les duos d'un coup (tranches, jamais de pourcentage)
+    p.get_by_role("heading", name="Les jumeaux de vote").wait_for()
+    duos = p.get_by_role("list", name="Duos de jumeaux de vote").locator("li")
+    textes = duos.all_text_contents()
+    assert len(textes) == 2 and any("Aglaé→Hélène" in x for x in textes) and not any("%" in x for x in textes), textes
+    p.wait_for_timeout(900)
+    regie.verifier("paysage-8-jumeaux")
+    # le téléphone d'Aglaé : son jumeau, et « Immortaliser » (selfie) ; la photo du duo allume le duo sur la télé
+    t.get_by_text("Ton jumeau de vote : Hélène").wait_for(timeout=10000)
+    invite.verifier("tel-8-jumeau")
+    t.locator('input[capture="user"]').set_input_files(image_de_demo("40x30", "selfie"))
+    t.get_by_text("📸 Immortalisés").wait_for(timeout=10000)
+    p.get_by_text("📸 immortalisés").wait_for(timeout=10000)
+    regie.verifier("paysage-8-jumeaux-immortalises")
+    p.get_by_role("button", name="Fermer").click()
     p.set_viewport_size(PC)
     p.get_by_text("Soirée dévoilée").wait_for()
     regie.verifier("pc-9-devoilee")
@@ -505,6 +531,8 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     regie.verifier("paysage-13-classement")
     p.get_by_role("button", name="Tout afficher").click()
     p.get_by_role("button", name="Terminer").click()
+    p.get_by_role("heading", name="Les jumeaux de vote").wait_for()
+    p.get_by_role("button", name="Fermer").click()
     p.set_viewport_size(PC)
 
     # la fiche de la soirée, puis les vrais votes

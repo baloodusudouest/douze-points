@@ -14,15 +14,17 @@
   import Podium from './Podium.svelte'
   import VraisVotes from './VraisVotes.svelte'
   import Affinites from '$lib/Affinites.svelte'
+  import Photo from './Photo.svelte'
+  import Jumeaux from './Jumeaux.svelte'
   let { jeton } = $props()
 
   const CLE = 'douze-points:' + jeton
   // Le jeton personnel du téléphone : gardé par le navigateur quand il le permet (pas en navigation privée stricte).
-  let tel = ''
+  let tel = $state('')
   // 1.3 : grille papier. L'hôte ouvre cette page par un lien « #saisie=<jeton> » pour recopier la grille d'un
   // invité. Ce jeton reste dans cet onglet (sessionStorage) : le prénom de l'hôte, gardé par le navigateur, n'est pas touché.
   const CLE_SAISIE = CLE + ':saisie'
-  let saisie = false
+  let saisie = $state(false)
   const lienSaisie = location.hash.match(/saisie=([\w-]+)/)
   try {
     if (lienSaisie) {
@@ -147,6 +149,11 @@
   let nbNotees = $derived(Object.keys(notes).length)
   let envoye = $derived(e?.moi?.etat === 'envoye')
   let ouverte = $derived(e?.etat === 'ouverte')
+  // 1.6 : l'icône photo, de l'ouverture à l'archivage. Jamais sur l'appareil de l'hôte (connecté à la régie) :
+  // c'est lui qui est recopié sur la télé, qui montrerait l'appareil photo et son selfie à tout le salon.
+  let photos = $derived(!!(e?.photos?.actives && e?.moi && !estHote && !saisie && ['ouverte', 'devoilement', 'devoilee'].includes(e?.etat)))
+  const photoRecue = (c) => { if (c && e) e.photos = c }
+  async function relireResultats() { try { resultats = await appel('GET', 'resultats'); luResultats = Date.now() } catch { /* relu plus tard */ } }
 
   function ouvrir(c) {
     fiche = c
@@ -225,9 +232,12 @@
 
   {:else}
     {#if image('banniere')}<img src={image('banniere')} alt="" class="mb-3 max-h-36 w-full rounded-xl object-cover" />{/if}
-    <header class="mb-4">
-      <h1 class="text-2xl font-light tracking-tight">{e.nom}</h1>
-      <p class="text-sm text-muted-foreground">{e.concours} {e.annee}, {EMISSIONS[e.emission].toLowerCase()}{e.moi ? ` · ${e.moi.prenom}` : ''}</p>
+    <header class="mb-4 flex items-start gap-3">
+      <div class="min-w-0 flex-1">
+        <h1 class="text-2xl font-light tracking-tight">{e.nom}</h1>
+        <p class="text-sm text-muted-foreground">{e.concours} {e.annee}, {EMISSIONS[e.emission].toLowerCase()}{e.moi ? ` · ${e.moi.prenom}` : ''}{photos && e.photos.soiree ? ` · ${e.photos.soiree} photo${e.photos.soiree > 1 ? 's' : ''}` : ''}</p>
+      </div>
+      {#if photos}<Photo {jeton} {tel} onenvoye={photoRecue} />{/if}
     </header>
     {#if erreur}<p class="mb-3 rounded-xl border border-destructive/60 px-4 py-2 text-sm" role="alert">{erreur}</p>{/if}
     {#if saisie && e.moi && e.etat === 'ouverte'}
@@ -248,6 +258,9 @@
     {:else if e.etat === 'devoilee'}
       {#if resultats}
         {@const monPodium = resultats.invites.find((i) => i.id === e.moi?.id)?.points.slice(-3).reverse() || []}
+        {#if photos && resultats.jumeaux}
+          <Jumeaux {jeton} {tel} moi={e.moi.id} jumeaux={resultats.jumeaux} onenvoye={(c) => { photoRecue(c); relireResultats() }} />
+        {/if}
         <h2 class="text-lg font-semibold">Le podium de la soirée</h2>
         <Podium places={resultats.classement.slice(0, 3).map((l) => ({ c: parId[l.chanson], points: l.total }))} />
         {#if monPodium.length}

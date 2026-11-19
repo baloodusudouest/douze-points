@@ -23,7 +23,8 @@ def test_health_porte_taches_et_copie(registre, client, monkeypatch):
     d = client.get("/health").json()
     assert d["ok"] is True and d["version_socle"] == "0.9.1"
     noms = {t["nom"]: t for t in d["taches"]}
-    assert set(noms) == {"copie-des-bases"}
+    assert set(noms) == {"copie-des-bases", "envoi-immich"}      # 1.6 : envoi des photos vers Immich, toutes les 10 min
+    assert noms["envoi-immich"]["type"] == "reguliere" and noms["envoi-immich"]["periode_s"] == 600
     assert noms["copie-des-bases"]["type"] == "reguliere" and noms["copie-des-bases"]["periode_s"] == 86400
     assert noms["copie-des-bases"]["etat"] == "jamais"
     assert all("message" not in t for t in d["taches"])                 # sans jeton : pas de message

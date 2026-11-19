@@ -13,11 +13,14 @@ services:
       - MAISON_PASSWORD=${MAISON_PASSWORD}                       # mot de passe commun des applis, obligatoire (12 caractères au moins)
       - MAISON_JETON=${MAISON_JETON:-}                           # jeton commun : demandes à carnet, annuaire et sauvegardes de l'Anneau ; vide : rien de tout cela
       - DOUZE_POINTS_CARNET_URL=http://carnet:8096               # carnet vu depuis le conteneur (même stack)
+      # 1.6 : photos de la soirée vers Immich (album « AAAA-MM-JJ titre ») ; clé vide : pas d'icône photo
+      - DOUZE_POINTS_IMMICH_URL=http://immich_server:2283        # Immich vu depuis le conteneur (même stack)
+      - DOUZE_POINTS_IMMICH_CLE=${DOUZE_POINTS_IMMICH_CLE:-}     # clé d'API « douze-points » (asset.upload, asset.update, album.read, album.create, albumAsset.create, tag.read, tag.create, tag.asset, apiKey.read)
       # 1.2 : l'adresse donnée aux invités (QR code, lien) vient de l'annuaire de l'Anneau (tuile « Douze points »,
       # adresse locale). Le webhook de Home Assistant se règle dans l'écran Réglages de l'appli : il est repris une
       # seule fois de DOUZE_POINTS_HA_WEBHOOK au premier démarrage de la 1.2 si la stack la porte encore, puis plus lu.
     volumes:
-      - ${DOUZE_POINTS_DATA_DIR}:/data                           # douze-points.db, reglages.json, sauvegardes/
+      - ${DOUZE_POINTS_DATA_DIR}:/data                           # douze-points.db, reglages.json, sauvegardes/, photos/ (en attente d'Immich)
     labels:
       # comme les autres applis maison : mise à jour à la main
       - "com.centurylinklabs.watchtower.enable=false"

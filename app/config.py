@@ -24,6 +24,8 @@ class Config:
     limite_invite: int = 240         # demandes par minute et par téléphone sur la porte invité
     carnet_url: str = ""             # carnet vu depuis le conteneur ; avec le jeton : invités choisis en tapant leur nom
     carnet_jeton: str = ""           # le jeton commun MAISON_JETON ; vide : carnet n'est pas lu
+    immich_url: str = ""             # 1.6 : Immich vu depuis le conteneur (défaut http://immich_server:2283)
+    immich_cle: str = ""             # 1.6 : clé d'API Immich propre à Douze points ; vide : pas d'icône photo
 
 
 def charger() -> Config:
@@ -37,4 +39,6 @@ def charger() -> Config:
         static=Path(__file__).parent / "static",
         carnet_url=os.environ.get("DOUZE_POINTS_CARNET_URL", "").strip().rstrip("/"),
         carnet_jeton=maison.jeton_a_envoyer(),                      # 1.2 : MAISON_JETON seul
+        immich_url=os.environ.get("DOUZE_POINTS_IMMICH_URL", "http://immich_server:2283").strip().rstrip("/"),
+        immich_cle=os.environ.get("DOUZE_POINTS_IMMICH_CLE", "").strip(),
     )

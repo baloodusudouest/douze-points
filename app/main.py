@@ -18,21 +18,27 @@ import math
 import random
 import re
 import secrets
+import shutil
+import threading
 import time
+import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import datetime
 import urllib.error
 
+import httpx
+
 import segno
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import __version__, carnet, maison
+from . import __version__, carnet, immich, maison
 from .auth import COMMUN, DUREE, Sessions, en_https
 from .base import base, fichier, preparer, sauvegarder
 from .config import APPLI, Config, charger
-from .points import ECHELLE, affinites, classement_groupe, classement_par_notes, inserer, points_du_classement
+from .points import (ECHELLE, affinites, classement_groupe, classement_par_notes, duos, inserer, jumeaux,
+                     points_du_classement)
 
 ETAT: dict = {}
 PUBLIQUES = ("/api/connexion", "/api/session")
@@ -109,10 +115,14 @@ async def cycle(app: FastAPI):
     copie = asyncio.create_task(maison.planifier_copie(APPLI, [fichier(c.data)], c.data / "copies",
                                                        maison.HEURES_COPIE[APPLI]))
     envois = asyncio.create_task(_boucle_carnet())     # 1.5 : nouvel essai des soirées pas encore reçues par carnet
+    # 1.6 : photos de la soirée vers Immich (nouvel essai toutes les 10 min), après ménage des fichiers orphelins
+    nettoyer_photos()
+    maison.TACHES.declarer(TACHE_IMMICH, PERIODE_IMMICH)
+    photos = asyncio.create_task(_boucle_immich())
     try:
         yield
     finally:
-        for tache in (copie, envois):     # arrêt propre des boucles
+        for tache in (copie, envois, photos):     # arrêt propre des boucles
             tache.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await tache
@@ -362,7 +372,18 @@ def services(verifier: bool = False):
             c.update(ok=True, detail=f"{len(carnet.personnes(cfg(), frais=True))} personnes lues.")
         except Exception as e:
             c.update(ok=False, detail=f"carnet ne répond pas ({type(e).__name__}).")
-    return [c]
+    # 1.6 : Immich, pour les photos de la soirée
+    i = {"id": "immich", "nom": "Immich", "regle": immich.regle(cfg()), "ok": None, "detail": "",
+         "lit": "La version d'Immich et les permissions de la clé.",
+         "ecrit": "Les photos de la soirée, dans un album « AAAA-MM-JJ titre de la soirée », avec une description "
+                  "et les tags « Douze points » (et « Jumeaux de vote » pour les duos).",
+         "reglage": "DOUZE_POINTS_IMMICH_CLE (permissions : " + ", ".join(immich.PERMISSIONS) + "), "
+                    "DOUZE_POINTS_IMMICH_URL"}
+    if i["regle"] and verifier:
+        v = immich.verifier(cfg())
+        i.update(ok=v.get("ok"), detail=(f"Immich {v['version']}. " if v.get("version") else "") + (v.get("message") or
+                                                                                                  "Clé et permissions en ordre."))
+    return [c, i]
 
 
 @app.put("/api/invites/{invite_id}")
@@ -1003,6 +1024,9 @@ def _corps_soiree(cx, s) -> dict:
     rang_groupe = {c["id"]: c["rang"] for c in f["chansons"]}
     pays = {c["id"]: c["pays"] for c in f["chansons"]}
     personnes = []
+    j = _jumeaux(cx, s)                      # 1.6 : le jumeau de vote de chacun (prénom et tranche, jamais de note)
+    prenoms = {x["id"]: x["prenom"] for d in j["duos"] for x in d["invites"]}
+    album = {"nom": _nom_album(s), "lien": _lien_album(s["immich_album"])} if s["immich_album"] else None
     for i in f["invites"]:
         mes = sorted(((c["invites"][str(i["id"])]["rang"], c["id"]) for c in f["chansons"]
                       if str(i["id"]) in c["invites"] and c["invites"][str(i["id"])]["rang"]), key=lambda x: x[0])
@@ -1018,6 +1042,12 @@ def _corps_soiree(cx, s) -> dict:
         x = {"nom": i["prenom"], "role": "jury" if i["jury"] else "public",
              "donnees": {"moyenne": i["moyenne"], "classement": rang_groupe.get(mes[0][1]) if mes else None,
                          "top3": [pays[c] for _, c in mes[:3]], "remarques": remarques}}
+        jumeau = j["par_invite"].get(i["id"])
+        if jumeau:
+            duo = next(d for d in j["duos"] if {x["id"] for x in d["invites"]} == {i["id"], jumeau})
+            x["donnees"]["jumeau"] = {"nom": prenoms.get(jumeau, ""), "accord": duo["tranche"]}
+        if album:
+            x["donnees"]["album"] = album
         if pid or par_carnet.get(cid or ""):
             x["personne_id"] = pid or par_carnet[cid]
         personnes.append(x)
@@ -1112,6 +1142,8 @@ def soiree_supprimer(soiree_id: int, corps: dict = Body(default={})):
     for sorte in IMAGES:
         if s[sorte]:
             (cfg().data / "images" / s[sorte]).unlink(missing_ok=True)
+    # 1.6 : les photos encore en attente sont effacées ; celles déjà dans Immich y restent
+    shutil.rmtree(cfg().data / "photos" / str(soiree_id), ignore_errors=True)
     return {"ok": True}
 
 
@@ -1307,7 +1339,8 @@ def invite_etat(jeton: str, request: Request):
         return {**etat, "chansons": chansons, "chanson_en_cours": s["chanson_en_cours"],
                 "invites": [{"id": g["id"], "prenom": g["prenom"], "pris": g["pris"], "envoye": g["etat"] == "envoye"}
                             for g in _participants(cx, s["id"]) if g["etat"] != "ecarte"],
-                "moi": _ma_copie(cx, s, p, chansons) if p else None}
+                "moi": _ma_copie(cx, s, p, chansons) if p else None,
+                "photos": _photos_compte(cx, s["id"], p["id"] if p else None)}
 
 
 def _ouverte(s) -> None:
@@ -1479,16 +1512,292 @@ def invite_devoilement(jeton: str, request: Request):
 
 
 @app.get("/invite/{jeton}/api/resultats")
-def invite_resultats(jeton: str):
-    """Fermé tant que le dévoilement n'est pas fini. Avec les vrais votes du concours dès que l'hôte les a saisis."""
+def invite_resultats(jeton: str, request: Request):
+    """Fermé tant que le dévoilement n'est pas fini. Avec les vrais votes du concours dès que l'hôte les a saisis.
+    1.6 : `jumeaux`, les duos de ce téléphone (son jumeau, et ceux qui l'ont choisi), avec leur photo reçue ou non."""
     with base(cfg().data) as cx:
         s = _porte(cx, jeton)
         if s["etat"] != "devoilee":
             raise HTTPException(409, "Les résultats ne sont pas encore dévoilés.")
         f = _fiche(cx, s)
+        p = _moi(cx, s, request, exiger=False)
+        j = _jumeaux(cx, s)
+        miens = [d for d in j["duos"] if p and p["id"] in (x["id"] for x in d["invites"])] if p else []
         return {**_devoilement(cx, s), "vrais": [{"chanson": c["id"], **c["officiel"], "notre_rang": c["rang"]}
                                                  for c in f["chansons"]],
-                "comparaison": f["comparaison"], "affinites": f["affinites"]}
+                "comparaison": f["comparaison"], "affinites": f["affinites"],
+                "jumeaux": {"miens": miens, "a_jumeau": bool(p and p["id"] in j["par_invite"])}}
+
+
+# ================================================================ 1.6 : jumeaux de vote et photos de la soirée
+#
+# Demande de Julien du 19/11/2026 (docs/ajout-1.6.0.md, conseil docs/conseil-1.6.0.md) : une fois le classement figé,
+# chaque invité a son jumeau de vote (l'invité dont les notes ressemblent le plus aux siennes) ; la télé montre tous les
+# duos après le podium, chaque téléphone propose d'« immortaliser » ses duos. Une icône photo sur les téléphones, de
+# l'ouverture à l'archivage. Toutes les photos partent dans un album Immich « AAAA-MM-JJ titre », créé par l'appli.
+# Le téléphone envoie au NAS (gardé dans /data/photos) ; le NAS envoie à Immich, étape par étape, et réessaie toutes
+# les 10 minutes. Les invités ne voient jamais les photos des autres dans l'appli.
+
+PHOTO_MAX = 25 * 1024 * 1024
+PHOTOS_PAR_INVITE = 150                 # plafond par invité et par soirée
+TACHE_IMMICH, PERIODE_IMMICH = "envoi-immich", 600
+TAG_SOIREE, TAG_DUO = "Douze points", "Jumeaux de vote"
+MARQUES_HEIF = (b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"heif", b"mif1", b"msf1")
+_VERROU_IMMICH = threading.Lock()       # un seul envoi à la fois : jamais deux albums pour une soirée
+
+
+def _format_photo(debut: bytes):
+    """JPEG, PNG, WebP ou HEIC/HEIF (iPhone), reconnus à leurs premiers octets."""
+    if debut[4:8] == b"ftyp" and debut[8:12] in MARQUES_HEIF:
+        return "heic", "image/heic"
+    return _format_image(debut)
+
+
+def _jumeaux(cx, s) -> dict:
+    """Jumeaux et duos d'une soirée, sur les notes des invités retenus au dévoilement (ceux qui ont des points).
+    Rend {"duos": [{"cle", "invites": [{id, prenom}], "reciproques", "tranche", "photos"}], "par_invite": {id: jumeau}}.
+    Jamais de note ni d'écart chiffré : la tranche seule (conseil du 19/11/2026)."""
+    ids = [r["participation_id"] for r in cx.execute(
+        "SELECT DISTINCT participation_id FROM points WHERE soiree_id=?", (s["id"],))]
+    js = jumeaux({p: _notes(cx, p) for p in ids})
+    prenoms = {r["id"]: r["prenom"] for r in cx.execute(
+        "SELECT p.id, i.prenom FROM participation p JOIN invite i ON i.id=p.invite_id WHERE p.soiree_id=?", (s["id"],))}
+    photos: dict[tuple[int, int], int] = defaultdict(int)
+    for r in cx.execute("SELECT participation_id, duo_participation_id FROM photo WHERE soiree_id=? "
+                        "AND duo_participation_id IS NOT NULL", (s["id"],)):
+        photos[tuple(sorted((r["participation_id"], r["duo_participation_id"])))] += 1
+    sortie = []
+    for d in duos(js):
+        a, b = d["invites"]
+        sortie.append({"cle": f"{min(a, b)}-{max(a, b)}", "invites": [{"id": x, "prenom": prenoms.get(x, "?")} for x in (a, b)],
+                       "reciproques": d["reciproques"], "tranche": d["tranche"], "photos": photos[(min(a, b), max(a, b))]})
+    return {"duos": sortie, "par_invite": {g: v["jumeau"] for g, v in js.items()}}
+
+
+def _photos_compte(cx, soiree_id: int, participation_id: int | None) -> dict:
+    """Ce que voit un téléphone : l'icône est-elle là, combien de photos ce soir, combien des siennes. Jamais d'image."""
+    n = cx.execute("SELECT COUNT(*), SUM(participation_id=?) FROM photo WHERE soiree_id=?",
+                   (participation_id or 0, soiree_id)).fetchone()
+    return {"actives": immich.regle(cfg()), "soiree": n[0] or 0, "miennes": int(n[1] or 0), "plafond": PHOTOS_PAR_INVITE}
+
+
+def _nom_album(s) -> str:
+    """« 2027-05-15 Eurovision Vienne 2027, finale » : la date de la soirée, sinon le jour de son ouverture."""
+    jour = (s["date"] or s["ouverte_le"] or s["cree_le"] or maintenant())[:10]
+    return f"{jour} {s['nom']}".strip()
+
+
+def _lien_album(album: str | None) -> str:
+    """Lien de l'album pour l'hôte (adresse d'Immich lue dans l'annuaire de l'Anneau, tuile « Immich »)."""
+    if not album:
+        return ""
+    racine = ANNUAIRE.adresse("Immich", prive=True)
+    return f"{racine}/albums/{album}" if racine.startswith(("http://", "https://")) else ""
+
+
+def _description(cx, s, ph) -> str:
+    prenom = lambda pid: (cx.execute("SELECT i.prenom FROM participation p JOIN invite i ON i.id=p.invite_id "
+                                     "WHERE p.id=?", (pid,)).fetchone() or {"prenom": "?"})["prenom"]
+    if ph["duo_participation_id"]:
+        j = _jumeaux(cx, s)
+        cle = "-".join(str(x) for x in sorted((ph["participation_id"], ph["duo_participation_id"])))
+        duo = next((d for d in j["duos"] if d["cle"] == cle), None)
+        tranche = f" ({duo['tranche'].lower()})" if duo else ""
+        return (f"Douze points – {s['nom']} – jumeaux de vote : {prenom(ph['participation_id'])} et "
+                f"{prenom(ph['duo_participation_id'])}{tranche}")
+    return f"Douze points – {s['nom']} – photo de {prenom(ph['participation_id'])}"
+
+
+@app.put("/invite/{jeton}/api/photo")
+async def invite_photo(jeton: str, request: Request):
+    """Une photo de la soirée, corps brut (JPEG, PNG, WebP, HEIC ; 25 Mo au plus). En-tête facultatif `X-Duo` :
+    l'identifiant de l'autre invité du duo (après le dévoilement, seulement pour un de ses duos).
+    La photo est écrite sur le disque au fil de la réception (le serveur ne se fige pas), puis enregistrée, puis
+    envoyée à Immich en fond. Rend le compte des photos, jamais rien des autres."""
+    if not immich.regle(cfg()):
+        raise HTTPException(409, "Les photos ne sont pas réglées sur cette installation.")
+    duo_brut = request.headers.get("x-duo", "").strip()
+    with base(cfg().data) as cx:
+        s = _porte(cx, jeton)
+        if s["etat"] == "brouillon":
+            raise HTTPException(409, "La soirée n'a pas commencé.")
+        p = _moi(cx, s, request)
+        if cx.execute("SELECT COUNT(*) FROM photo WHERE soiree_id=? AND participation_id=?",
+                      (s["id"], p["id"])).fetchone()[0] >= PHOTOS_PAR_INVITE:
+            raise HTTPException(429, f"{PHOTOS_PAR_INVITE} photos, c'est le maximum par invité pour une soirée.")
+        duo = None
+        if duo_brut:
+            if s["etat"] != "devoilee" or not duo_brut.isdigit():
+                raise HTTPException(422, "Ce duo n'existe pas.")
+            duo = int(duo_brut)
+            par = _jumeaux(cx, s)["par_invite"]
+            if duo == p["id"] or not (par.get(p["id"]) == duo or par.get(duo) == p["id"]):
+                raise HTTPException(422, "Ce duo n'existe pas.")
+    dossier = cfg().data / "photos" / str(s["id"])
+    dossier.mkdir(parents=True, exist_ok=True)
+    provisoire = dossier / f".{uuid.uuid4().hex}.part"
+    taille, debut = 0, b""
+    try:
+        with open(provisoire, "wb") as f:
+            async for morceau in request.stream():
+                taille += len(morceau)
+                if taille > PHOTO_MAX:
+                    raise HTTPException(413, "Photo trop lourde (25 Mo au plus).")
+                if len(debut) < 16:
+                    debut += morceau[:16 - len(debut)]
+                f.write(morceau)
+        forme = _format_photo(debut)
+        if not taille or not forme:
+            raise HTTPException(415, "Ce fichier n'est pas une photo (JPEG, PNG, WebP ou HEIC).")
+        nom = f"{uuid.uuid4().hex}.{forme[0]}"
+        provisoire.rename(dossier / nom)
+    except BaseException:
+        provisoire.unlink(missing_ok=True)
+        raise
+    try:
+        with base(cfg().data) as cx:
+            cx.execute("INSERT INTO photo(soiree_id, participation_id, duo_participation_id, fichier, type, taille, "
+                       "recue_le) VALUES(?,?,?,?,?,?,?)", (s["id"], p["id"], duo, nom, forme[1], taille, maintenant()))
+            journal(cx, "photo_recue", str(s["id"]), {"duo": bool(duo), "taille": taille})
+            compte = _photos_compte(cx, s["id"], p["id"])
+    except BaseException:
+        (dossier / nom).unlink(missing_ok=True)
+        raise
+    asyncio.get_running_loop().run_in_executor(None, _envoyer_photos_sans_erreur)
+    return {"ok": True, "photos": compte}
+
+
+def _etape(cx, ph, colonne: str, valeur=1) -> None:
+    cx.execute(f"UPDATE photo SET {colonne}=? WHERE id=?", (valeur, ph["id"]))
+
+
+def envoyer_photos() -> dict:
+    """Envoie à Immich les photos pas encore arrivées, étape par étape (image, album, description, tags), en reprenant
+    à l'étape où chacune s'était arrêtée. S'arrête au premier Immich injoignable (nouvel essai au prochain tour).
+    Rend {"envoyees", "en_attente", "erreur"}."""
+    if not immich.regle(cfg()):
+        return {"envoyees": 0, "en_attente": 0, "erreur": "Immich pas réglé"}
+    with _VERROU_IMMICH:
+        envoyees, erreur = 0, ""
+        with base(cfg().data) as cx:
+            ids = [r["id"] for r in cx.execute("SELECT id FROM photo WHERE envoyee_le IS NULL ORDER BY id")]
+        for pid in ids:
+            try:
+                _envoyer_une(pid)
+                envoyees += 1
+            except (httpx.HTTPError, OSError) as e:
+                erreur = f"Immich injoignable ({type(e).__name__})"
+            except immich.ImmichErreur as e:
+                erreur = str(e)
+            if erreur:
+                with base(cfg().data) as cx:
+                    cx.execute("UPDATE photo SET essais=essais+1, erreur=? WHERE id=?", (erreur[:200], pid))
+                    journal(cx, "photo_en_attente", str(pid))
+                break
+        with base(cfg().data) as cx:
+            attente = cx.execute("SELECT COUNT(*) FROM photo WHERE envoyee_le IS NULL").fetchone()[0]
+    return {"envoyees": envoyees, "en_attente": attente, "erreur": erreur}
+
+
+def _envoyer_une(photo_id: int) -> None:
+    c = cfg()
+    with base(c.data) as cx:
+        ph = cx.execute("SELECT * FROM photo WHERE id=?", (photo_id,)).fetchone()
+        s = _soiree(cx, ph["soiree_id"])
+        description = _description(cx, s, ph)
+    chemin = c.data / "photos" / str(ph["soiree_id"]) / ph["fichier"]
+    asset = ph["immich_id"]
+    if not asset:
+        asset, _ = immich.envoyer_image(c, chemin, ph["type"], f"douze-points-{ph['id']}-{ph['fichier']}",
+                                        ph["recue_le"])
+        with base(c.data) as cx:          # enregistré tout de suite : un nouvel essai ne renvoie pas l'image
+            _etape(cx, ph, "immich_id", asset)
+    if not ph["dans_album"]:
+        with base(c.data) as cx:
+            album = cx.execute("SELECT immich_album FROM soiree WHERE id=?", (ph["soiree_id"],)).fetchone()["immich_album"]
+        if not album or not immich.ajouter_album(c, album, [asset]):
+            album = immich.creer_album(c, _nom_album(s), [asset])
+            with base(c.data) as cx:
+                cx.execute("UPDATE soiree SET immich_album=? WHERE id=?", (album, ph["soiree_id"]))
+                journal(cx, "album_cree", str(ph["soiree_id"]))
+        with base(c.data) as cx:
+            _etape(cx, ph, "dans_album")
+    if not ph["decrite"]:
+        immich.decrire(c, asset, description)
+        with base(c.data) as cx:
+            _etape(cx, ph, "decrite")
+    if not ph["taguee"]:
+        immich.taguer(c, TAG_SOIREE, [asset])
+        if ph["duo_participation_id"]:
+            immich.taguer(c, TAG_DUO, [asset])
+        with base(c.data) as cx:
+            _etape(cx, ph, "taguee")
+    with base(c.data) as cx:
+        cx.execute("UPDATE photo SET envoyee_le=?, erreur='' WHERE id=?", (maintenant(), ph["id"]))
+    chemin.unlink(missing_ok=True)       # Immich l'a : la copie du NAS n'est plus utile
+
+
+def _envoyer_photos_sans_erreur() -> None:
+    try:
+        with maison.TACHES.tour(TACHE_IMMICH):
+            r = envoyer_photos()
+            if r["erreur"] and r["en_attente"]:
+                raise RuntimeError(r["erreur"])
+    except Exception as e:  # noqa: BLE001 — l'envoi en fond ne fait jamais tomber une demande
+        logging.getLogger("douze-points").warning("Envoi vers Immich : %s", e)
+
+
+async def _boucle_immich() -> None:
+    await asyncio.to_thread(_envoyer_photos_sans_erreur)    # au démarrage : ce qui attendait avant l'arrêt
+    while True:
+        await asyncio.sleep(PERIODE_IMMICH)
+        await asyncio.to_thread(_envoyer_photos_sans_erreur)
+
+
+def nettoyer_photos() -> None:
+    """Au démarrage : fichiers sans ligne (arrêt en pleine réception) effacés ; lignes en attente sans fichier
+    (et jamais envoyées) retirées."""
+    c = cfg()
+    racine = c.data / "photos"
+    if not racine.is_dir():
+        return
+    with base(c.data) as cx:
+        connus = {(str(r["soiree_id"]), r["fichier"]) for r in cx.execute("SELECT soiree_id, fichier FROM photo")}
+        for dossier in racine.iterdir():
+            if not dossier.is_dir():
+                continue
+            for f in dossier.iterdir():
+                if f.name.startswith(".") or (dossier.name, f.name) not in connus:
+                    f.unlink(missing_ok=True)
+        for r in cx.execute("SELECT id, soiree_id, fichier, immich_id FROM photo WHERE envoyee_le IS NULL").fetchall():
+            if not r["immich_id"] and not (racine / str(r["soiree_id"]) / r["fichier"]).is_file():
+                cx.execute("DELETE FROM photo WHERE id=?", (r["id"],))
+                journal(cx, "photo_perdue", str(r["id"]))
+
+
+@app.get("/api/soirees/{soiree_id}/jumeaux")
+def jumeaux_regie(soiree_id: int):
+    """L'écran « Jumeaux de vote » de la télé (après le podium) et la fiche : tous les duos, leur photo reçue ou non,
+    et où en sont les photos de la soirée."""
+    with base(cfg().data) as cx:
+        s = _soiree_devoilee(cx, soiree_id)
+        j = _jumeaux(cx, s)
+        n = cx.execute("SELECT COUNT(*), SUM(envoyee_le IS NOT NULL), MAX(erreur) FROM photo WHERE soiree_id=?",
+                       (soiree_id,)).fetchone()
+        sans = [r["prenom"] for r in cx.execute(
+            "SELECT DISTINCT i.prenom FROM points pt JOIN participation p ON p.id=pt.participation_id "
+            "JOIN invite i ON i.id=p.invite_id WHERE pt.soiree_id=?", (soiree_id,))
+            if r["prenom"] not in {x["prenom"] for d in j["duos"] for x in d["invites"]}]
+        return {"duos": j["duos"], "sans_jumeau": sans,
+                "photos": {"actives": immich.regle(cfg()), "total": n[0] or 0, "dans_immich": int(n[1] or 0),
+                           "erreur": n[2] or ""},
+                "album": {"nom": _nom_album(s), "id": s["immich_album"] or "", "lien": _lien_album(s["immich_album"])}}
+
+
+@app.post("/api/photos/envoyer")
+def photos_envoyer():
+    """Régie : « Renvoyer maintenant » les photos en attente."""
+    return envoyer_photos()
 
 
 # ================================================================ sauvegarde des réglages (pour l'Anneau)

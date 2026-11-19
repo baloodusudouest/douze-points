@@ -150,3 +150,57 @@ def affinites(notes: dict[int, dict[int, int]], ordres: dict[int, list[int]], po
 
     return {"clivante": clivante, "consensuelle": consensuelle, "proches": proches, "eloignes": eloignes,
             "severe": severe, "genereux": genereux, "coups_de_coeur": coups, "contre_note": contre[:3]}
+
+
+# ================================================================ 1.6 : jumeaux de vote
+# Tranches d'accord (écart moyen des notes, sur 20) : jamais de pourcentage, qui laisserait deviner les notes de l'autre
+# (conseil du 19/11/2026). La dernière tranche n'a pas de borne.
+TRANCHES = ((1.0, "Jumeaux parfaits"), (2.0, "Très proches"), (3.5, "Proches"), (None, "Âmes sœurs… de loin"))
+
+
+def tranche(ecart_moyen: float) -> str:
+    for borne, nom in TRANCHES:
+        if borne is None or ecart_moyen < borne:
+            return nom
+    return TRANCHES[-1][1]
+
+
+def jumeaux(notes: dict[int, dict[int, int]]) -> dict[int, dict]:
+    """Le jumeau de vote de chaque invité : l'autre invité dont les notes ressemblent le plus aux siennes (plus petit
+    écart moyen sur les chansons notées par les deux, COMMUNES_MINIMUM au moins ; à égalité, le plus petit identifiant).
+    Un invité sans assez de chansons en commun avec personne n'a pas de jumeau (absent du résultat).
+    Rend {invité: {"jumeau", "ecart_moyen" (sur 20), "communes", "tranche"}}."""
+    gens = sorted(g for g in notes if notes[g])
+    sortie: dict[int, dict] = {}
+    for a in gens:
+        meilleur = None
+        for b in gens:
+            if b == a:
+                continue
+            communes = set(notes[a]) & set(notes[b])
+            if len(communes) < COMMUNES_MINIMUM:
+                continue
+            moyen = sum(abs(notes[a][c] - notes[b][c]) for c in communes) / len(communes)
+            if meilleur is None or (moyen, b) < (meilleur[0], meilleur[1]):
+                meilleur = (moyen, b, len(communes))
+        if meilleur:
+            ecart = round(meilleur[0] / ECHELLE, 2)
+            sortie[a] = {"jumeau": meilleur[1], "ecart_moyen": ecart, "communes": meilleur[2], "tranche": tranche(ecart)}
+    return sortie
+
+
+def duos(js: dict[int, dict]) -> list[dict]:
+    """Les duos à immortaliser, tirés des jumeaux : chaque paire une seule fois. Réciproques (A a B, B a A) d'abord,
+    puis du plus petit écart au plus grand. Rend [{"invites": [a, b], "reciproques", "ecart_moyen", "tranche"}] ;
+    pour un duo non réciproque, `a` est celui qui a choisi `b`."""
+    vus: dict[tuple[int, int], dict] = {}
+    for a in sorted(js):
+        b = js[a]["jumeau"]
+        cle = (min(a, b), max(a, b))
+        if cle in vus:
+            continue
+        reciproques = js.get(b, {}).get("jumeau") == a
+        premier = cle if reciproques else (a, b)
+        vus[cle] = {"invites": list(premier), "reciproques": reciproques, "ecart_moyen": js[a]["ecart_moyen"],
+                    "tranche": js[a]["tranche"]}
+    return sorted(vus.values(), key=lambda d: (not d["reciproques"], d["ecart_moyen"], d["invites"]))

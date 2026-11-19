@@ -1,9 +1,10 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 18/11/2026, version 1.4.0.
+À lire en premier. Mis à jour le 19/11/2026, version 1.6.0.
 
 ## Où on en est
 
+- **1.6.0 (19/11/2026)** : jumeaux de vote et photos de la soirée vers Immich (`docs/ajout-1.6.0.md`, conseil `docs/conseil-1.6.0.md`). `app/points.py` : `jumeaux`, `duos`, `tranche` (purs). `app/immich.py` : un appel par fonction, `CLIENT` remplacé par un faux Immich dans les tests. `main.py`, section « 1.6 » : `_jumeaux` (participants qui ont des points), `invite_photo` (corps brut écrit au fil de l'eau, `X-Duo`), `envoyer_photos` (verrou, étapes `immich_id` → `dans_album` → `decrite` → `taguee`), `_boucle_immich` (tâche `envoi-immich`, 600 s), `nettoyer_photos` (démarrage), `GET /api/soirees/<id>/jumeaux`, `POST /api/photos/envoyer` ; `etat.photos`, `resultats.jumeaux`, carnet `donnees.jumeau` / `donnees.album`. Interface : `invite/Photo.svelte` (XHR, sans `capture` + `multiple` ; `capture="user"` pour Immortaliser), `invite/Jumeaux.svelte`, `pages/EcranJumeaux.svelte` (après « Terminer »), section de la Fiche. Rien sur l'appareil connecté à la régie. Tests : `tests/test_photos_16.py`, `test_ecrans.py` (photo, jumeau, immortalisés). **Jamais essayé sur la vraie installation** : voir « Essais à faire sur place ».
 - **1.5.0 (19/11/2026)** : la soirée dévoilée part à carnet 3.1. `main.py`, section « 1.5 » : `ENVOYER_CARNET` (= `carnet.envoyer`, remplacé dans les tests), `_corps_soiree` (d'après `_fiche` : moyenne, classement = rang du groupe de la chanson n° 1 de l'invité, top3, remarques (commentaires, 5 au plus, triés par points donnés puis note) ; identifiant `invite.personne_id`, sinon retrouvé par `carnet_id` dans la liste de carnet), `envoyer_soiree` (appelé par `terminer`), table `envoi_carnet` (nouvel essai, `renvoyer_a_carnet`, `_boucle_carnet` toutes les 10 min), route `POST /api/carnet/envoyer`. `invite_ajouter` garde `personne_id`. Interface : `#/soiree/<id>` (App.svelte, Soiree.svelte), bloc « Envoi vers carnet » (Réglages). Tests : `tests/test_carnet_15.py`. Jamais essayé sur la vraie installation.
 
 - **1.4.0 (18/11/2026)** : santé des tâches de fond (socle 0.9.0, `app/maison.py` recopié, ne pas le modifier). `main.cycle` lance `maison.planifier_copie("douze-points", [base.fichier(data)], <data>/copies, "01:20")` (tâche asyncio annulée à l'arrêt) ; aucune autre tâche déclarée (pas de boucle de fond ni de tâche longue). `/health` fusionne `maison.sante(request, jeton_commun=maison.jetons(), session_ok=...)`. Un seul worker uvicorn (registre en mémoire). Tests : `tests/test_sante_taches.py` ; `test_sante_inchangee` et `test_sante_publique_sans_aucun_nom` relisent les anciens champs et acceptent les nouveaux. **Jamais essayé sur la vraie installation** (ni la copie de nuit, ni la remise en place d'une copie).
@@ -49,6 +50,7 @@ Petits manques connus : aucun noté (l'ordre du dévoilement reste tiré au sort
 
 ## Essais à faire sur place avant la première soirée
 
+- **1.6 (photos)** : créer la clé Immich « douze-points » (permissions dans le README), poser `DOUZE_POINTS_IMMICH_CLE`, Connexion › Vérifier ; sur un iPhone d'invité en http : l'icône 📷 propose Photothèque / Prendre une photo, plusieurs photos partent (format reçu : HEIC ou JPEG, poids) ; « Immortaliser » ouvre bien l'appareil en selfie ; verrouiller l'écran pendant un envoi ; dans Immich : album « AAAA-MM-JJ titre », date des photos, description, tags « Douze points » et « Jumeaux de vote » ; arrêter Immich, envoyer, le redémarrer : la photo arrive au tour suivant ; sur la télé (iPhone de l'hôte recopié) : pas d'icône photo, écran des jumeaux lisible.
 - un téléphone qui n'est pas du foyer ouvre l'appli sur le Wi-Fi de la maison ;
 - le dévoilement sur l'iPhone en paysage, recopié sur la télé ;
 - la notification par Home Assistant.

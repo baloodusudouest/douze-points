@@ -76,7 +76,8 @@ def test_toutes_les_adresses_invite_sont_couvertes():
     assert lues == {"api/" + adresse for adresse in LECTURES} | {"image/{sorte}", "api/devoilement"}
     ecritures = {r.path.rsplit("/", 1)[1] for r in main.app.routes
                  if getattr(r, "path", "").startswith("/invite/") and "GET" not in getattr(r, "methods", ())}
-    assert ecritures == {"prenom", "note", "classement", "envoyer", "modifier"}
+    # 1.6 : photo ne rend que le compte des photos (tests/test_photos_16.py)
+    assert ecritures == {"prenom", "note", "classement", "envoyer", "modifier", "photo"}
 
 
 def test_les_ecritures_ne_rendent_que_sa_propre_copie(client, soiree):

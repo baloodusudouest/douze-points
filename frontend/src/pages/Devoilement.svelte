@@ -9,6 +9,7 @@
   import { drapeau, note, normaliser } from '$lib/pays.js'
   import Embleme from '$lib/Embleme.svelte'
   import Compteur from '$lib/Compteur.svelte'
+  import EcranJumeaux from './EcranJumeaux.svelte'
   let { soiree, onferme } = $props()
 
   let d = $state(null)
@@ -131,9 +132,12 @@
     pas = n
     if (envoyer) api.post(`/api/soirees/${soiree}/pas`, { pas }).catch(() => {})   // une soirée déjà dévoilée ne garde plus le pas : sans importance
   }
+  // 1.6 : « Terminer » ouvre les résultats sur les téléphones (avec les jumeaux de chacun) et passe la télé à
+  // l'écran des jumeaux de vote ; « Fermer » y revient à la régie.
+  let jumeaux = $state(false)
   async function terminer() {
     try { await api.post(`/api/soirees/${soiree}/terminer`) } catch { /* déjà terminée : on rejoue une archive */ }
-    onferme()
+    jumeaux = true
   }
   function touche(e) {
     if (e.key === 'ArrowRight' || e.key === ' ') aller(pas + 1)
@@ -274,10 +278,11 @@
       <p class="geste mr-auto hidden self-center text-muted-foreground portrait:hidden">Glisse vers la droite pour sortir</p>
       {#if pas > 0}<button class="commande" onclick={() => aller(pas - 1)}>Revenir</button>{/if}
       {#if !fini}<button class="commande" onclick={() => aller(fin)}>Tout afficher</button>{/if}
-      {#if fini}<button class="commande plein" onclick={terminer}>Terminer</button>{:else}<button class="commande" onclick={onferme}>Fermer</button>{/if}
+      {#if fini}<button class="commande plein" onclick={terminer}>Terminer · jumeaux de vote</button>{:else}<button class="commande" onclick={onferme}>Fermer</button>{/if}
     </div>
   {/if}
 </div>
+{#if jumeaux}<EcranJumeaux {soiree} {onferme} />{/if}
 
 <style>
   /* La hauteur d'une ligne (--h) dépend du nombre de chansons et de la hauteur de l'écran ; le texte suit. */

@@ -15,11 +15,22 @@
   let saisie = $state(null)        // les vrais votes en cours de saisie : { [chanson]: { jury, public } }
   let message = $state('')
 
+  let j = $state(null)             // 1.6 : jumeaux de vote et photos de la soirée
+  let renvoi = $state('')
   async function lire() {
     try {
       const lu = await api.get(`/api/soirees/${soiree}/fiche`)
       f = { ...lu, chansons: lu.chansons.map(normaliser) }
+      j = await api.get(`/api/soirees/${soiree}/jumeaux`).catch(() => null)
     } catch (e) { erreur = e.message }
+  }
+  async function renvoyer() {
+    renvoi = 'Envoi…'
+    try {
+      const r = await api.post('/api/photos/envoyer')
+      renvoi = r.erreur ? `${r.erreur} : ${r.en_attente} en attente, nouvel essai dans 10 minutes.` : 'Toutes les photos sont dans Immich.'
+      j = await api.get(`/api/soirees/${soiree}/jumeaux`)
+    } catch (e) { renvoi = e.message }
   }
   onMount(lire)
 
@@ -115,6 +126,29 @@
         <h2>Écarts et affinités</h2>
         <Affinites affinites={f.affinites} prenoms={Object.fromEntries(f.invites.map((i) => [i.id, i.prenom]))}
                    chansons={Object.fromEntries(f.chansons.map((c) => [c.id, c]))} />
+      </section>
+    {/if}
+
+    {#if j && (j.duos.length || j.photos.total)}
+      <section class="bloc">
+        <h2>Jumeaux de vote et photos</h2>
+        {#if j.duos.length}
+          <ul class="grid gap-1 text-sm">
+            {#each j.duos as d (d.cle)}
+              <li>{d.invites[0].prenom} {d.reciproques ? '⇄' : '→'} {d.invites[1].prenom} · {d.tranche}{d.photos ? ' · 📸 immortalisés' : ''}</li>
+            {/each}
+          </ul>
+        {/if}
+        {#if j.photos.total}
+          <p class="mt-2 text-sm">
+            {j.photos.total} photo{j.photos.total > 1 ? 's' : ''} ce soir, {j.photos.dans_immich === j.photos.total ? 'toutes dans Immich' : `${j.photos.dans_immich} dans Immich`}
+            · album « {j.album.nom} »{#if j.album.lien} · <a class="underline" href={j.album.lien} target="_blank" rel="noopener">ouvrir dans Immich</a>{/if}
+          </p>
+          {#if j.photos.dans_immich < j.photos.total}
+            <p class="mt-1 text-sm text-muted-foreground print:hidden">{j.photos.erreur || 'En cours d’envoi.'}
+              <button class="underline" onclick={renvoyer}>Renvoyer maintenant</button>{#if renvoi} · {renvoi}{/if}</p>
+          {/if}
+        {/if}
       </section>
     {/if}
 

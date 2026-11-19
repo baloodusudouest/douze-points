@@ -14,6 +14,8 @@ Service à placer dans la stack (voir `docker-compose.yml` et `.env.example`). V
 | `MAISON_JETON` | jeton commun : demandes à carnet, annuaire de l'Anneau, sauvegarde des réglages ; vide : rien de tout cela |
 | `MAISON_ANNEAU_URL` | facultatif, adresse de l'Anneau dans la stack (défaut `http://anneau:8094`) |
 | `DOUZE_POINTS_CARNET_URL` | carnet vu depuis le conteneur ; vide : les invités s'ajoutent à la main |
+| `DOUZE_POINTS_IMMICH_URL` | 1.6 : Immich vu depuis le conteneur (défaut `http://immich_server:2283`) |
+| `DOUZE_POINTS_IMMICH_CLE` | 1.6 : clé d'API Immich propre à Douze points (permissions : asset.upload, asset.update, album.read, album.create, albumAsset.create, tag.read, tag.create, tag.asset, apiKey.read) ; vide : pas de photos |
 
 L'adresse donnée aux invités (QR code, lien) est l'adresse **locale** de la tuile « Douze points » de l'Anneau. Si l'Anneau ne répond pas, pas de QR code : l'écran le dit.
 
