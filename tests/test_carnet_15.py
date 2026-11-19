@@ -57,6 +57,9 @@ def test_15_soiree_envoyee_apres_le_devoilement(client, relie):
     a = next(p for p in corps["personnes"] if p["nom"] == "Aglaé")
     assert "personne_id" not in a                                       # tapée à la main : carnet cherchera le prénom
     assert len(a["donnees"]["top3"]) == 3 and isinstance(a["donnees"]["classement"], int)
+    r = a["donnees"]["remarques"]                                       # les plus sévères d'abord (points de 12 à 0)
+    assert r and r[0]["commentaire"] == "Avis de Aglaé" and [x["points"] for x in r] == sorted(x["points"] for x in r)
+    assert all(0 <= x["points"] <= 12 for x in r) and len(r) <= 5
 
 
 def test_15_carnet_arrete_envoi_garde_puis_renvoye(client, relie):

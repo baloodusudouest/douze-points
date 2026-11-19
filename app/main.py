@@ -1007,9 +1007,17 @@ def _corps_soiree(cx, s) -> dict:
         mes = sorted(((c["invites"][str(i["id"])]["rang"], c["id"]) for c in f["chansons"]
                       if str(i["id"]) in c["invites"] and c["invites"][str(i["id"])]["rang"]), key=lambda x: x[0])
         pid, cid = ids_carnet.get(i["id"], (None, None))
+        # remarques laissées par l'invité, les plus sévères d'abord (points donnés de 12 à 0, puis note) : la Gazette
+        # s'en sert pour ses brèves (« l'émissaire de … demande l'expulsion de … »)
+        remarques = sorted(({"pays": c["pays"], "points": c["invites"][str(i["id"])]["points"],
+                             "note": c["invites"][str(i["id"])]["note"],
+                             "commentaire": " ".join(c["invites"][str(i["id"])]["commentaire"].split())[:160]}
+                            for c in f["chansons"] if str(i["id"]) in c["invites"]
+                            and c["invites"][str(i["id"])]["commentaire"].strip()),
+                           key=lambda r: (r["points"], r["note"]))[:5]
         x = {"nom": i["prenom"], "role": "jury" if i["jury"] else "public",
              "donnees": {"moyenne": i["moyenne"], "classement": rang_groupe.get(mes[0][1]) if mes else None,
-                         "top3": [pays[c] for _, c in mes[:3]]}}
+                         "top3": [pays[c] for _, c in mes[:3]], "remarques": remarques}}
         if pid or par_carnet.get(cid or ""):
             x["personne_id"] = pid or par_carnet[cid]
         personnes.append(x)
