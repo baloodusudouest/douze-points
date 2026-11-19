@@ -25,6 +25,15 @@
     webhook = r.ha_webhook ?? ''
     charges = true
   }
+  // 1.5 : reprise de toutes les soirées dévoilées vers carnet (fiche et coffre Contacts)
+  let carnetMessage = $state('')
+  async function envoyerCarnet() {
+    carnetMessage = 'Envoi…'
+    try {
+      const r = await api.post('/api/carnet/envoyer', {})
+      carnetMessage = `${r.envoyees} soirée(s) sur ${r.soirees} reçue(s) par carnet` + (r.en_attente ? ` ; ${r.en_attente} en attente (carnet injoignable ou trop ancien).` : '.')
+    } catch (err) { carnetMessage = err.message }
+  }
   async function reglerPas(v) {
     erreur = ''
     try { prendre(await api.put('/api/reglages', { pas_note: v })) } catch (x) { erreur = x.message }
@@ -135,6 +144,15 @@
     {#each [[1, 'Au point (12, 13…)'], [0.5, 'Au demi-point (12,5)'], [0.25, 'Au quart de point (12,25)']] as [v, nom]}
       <button class="pastille" aria-pressed={pasNote === v} onclick={() => reglerPas(v)}>{nom}</button>
     {/each}
+  </div>
+</section>
+
+<section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Envoi vers carnet">
+  <h2 class="text-lg font-semibold">Envoi vers carnet</h2>
+  <p class="mt-1 text-sm text-muted-foreground">À la fin du dévoilement, la soirée part à carnet : note moyenne, classement et podium de chaque invité, rangés sur sa fiche et dans le coffre Contacts. Un envoi raté est réessayé toutes les 10 minutes.</p>
+  <div class="mt-3 flex flex-wrap items-center gap-3">
+    <Button variant="outline" onclick={envoyerCarnet}>Envoyer toutes les soirées à carnet</Button>
+    {#if carnetMessage}<span class="text-sm text-muted-foreground" role="status">{carnetMessage}</span>{/if}
   </div>
 </section>
 

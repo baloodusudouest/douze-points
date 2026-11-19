@@ -23,6 +23,9 @@
   let premiere = true
   const CLE = 'douze-points:soiree'
   try { choisie = Number(sessionStorage.getItem(CLE)) || null } catch { /* stockage fermé */ }
+  // 1.5 : adresse d'une soirée (« #/soiree/<id> », lien envoyé à carnet) : elle s'ouvre directement
+  const demandee = Number((location.hash.match(/^#\/soiree\/(\d+)/) || [])[1]) || null
+  if (demandee) choisie = demandee
   let invites = $state([])
   let concours = $state([])       // la liste réglée dans Réglages
   let erreur = $state('')

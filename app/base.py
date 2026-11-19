@@ -76,6 +76,11 @@ def preparer(data: Path) -> None:
         # 0.5 : un invité choisi dans carnet garde le numéro de sa fiche (jamais son nom complet)
         if "carnet_id" not in {r["name"] for r in cx.execute("PRAGMA table_info(invite)")}:
             cx.execute("ALTER TABLE invite ADD COLUMN carnet_id TEXT")
+        if "personne_id" not in {r["name"] for r in cx.execute("PRAGMA table_info(invite)")}:   # 1.5 : identifiant maison
+            cx.execute("ALTER TABLE invite ADD COLUMN personne_id TEXT")
+        # 1.5 : envoi de la soirée vers carnet en attente d'un nouvel essai
+        cx.execute("CREATE TABLE IF NOT EXISTS envoi_carnet(soiree_id INTEGER PRIMARY KEY, essais INTEGER NOT NULL DEFAULT 0, "
+                   "erreur TEXT NOT NULL DEFAULT '', le TEXT NOT NULL)")
         # 0.5 : jury ou public. `invite.jury` se règle dans l'appli ; `participation.jury` est figé au dévoilement.
         for table in ("invite", "participation"):
             if "jury" not in {r["name"] for r in cx.execute(f"PRAGMA table_info({table})")}:

@@ -13,6 +13,7 @@ import csv
 import hmac
 import io
 import json
+import logging
 import math
 import random
 import re
@@ -107,12 +108,14 @@ async def cycle(app: FastAPI):
     # vers <data>/copies ; c'est la seule tâche de fond de l'appli (tâche « copie-des-bases » dans /health).
     copie = asyncio.create_task(maison.planifier_copie(APPLI, [fichier(c.data)], c.data / "copies",
                                                        maison.HEURES_COPIE[APPLI]))
+    envois = asyncio.create_task(_boucle_carnet())     # 1.5 : nouvel essai des soirées pas encore reçues par carnet
     try:
         yield
     finally:
-        copie.cancel()                    # arrêt propre de la boucle de copie
-        with contextlib.suppress(asyncio.CancelledError):
-            await copie
+        for tache in (copie, envois):     # arrêt propre des boucles
+            tache.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await tache
 
 
 app = FastAPI(title=APPLI, version=__version__, lifespan=cycle, docs_url=None, redoc_url=None)
@@ -327,8 +330,9 @@ def invite_ajouter(corps: dict = Body(...)):
             prenom = _prenom(corps)
         if pris(prenom):
             raise HTTPException(409, "Ce prénom est déjà dans la liste : ajoute une initiale pour les distinguer.")
-        return {"id": cx.execute("INSERT INTO invite(prenom, carnet_id, cree_le) VALUES(?,?,?)",
-                                 (prenom, carnet_id or None, maintenant())).lastrowid}
+        personne_id = (personne.get("personne_id") or None) if carnet_id else None    # 1.5 : identifiant maison
+        return {"id": cx.execute("INSERT INTO invite(prenom, carnet_id, personne_id, cree_le) VALUES(?,?,?,?)",
+                                 (prenom, carnet_id or None, personne_id, maintenant())).lastrowid}
 
 
 def _carnet(lecture, *suite):
@@ -966,12 +970,113 @@ def pas(soiree_id: int, corps: dict = Body(...)):
 
 @app.post("/api/soirees/{soiree_id}/terminer")
 def terminer(soiree_id: int):
-    """Fin du dévoilement : la synthèse s'ouvre aux invités."""
+    """Fin du dévoilement : la synthèse s'ouvre aux invités. 1.5 : la soirée part à carnet."""
     with base(cfg().data) as cx:
         if _soiree(cx, soiree_id)["etat"] != "devoilement":
             raise HTTPException(409, "Aucun dévoilement en cours.")
         cx.execute("UPDATE soiree SET etat='devoilee', devoilee_le=? WHERE id=?", (maintenant(), soiree_id))
-    return {"ok": True}
+    return {"ok": True, "carnet": envoyer_soiree(soiree_id)}
+
+
+# ================================================================ 1.5 : la soirée envoyée à carnet 3.1
+#
+# Décision de Julien du 19/11/2026 (dossier « coffre Contacts » v2) : après le dévoilement, la soirée part à l'adresse
+# commune des événements de carnet (`PUT /evenements/douze-points/soiree-<id>`) : nom, date, lien de la soirée, et pour
+# chaque invité son identifiant maison (sinon son prénom), sa note moyenne, son classement (rang, au classement du
+# groupe, de sa chanson n° 1) et son podium. carnet range la soirée dans la fiche et le coffre Contacts. Un envoi raté
+# est gardé et réessayé toutes les 10 minutes ; « Envoyer à carnet » (Réglages) reprend toutes les soirées dévoilées.
+
+ENVOYER_CARNET = carnet.envoyer        # remplacé dans les tests
+
+
+def _corps_soiree(cx, s) -> dict:
+    f = _fiche(cx, s)
+    ids_carnet = {r["id"]: (r["personne_id"], r["carnet_id"]) for r in cx.execute(
+        "SELECT p.id, i.personne_id, i.carnet_id FROM participation p JOIN invite i ON i.id = p.invite_id WHERE p.soiree_id=?",
+        (s["id"],))}
+    par_carnet = {}
+    if carnet.regle(cfg()) and any(c and not pid for pid, c in ids_carnet.values()):
+        try:
+            par_carnet = {p["carnet_id"]: p.get("personne_id") or "" for p in carnet.personnes(cfg())}
+        except Exception:  # noqa: BLE001 — carnet arrêté : le prénom part seul, carnet le cherchera
+            par_carnet = {}
+    rang_groupe = {c["id"]: c["rang"] for c in f["chansons"]}
+    pays = {c["id"]: c["pays"] for c in f["chansons"]}
+    personnes = []
+    for i in f["invites"]:
+        mes = sorted(((c["invites"][str(i["id"])]["rang"], c["id"]) for c in f["chansons"]
+                      if str(i["id"]) in c["invites"] and c["invites"][str(i["id"])]["rang"]), key=lambda x: x[0])
+        pid, cid = ids_carnet.get(i["id"], (None, None))
+        x = {"nom": i["prenom"], "role": "jury" if i["jury"] else "public",
+             "donnees": {"moyenne": i["moyenne"], "classement": rang_groupe.get(mes[0][1]) if mes else None,
+                         "top3": [pays[c] for _, c in mes[:3]]}}
+        if pid or par_carnet.get(cid or ""):
+            x["personne_id"] = pid or par_carnet[cid]
+        personnes.append(x)
+    date_ = s["date"] or (s["devoilee_le"] or maintenant())[:10]
+    lien = adresse()
+    return {"type": "douze_points", "date": date_[:10], "titre": s["nom"],
+            "resume": " · ".join(str(x) for x in (s["concours"], s["annee"], s["emission"]) if x),
+            "lien": f"{lien}/#/soiree/{s['id']}" if lien.startswith(("http://", "https://")) else "",
+            "personnes": personnes}
+
+
+def envoyer_soiree(soiree_id: int) -> str:
+    """Envoie une soirée dévoilée à carnet ; gardée pour un nouvel essai si carnet ne répond pas."""
+    if not carnet.regle(cfg()):
+        return "carnet pas réglé : rien n'est envoyé"
+    with base(cfg().data) as cx:
+        s = _soiree(cx, soiree_id)
+        if s["etat"] not in ("devoilee", "archivee"):
+            return ""
+        corps = _corps_soiree(cx, s)
+    erreur = ""
+    try:
+        statut, rep = ENVOYER_CARNET(cfg().carnet_url, cfg().carnet_jeton, "PUT", f"/evenements/douze-points/soiree-{soiree_id}", corps)
+        if statut in (401, 404, 405) or statut >= 500:
+            erreur = "carnet trop ancien (3.1 nécessaire)" if statut in (404, 405) else f"carnet a répondu {statut}"
+    except Exception as e:  # noqa: BLE001 — carnet arrêté, réseau
+        erreur = f"carnet injoignable ({type(e).__name__})"
+    with base(cfg().data) as cx:
+        if erreur:
+            cx.execute("INSERT INTO envoi_carnet(soiree_id, essais, erreur, le) VALUES(?,1,?,?) ON CONFLICT(soiree_id) "
+                       "DO UPDATE SET essais = essais + 1, erreur = excluded.erreur, le = excluded.le",
+                       (soiree_id, erreur, maintenant()))
+            journal(cx, "carnet_en_attente", str(soiree_id))
+            return f"{erreur} : envoi gardé, nouvel essai dans 10 minutes"
+        cx.execute("DELETE FROM envoi_carnet WHERE soiree_id=?", (soiree_id,))
+        journal(cx, "carnet_envoye", str(soiree_id), {"statut": statut})
+    if statut >= 400:
+        return f"refusé par carnet ({rep.get('detail', statut)})"
+    a_rattacher = rep.get("a_rattacher") or []
+    return "envoyé à carnet" + (f" ({len(a_rattacher)} invité(s) à rattacher dans carnet)" if a_rattacher else "")
+
+
+def renvoyer_a_carnet() -> int:
+    """Nouvel essai des soirées en attente ; rend le nombre envoyé."""
+    with base(cfg().data) as cx:
+        ids = [r["soiree_id"] for r in cx.execute("SELECT soiree_id FROM envoi_carnet ORDER BY soiree_id")]
+    return sum(1 for i in ids if envoyer_soiree(i).startswith(("envoyé", "refusé")))
+
+
+async def _boucle_carnet() -> None:
+    while True:
+        await asyncio.sleep(600)
+        try:
+            await asyncio.to_thread(renvoyer_a_carnet)
+        except Exception as e:  # noqa: BLE001 — la boucle ne s'arrête jamais
+            logging.getLogger("douze-points").warning("Envoi vers carnet : %s", e)
+
+
+@app.post("/api/carnet/envoyer")
+def carnet_envoyer_tout():
+    """Réglages › « Envoyer à carnet » : toutes les soirées dévoilées (reprise de l'historique)."""
+    with base(cfg().data) as cx:
+        ids = [r["id"] for r in cx.execute("SELECT id FROM soiree WHERE etat IN ('devoilee','archivee') ORDER BY id")]
+    resultats = [envoyer_soiree(i) for i in ids]
+    with base(cfg().data) as cx:
+        attente = cx.execute("SELECT COUNT(*) FROM envoi_carnet").fetchone()[0]
+    return {"soirees": len(ids), "envoyees": sum(1 for r in resultats if r.startswith("envoyé")), "en_attente": attente}
 
 
 @app.post("/api/soirees/{soiree_id}/archiver")

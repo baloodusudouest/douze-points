@@ -24,7 +24,7 @@
   let page = $state(lirePage())
 
   function lirePage() {
-    const p = location.hash.replace('#/', '')
+    const p = location.hash.replace('#/', '').split('/')[0]      // 1.5 : « #/soiree/<id> » ouvre cette soirée
     return onglets.some((o) => o.page === p) ? p : 'soiree'
   }
 

@@ -1,6 +1,8 @@
 """Lecture de carnet (les contacts de la maison) : prénoms et noms, pour choisir les invités en tapant leur nom.
 
-Douze points ne lit que l'adresse /douze-points/personnes de carnet, avec son propre jeton, et n'y écrit rien.
+Douze points lit l'adresse /douze-points/personnes de carnet (jeton commun). 1.5 : après le dévoilement, la soirée part
+à l'adresse commune des événements de carnet 3.1 (`PUT /evenements/douze-points/soiree-<id>`), avec la note moyenne,
+le classement et le podium de chaque invité ; un envoi raté est gardé et réessayé.
 La liste est gardée dix minutes en mémoire ; rien n'en est écrit dans la base tant qu'un invité n'est pas choisi.
 """
 from __future__ import annotations
@@ -31,7 +33,8 @@ def personnes(cfg, frais: bool = False) -> list[dict]:
     if frais or _memoire["personnes"] is None or time.monotonic() - _memoire["le"] > DUREE:
         lues = appeler(cfg.carnet_url, cfg.carnet_jeton)
         _memoire.update(le=time.monotonic(), personnes=[
-            {"carnet_id": str(p["carnet_id"]), "prenom": str(p["prenom"]).strip(), "nom": str(p["nom"]).strip()}
+            {"carnet_id": str(p["carnet_id"]), "personne_id": str(p.get("personne_id") or ""),   # 1.5 : identifiant maison
+             "prenom": str(p["prenom"]).strip(), "nom": str(p["nom"]).strip()}
             for p in lues if p.get("carnet_id") and str(p.get("prenom") or "").strip()])
     return _memoire["personnes"]
 
@@ -63,3 +66,13 @@ def initiale(personne: dict) -> str:
     """L'initiale du nom de famille : le nom de la fiche, prénom retiré."""
     reste = [m for m in personne["nom"].split() if cle(m) not in {cle(x) for x in personne["prenom"].split()}]
     return reste[-1][0].upper() if reste else ""
+
+
+def envoyer(url: str, jeton: str, methode: str, chemin: str, corps: dict | None) -> tuple[int, dict]:
+    """1.5 : un envoi vers carnet 3.1 : (statut, réponse). Exceptions réseau laissées à l'appelant (remplacé dans les tests)."""
+    r = httpx.request(methode, f"{url}{chemin}", json=corps, headers={"Authorization": f"Bearer {jeton}"}, timeout=8)
+    try:
+        donnees = r.json()
+    except ValueError:
+        donnees = {}
+    return r.status_code, donnees if isinstance(donnees, dict) else {}

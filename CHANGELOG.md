@@ -1,5 +1,11 @@
 # Journal des versions
 
+
+## 1.5.0 — 19 novembre 2026 (la soirée envoyée à carnet)
+- **Après le dévoilement, la soirée part à carnet 3.1** (décision de Julien du 19/11/2026, dossier « coffre Contacts » v2) : `PUT /evenements/douze-points/soiree-<id>` avec le nom, la date, le lien de la soirée (`#/soiree/<id>`, qui l'ouvre directement) et, pour chaque invité, son identifiant maison (sinon son prénom), sa note moyenne, son classement (rang au classement du groupe de sa chanson n° 1) et son podium. carnet range la soirée sur la fiche et dans le coffre Contacts ; un invité qu'il ne reconnaît pas va dans son À traiter.
+- Un invité choisi dans carnet garde aussi son identifiant maison (`invite.personne_id`) ; pour un invité plus ancien, il est retrouvé dans carnet au moment de l'envoi.
+- Envoi raté (carnet arrêté, trop ancien) : gardé et réessayé toutes les 10 minutes ; Réglages › « Envoyer toutes les soirées à carnet » reprend l'historique.
+
 ## 1.4.0 — 18 novembre 2026 (santé des tâches de fond)
 - **Tâches suivies dans `/health`** (module commun `maison.py` du socle 0.9.1) : `/health` garde ses champs (des nombres, aucun nom) et ajoute `version_socle`, `taches` et `copie_base`. Les messages d'erreur des tâches n'y paraissent qu'avec le jeton commun `MAISON_JETON` ou une session.
   - Douze points n'a ni boucle régulière ni tâche longue à elle (tout se fait pendant la requête) : la seule tâche suivie est `copie-des-bases` (régulière, 24 h).
