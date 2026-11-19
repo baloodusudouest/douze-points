@@ -55,8 +55,11 @@ def fichier(data: Path) -> Path:
     return data / "douze-points.db"
 
 
+ATTENTE = 30          # 1.7.1 : secondes d'attente de son tour d'écriture (avant : 10)
+
+
 def ouvrir(data: Path) -> sqlite3.Connection:
-    cx = sqlite3.connect(fichier(data), timeout=10)
+    cx = sqlite3.connect(fichier(data), timeout=ATTENTE)
     cx.row_factory = sqlite3.Row
     cx.execute("PRAGMA journal_mode=WAL")
     cx.execute("PRAGMA foreign_keys=ON")
@@ -113,13 +116,20 @@ def preparer(data: Path) -> None:
 
 @contextmanager
 def base(data: Path):
-    """Une transaction : validée à la sortie, annulée si une erreur remonte."""
+    """Une transaction : validée à la sortie, annulée si une erreur remonte.
+
+    1.7.1 : la transaction prend le tour d'écriture dès le début (BEGIN IMMEDIATE) et attend son tour jusqu'à
+    ATTENTE secondes. Avant, elle lisait d'abord puis écrivait : quand un autre téléphone avait écrit entre-temps,
+    SQLite refusait tout de suite (« database is locked », erreurs 500 avec 7 téléphones qui notent en même temps)."""
     cx = ouvrir(data)
+    cx.isolation_level = None            # transactions menées à la main
     try:
+        cx.execute("BEGIN IMMEDIATE")
         yield cx
-        cx.commit()
+        cx.execute("COMMIT")
     except BaseException:
-        cx.rollback()
+        if cx.in_transaction:
+            cx.execute("ROLLBACK")
         raise
     finally:
         cx.close()

@@ -1,5 +1,10 @@
 # Journal des versions
 
+## 1.7.1 — 20 novembre 2026 (plus d'erreurs 500 quand plusieurs téléphones notent en même temps)
+- **Correction** : avec plusieurs téléphones qui notaient ou envoyaient en même temps, certaines demandes échouaient en erreur 500 (`sqlite3.OperationalError: database is locked`, journal du Bac à sable du 19/11/2026, 7 téléphones). Une transaction lisait d'abord puis écrivait ; si un autre téléphone avait écrit entre-temps, SQLite refusait l'écriture tout de suite, sans attendre. `base()` prend maintenant le tour d'écriture dès le début (`BEGIN IMMEDIATE`) et attend son tour jusqu'à 30 s (avant : 10 s).
+- Tests : `tests/test_verrou_171.py` (8 écritures simultanées : 281 refus sur 320 avant, aucun après ; annulation sur erreur ; 4 téléphones qui notent en même temps que la relecture de l'état).
+
+
 ## 1.7.0 — 19 novembre 2026 (l'animation du dernier vote du public)
 - **Le dernier vote du public** se joue comme à la finale de l'Eurovision Asia 2026, sur la télé et sur les téléphones : au centre l'échelle des places, à gauche le pays en tête (« En tête »), à droite le dernier pays (« + X points pour gagner ») qui monte l'échelle très vite, ralentit de la 6e à la 2e place, s'arrête 2 secondes à « + 1 point pour gagner », puis monte d'un coup jusqu'à son total s'il dépasse le premier (« Vainqueur », l'ancien premier glisse en 2e). S'il ne passe pas devant, il s'arrête où il est, « + X » disparaît et « Vainqueur » se pose sur le premier. Cotillons, puis le podium au pas suivant. Choix de Julien du 19/11/2026 (`docs/ajout-1.7.0.md`, `docs/conseil-1.7.0.md`).
 - L'animation ne se joue qu'en direct (« Suivant ») ; au rechargement ou pour un téléphone arrivé en retard, la fin s'affiche tout de suite. « Réduire les animations » : la fin directe.

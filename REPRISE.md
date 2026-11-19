@@ -1,9 +1,10 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 19/11/2026, version 1.7.0.
+À lire en premier. Mis à jour le 20/11/2026, version 1.7.1.
 
 ## Où on en est
 
+- **1.7.1 (20/11/2026)** : `app/base.py`, `base()` en `BEGIN IMMEDIATE` (`isolation_level = None`, `COMMIT` / `ROLLBACK` à la main), `ATTENTE = 30` s. Corrige les 500 « database is locked » (plusieurs téléphones qui écrivent). Tests : `tests/test_verrou_171.py`. **Jamais essayé sur la vraie installation** (vu dans le Bac à sable seulement). À venir : 1.8.0 (public automatique, pays en lice, photo du duo à l'écran, bouton des jumeaux sous le podium, saisie de grille directe), visuels validés le 20/11/2026.
 - **1.7.0 (19/11/2026)** : animation du dernier vote du public (`lib/dernier.js` pur et testé par node, `lib/DernierVote.svelte`) montée au dernier pas du public par `pages/Devoilement.svelte` (télé, `dernierPas`, `animerDernier` posé dans `aller()` quand on vient du pas d'avant, totaux = `cumul(pas)`) et `invite/Spectacle.svelte` (téléphone, `animerDernier` posé dans `lire()` quand ce téléphone a vu le pas d'avant). Rythme réel `RYTHME` ; tests d'écran accélérés par `window.__DOUZE_POINTS_RYTHME`. **Jamais essayé sur la vraie installation** : la télé en recopie AirPlay (fluidité), de vrais iPhone.
 - **1.6.2 (19/11/2026)** : `invite/Jumeaux.svelte` reçoit `photos` ; le jumeau s'affiche toujours (`Invite.svelte`), « Immortaliser » seulement si Immich est réglé. Test dans `test_ecrans.py`.
 - **1.6.1 (19/11/2026)** : points du public appelés de la chanson la plus mal placée par le jury à la mieux placée (`main._marche`, avant : points du public croissants). Sans jury : points reçus croissants. Tests dans `tests/test_devoilement_telephones.py`. `pages/EcranJumeaux.svelte` : prénoms l'un sous l'autre, jamais coupés (capture de Julien).
