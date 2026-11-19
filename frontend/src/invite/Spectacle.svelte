@@ -30,8 +30,9 @@
       const premier = !d
       d = n
       if (n.pas !== vu) {
-        // 1.7.0 : l'animation du dernier vote ne se joue que si ce téléphone a vu le pas d'avant (pas au rechargement)
-        animerDernier = n.pas === n.fin - 1 && vu === n.fin - 2
+        // 1.7.0 : l'animation du dernier vote ne se joue pas au rechargement. 1.8 : elle se joue dès que ce téléphone
+        // arrive au dernier pas depuis un pas plus tôt (un pays manqué pendant une relecture ne la saute plus).
+        animerDernier = n.pas === n.fin - 1 && vu >= 0 && vu < n.fin - 1
         vu = n.pas
         clearTimeout(attente)
         if (premier) triTotaux = totaux()
@@ -40,8 +41,19 @@
       erreur = ''
     } catch (x) { erreur = x.message }
   }
-  onMount(() => { hauteur = innerHeight; lire(); minuterie = setInterval(lire, 1000) })
-  onDestroy(() => { clearInterval(minuterie); clearTimeout(attente) })
+  // 1.8 : l'hôte qui mène depuis ce téléphone dit « je regarde » toutes les 2 s (sans régie, le serveur arrête le
+  // défilement) et garde l'écran allumé.
+  let regard, verrou = null
+  async function garderEcran() {
+    try { if (regie && 'wakeLock' in navigator && !document.hidden) verrou = await navigator.wakeLock.request('screen') } catch { /* refusé */ }
+  }
+  function signaler() {
+    if (regie && d?.etat === 'devoilement' && !document.hidden)
+      fetch(`/api/soirees/${regie.id}/regard`, { method: 'POST', credentials: 'same-origin' }).catch(() => {})
+  }
+  function visibilite() { if (!document.hidden) { lire(); signaler(); garderEcran() } }
+  onMount(() => { hauteur = innerHeight; lire(); minuterie = setInterval(lire, 1000); regard = setInterval(signaler, 2000); garderEcran() })
+  onDestroy(() => { clearInterval(minuterie); clearInterval(regard); clearTimeout(attente); try { verrou?.release() } catch { /* rien */ } })
 
   let autres = $derived(d ? Object.fromEntries(d.public.map((x) => [x.chanson, x.autres])) : {})
   function lignesDe(x) {
@@ -76,16 +88,18 @@
 
   // ---- l'hôte
   let occupe = $state(false)
-  async function aller(n) {
+  // 1.8 : une action (suivant, revenir, pause, reprendre), appliquée par le serveur au pas où il en est
+  async function agir(action) {
     if (!regie || occupe) return
     occupe = true
     try {
       const r = await fetch(`/api/soirees/${regie.id}/pas`, { method: 'POST', credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pas: Math.max(0, Math.min(d.fin, n)) }) })
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) })
       if (!r.ok) throw new Error(`Le serveur a répondu ${r.status}.`)
       await lire()
     } catch (x) { erreur = x.message } finally { occupe = false }
   }
+  let enPause = $derived(!!d?.auto?.actif && d.auto.pause)
   async function terminer() {
     if (!regie) return
     await fetch(`/api/soirees/${regie.id}/terminer`, { method: 'POST', credentials: 'same-origin' })
@@ -97,6 +111,7 @@
 </script>
 
 <svelte:window onresize={() => (hauteur = innerHeight)} />
+<svelte:document onvisibilitychange={visibilite} />
 
 <div class="spectacle fixed inset-0 z-20 flex flex-col bg-background px-3 pt-[calc(0.75rem+env(safe-area-inset-top))] pb-[calc(0.75rem+env(safe-area-inset-bottom))]">
   {#if !d}
@@ -126,7 +141,7 @@
       {#key d.pas}
         <div class="min-h-0 flex-1">
           <DernierVote chansons={d.chansons} totaux={totauxDernier} dernier={appelee.chanson} gain={appelee.autres}
-                       ordre={ordreDernier} anime={animerDernier} compact />
+                       ordre={ordreDernier} gagnant={d.gagnant ?? null} anime={animerDernier} compact />
         </div>
       {/key}
     {:else}
@@ -151,12 +166,13 @@
     {#if erreur}<p class="mt-1 text-center text-xs text-destructive" role="alert">{erreur}</p>{/if}
 
     {#if regie}
-      <div class="mt-auto grid grid-cols-2 gap-2 pt-2" aria-label="Commandes de l'hôte">
-        <button class="commande" onclick={() => aller(d.pas - 1)} disabled={d.pas === 0 || occupe}>Revenir</button>
+      <div class="mt-auto grid gap-2 pt-2 {d.auto?.actif ? 'grid-cols-3' : 'grid-cols-2'}" aria-label="Commandes de l'hôte">
+        <button class="commande" onclick={() => agir('revenir')} disabled={d.pas === 0 || occupe}>Revenir</button>
+        {#if d.auto?.actif}<button class="commande" onclick={() => agir(enPause ? 'reprendre' : 'pause')} disabled={occupe}>{enPause ? 'Reprendre' : 'Pause'}</button>{/if}
         {#if fini}
           <button class="commande suivant" onclick={terminer} disabled={d.etat !== 'devoilement'}>{d.etat === 'devoilement' ? 'Terminer la soirée' : 'Soirée terminée'}</button>
         {:else}
-          <button class="commande suivant" onclick={() => aller(d.pas + 1)} disabled={occupe}>Suivant</button>
+          <button class="commande suivant" onclick={() => agir('suivant')} disabled={occupe}>Suivant</button>
         {/if}
       </div>
     {/if}

@@ -386,7 +386,7 @@ def test_une_soiree_entiere(serveur, navigateur):
     t.reload()
     t.get_by_role("group", name="Le dernier vote du public").get_by_text("Vainqueur", exact=True).wait_for(timeout=10000)
     for _ in range(5):
-        if p.get_by_role("button", name="Terminer").count():
+        if p.get_by_role("button", name="Voir les jumeaux de vote").count():
             break
         suivant.click(position={"x": 300, "y": 150})
     p.get_by_text("Le podium de la soirée").wait_for()
@@ -398,7 +398,11 @@ def test_une_soiree_entiere(serveur, navigateur):
     t.get_by_role("list", name="Ton podium").wait_for()
     t.wait_for_timeout(1300)
     invite.verifier("tel-8-podium")
-    p.get_by_role("button", name="Terminer").click()
+    # 1.8 : le bouton des jumeaux est sous le podium ; en haut ne reste que « Revenir »
+    bouton = p.get_by_role("button", name="Voir les jumeaux de vote").bounding_box()
+    assert bouton["y"] > p.get_by_role("list", name="Podium").bounding_box()["y"]
+    assert p.get_by_role("button", name="Fermer").count() == 0
+    p.get_by_role("button", name="Voir les jumeaux de vote").click()
     # 1.6 : la télé passe aux jumeaux de vote, tous les duos d'un coup (tranches, jamais de pourcentage)
     p.get_by_role("heading", name="Les jumeaux de vote").wait_for()
     duos = p.get_by_role("list", name="Duos de jumeaux de vote").locator("li")
@@ -411,7 +415,13 @@ def test_une_soiree_entiere(serveur, navigateur):
     invite.verifier("tel-8-jumeau")
     t.locator('input[capture="user"]').set_input_files(image_de_demo("40x30", "selfie"))
     t.get_by_text("📸 Immortalisés").wait_for(timeout=10000)
-    p.get_by_text("📸 immortalisés").wait_for(timeout=10000)
+    # 1.8 : le selfie passe en grand (polaroïd), puis se range dans la carte du duo
+    p.locator("figure.polaroid").get_by_role("img", name="Selfie de Aglaé et Hélène").wait_for(timeout=10000)
+    p.wait_for_timeout(900)
+    regie.verifier("paysage-8-jumeaux-selfie-en-grand")
+    p.locator("figure.polaroid").wait_for(state="detached", timeout=10000)
+    duos.get_by_role("img", name="Selfie de Aglaé et Hélène").wait_for()
+    p.wait_for_timeout(700)
     regie.verifier("paysage-8-jumeaux-immortalises")
     # 1.6.2 : sans Immich réglé, le jumeau reste affiché, mais ni « Immortaliser » ni l'icône 📷
     cfg_photos = main.ETAT["cfg"]
@@ -532,7 +542,7 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     p.get_by_text("Touche l'écran pour commencer.").wait_for()
     suivant, vus = p.get_by_role("button", name="Pas suivant"), set()
     for _ in range(40):
-        if p.get_by_role("button", name="Terminer").count():
+        if p.get_by_role("button", name="Voir les jumeaux de vote").count():
             break
         suivant.click(position={"x": 300, "y": 150})
         for phase in ("Les points du public",):
@@ -565,7 +575,7 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     p.wait_for_timeout(1200)
     regie.verifier("paysage-13-classement")
     p.get_by_role("button", name="Tout afficher").click()
-    p.get_by_role("button", name="Terminer").click()
+    p.get_by_role("button", name="Voir les jumeaux de vote").click()
     p.get_by_role("heading", name="Les jumeaux de vote").wait_for()
     p.get_by_role("button", name="Fermer").click()
     p.set_viewport_size(PC)
@@ -712,6 +722,22 @@ def test_grille_papier_saisie_libelle_et_affinites(serveur, navigateur):
     ecran_saisie = Ecran.__new__(Ecran)
     ecran_saisie.contexte, ecran_saisie.page, ecran_saisie.erreurs = p.context, onglet, []
     ecran_saisie.verifier("tel-32-saisie")
+    # 1.8 : toute la liste d'un coup, une case note et une case mot ; une note hors barème bloque le passage
+    grille = onglet.get_by_role("list", name="Grille à recopier")
+    assert grille.locator("li").count() == len(lue["chansons"])
+    notes_cases = grille.get_by_role("textbox", name="sur 20")
+    notes_cases.nth(0).fill("15,5")
+    grille.get_by_role("textbox", name="Son mot sur").nth(0).fill("Belle voix")
+    notes_cases.nth(1).fill("21")
+    notes_cases.nth(2).click()
+    onglet.get_by_text("La note va de 0 à 20").first.wait_for()
+    notes_cases.nth(1).fill("12")
+    notes_cases.nth(2).fill("18")
+    onglet.get_by_role("button", name="Passer au classement").click()       # attend les enregistrements
+    onglet.get_by_text("Rangé d'après tes notes").wait_for(timeout=10000)
+    ecran_saisie.verifier("tel-32-saisie-classement")
+    moi = next(g for g in api.get(f"{serveur}/api/soirees/{soiree}").json()["participants"] if g["id"] == premier["id"])
+    assert moi["notees"] == 3
     onglet.close()
     p.get_by_text("Note").first.wait_for()                               # la régie voit l'invité « en train de noter »
 

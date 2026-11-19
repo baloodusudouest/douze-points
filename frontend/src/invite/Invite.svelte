@@ -16,6 +16,7 @@
   import Affinites from '$lib/Affinites.svelte'
   import Photo from './Photo.svelte'
   import Jumeaux from './Jumeaux.svelte'
+  import SaisieGrille from './SaisieGrille.svelte'
   let { jeton } = $props()
 
   const CLE = 'douze-points:' + jeton
@@ -57,6 +58,7 @@
   let touche = $state(false)       // la note ou le mot de la fiche ouverte ont été modifiés
   let regie = $state(null)         // pour l'hôte connecté à la régie : où en est chacun (jamais les notes)
   let estHote = $state(false)
+  let grille = $state(null)        // 1.8 : la grille papier en cours de saisie
 
   let forcerDevoiler = $state(false)
   async function devoilerDepuisTelephone() {
@@ -308,12 +310,15 @@
       {#if estHote && regie}<div class="mt-6">{@render carteDevoiler()}</div>{/if}
 
     {:else}
-      {#if nbNotees === 0}
+      {#if nbNotees === 0 && !saisie}
         <p class="mb-4 rounded-2xl border bg-card p-4 text-sm">Note chaque chanson sur 20. À la fin, range tes chansons : tes dix premières reçoivent 12, 10, 8, 7… 1 point. C'est ce classement qui compte.
           <button class="mt-1 block text-muted-foreground underline" onclick={() => { e.moi = null; tel = ''; try { saisie ? sessionStorage.removeItem(CLE_SAISIE) : localStorage.removeItem(CLE) } catch { /* rien */ } }}>Ce n'est pas mon prénom</button></p>
       {/if}
 
-      {#if onglet === 'chansons'}
+      {#if onglet === 'chansons' && saisie && ouverte && !envoye}
+        <!-- 1.8 : grille papier recopiée par l'hôte, toute la liste d'un coup (note et mot), puis le classement -->
+        <SaisieGrille bind:this={grille} {chansons} {notes} {cran} {ecrire} onclassement={() => { fiche = null; onglet = 'classement'; scrollTo(0, 0) }} />
+      {:else if onglet === 'chansons'}
         <ol class="grid gap-1.5">
           {#each chansons as c (c.id)}
             <li><button class="chanson" class:en-cours={e.chanson_en_cours === c.id} onclick={() => ouvrir(c)}>
@@ -386,6 +391,9 @@
           {#if envoye}
             <p class="flex items-center justify-between gap-3 text-sm"><span class="text-primary">Classement envoyé.</span>
               <button class="underline text-muted-foreground" onclick={modifier}>Modifier mon classement</button></p>
+          {:else if saisie && ouverte && onglet === 'chansons'}
+            <!-- 1.8 : en saisie, le bouton attend la fin des enregistrements (SaisieGrille.passer) -->
+            <Button class="w-full" size="lg" disabled={!nbNotees} onclick={() => grille?.passer()}>Passer au classement</Button>
           {:else if nbNotees && onglet === 'chansons'}
             <!-- d'abord les notes, puis le classement : le gros bouton mène à l'étape suivante -->
             {#if nbNotees < chansons.length}<p class="mb-1 text-center text-xs text-muted-foreground">{chansons.length - nbNotees} chanson{chansons.length - nbNotees > 1 ? 's' : ''} pas encore notée{chansons.length - nbNotees > 1 ? 's' : ''}</p>{/if}

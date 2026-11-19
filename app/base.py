@@ -84,6 +84,12 @@ def preparer(data: Path) -> None:
         # 1.5 : envoi de la soirée vers carnet en attente d'un nouvel essai
         cx.execute("CREATE TABLE IF NOT EXISTS envoi_carnet(soiree_id INTEGER PRIMARY KEY, essais INTEGER NOT NULL DEFAULT 0, "
                    "erreur TEXT NOT NULL DEFAULT '', le TEXT NOT NULL)")
+        # 1.8 : le pas automatique du public (heure du dernier changement de pas, pause, dernière régie qui regarde) ;
+        # la vignette d'écran d'un selfie de duo
+        colonnes = {r["name"] for r in cx.execute("PRAGMA table_info(soiree)")}
+        for colonne, sorte in (("pas_le", "REAL"), ("pause_auto", "INTEGER NOT NULL DEFAULT 0"), ("vu_le", "REAL")):
+            if colonne not in colonnes:
+                cx.execute(f"ALTER TABLE soiree ADD COLUMN {colonne} {sorte}")
         # 1.6 : photos de la soirée, gardées ici jusqu'à leur arrivée complète dans Immich ; album Immich de la soirée
         if "immich_album" not in {r["name"] for r in cx.execute("PRAGMA table_info(soiree)")}:
             cx.execute("ALTER TABLE soiree ADD COLUMN immich_album TEXT")
@@ -93,6 +99,8 @@ def preparer(data: Path) -> None:
                    "recue_le TEXT NOT NULL, immich_id TEXT, dans_album INTEGER NOT NULL DEFAULT 0, "
                    "decrite INTEGER NOT NULL DEFAULT 0, taguee INTEGER NOT NULL DEFAULT 0, envoyee_le TEXT, "
                    "essais INTEGER NOT NULL DEFAULT 0, erreur TEXT NOT NULL DEFAULT '')")
+        if "ecran" not in {r["name"] for r in cx.execute("PRAGMA table_info(photo)")}:      # 1.8 : vignette pour la télé
+            cx.execute("ALTER TABLE photo ADD COLUMN ecran TEXT")
         # 0.5 : jury ou public. `invite.jury` se règle dans l'appli ; `participation.jury` est figé au dévoilement.
         for table in ("invite", "participation"):
             if "jury" not in {r["name"] for r in cx.execute(f"PRAGMA table_info({table})")}:
@@ -132,6 +140,21 @@ def base(data: Path):
             cx.execute("ROLLBACK")
         raise
     finally:
+        cx.close()
+
+
+@contextmanager
+def lecture(data: Path):
+    """1.8 : une lecture seule, sans prendre le tour d'écriture (BEGIN simple). Pour les relectures de chaque seconde
+    (télé, téléphones) : elles ne font plus la queue derrière les écritures. Ne jamais écrire dedans."""
+    cx = ouvrir(data)
+    cx.isolation_level = None
+    try:
+        cx.execute("BEGIN")
+        yield cx
+    finally:
+        if cx.in_transaction:
+            cx.execute("ROLLBACK")
         cx.close()
 
 

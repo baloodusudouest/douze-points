@@ -1,9 +1,27 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 20/11/2026, version 1.7.1.
+À lire en premier. Mis à jour le 20/11/2026, version 1.8.0.
 
 ## Où on en est
 
+- **1.8.0 (20/11/2026)** : `docs/ajout-1.8.0.md`, `docs/conseil-1.8.0.md`.
+  - Serveur (`main.py`, section « 1.8 ») : `horloge()` (remplacée en test), `_pas_auto(s, marche, t)` → pas effectif +
+    `auto {actif, pause, prochain_dans, duree}` (dans `_devoilement`), `POST /pas` par actions, `POST /regard`
+    (`vu_le`, `GARDE_REGIE` 4 s), colonnes `soiree.pas_le`, `pause_auto`, `vu_le`. `invite_devoilement` rend `auto` et,
+    au dernier pas, `gagnant`. `base.lecture()` pour `devoilement`, `invite_devoilement`, `invite_etat`, `jumeaux_regie`,
+    `photo_ecran` (ne jamais écrire dedans).
+  - Selfies : `app/ecran.py` (`vignette`, Pillow + pillow-heif), colonne `photo.ecran`, `_jumeaux` rend `photo`,
+    `GET /api/soirees/<id>/photos/<id>`, `_effacer_vignettes` à l'archivage, `nettoyer_photos` les connaît.
+  - Interface : `lib/dernier.js` (`colonnes`, `caseDe`, `placesAutres`, `avance`, `dureeEntree`), `lib/DernierVote.svelte`
+    (phase d'entrée, drapeaux seuls, deux colonnes, avance, égalité, `gagnant`), `pages/Devoilement.svelte` (`agir`,
+    `appliquer`, `relire` à l'échéance, regard, Wake Lock, barre de temps, Pause, bouton des jumeaux sous le podium),
+    `invite/Spectacle.svelte` (actions, regard et Wake Lock pour l'hôte), `pages/EcranJumeaux.svelte` (file, en grand
+    6 s, carte), `invite/SaisieGrille.svelte` (branché dans `Invite.svelte` en mode saisie, `passer()`).
+  - **Jamais essayé sur la vraie installation** : le défilement sur la télé en recopie AirPlay, le Wake Lock sur l'iPhone
+    de l'hôte, un vrai selfie d'iPhone (HEIC ou JPEG) sur la télé, la saisie sur iPhone. Bac à sable pas encore mis à
+    jour (choix de Julien : plus tard ; Douze points 1.8.0, commit à reporter dans `applis.yaml`).
+  - Plus tard (conseil) : Home Assistant au changement de pays et au vainqueur, générique de fin des selfies, selfies
+    dans Gazette et carnet, avance gardée en base, rejouer une soirée en accéléré dans le Bac à sable (`horloge`).
 - **1.7.1 (20/11/2026)** : `app/base.py`, `base()` en `BEGIN IMMEDIATE` (`isolation_level = None`, `COMMIT` / `ROLLBACK` à la main), `ATTENTE = 30` s. Corrige les 500 « database is locked » (plusieurs téléphones qui écrivent). Tests : `tests/test_verrou_171.py`. **Jamais essayé sur la vraie installation** (vu dans le Bac à sable seulement). À venir : 1.8.0 (public automatique, pays en lice, photo du duo à l'écran, bouton des jumeaux sous le podium, saisie de grille directe), visuels validés le 20/11/2026.
 - **1.7.0 (19/11/2026)** : animation du dernier vote du public (`lib/dernier.js` pur et testé par node, `lib/DernierVote.svelte`) montée au dernier pas du public par `pages/Devoilement.svelte` (télé, `dernierPas`, `animerDernier` posé dans `aller()` quand on vient du pas d'avant, totaux = `cumul(pas)`) et `invite/Spectacle.svelte` (téléphone, `animerDernier` posé dans `lire()` quand ce téléphone a vu le pas d'avant). Rythme réel `RYTHME` ; tests d'écran accélérés par `window.__DOUZE_POINTS_RYTHME`. **Jamais essayé sur la vraie installation** : la télé en recopie AirPlay (fluidité), de vrais iPhone.
 - **1.6.2 (19/11/2026)** : `invite/Jumeaux.svelte` reçoit `photos` ; le jumeau s'affiche toujours (`Invite.svelte`), « Immortaliser » seulement si Immich est réglé. Test dans `test_ecrans.py`.

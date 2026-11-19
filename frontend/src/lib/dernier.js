@@ -58,3 +58,35 @@ export function premier(totaux, dernier, ordre) {
   }
   return meilleur
 }
+
+// ---- 1.8.0 : les pays en lice (choix de Julien du 20/11/2026)
+
+// Les colonnes de l'échelle : une seule tant que chaque place garde au moins `seuil` pixels de haut, sinon deux
+// (moitié haute à gauche, moitié basse à droite).
+export function colonnes(nb, hauteur, seuil) {
+  if (nb <= 1 || !(hauteur > 0)) return 1
+  return hauteur / nb >= seuil ? 1 : 2
+}
+
+// Où se trouve une place : { col: 0 ou 1, rang: 1… dans sa colonne, lignes: nombre de lignes d'une colonne }.
+export function caseDe(placeN, nb, cols = 1) {
+  const lignes = cols === 2 ? Math.ceil(nb / 2) : nb
+  const p = Math.max(1, Math.min(nb, placeN))
+  return p <= lignes ? { col: 0, rang: p, lignes } : { col: 1, rang: p - lignes, lignes }
+}
+
+// La place de chacun des autres pays pendant la montée : ils sont rangés une fois pour toutes (`rangs`, du premier
+// au dernier) ; ceux qui sont à la place du dernier pays ou au-dessous descendent d'une place.
+export function placesAutres(rangs, placeDernier) {
+  return Object.fromEntries(rangs.map((id, i) => [id, i + 1 >= placeDernier ? i + 2 : i + 1]))
+}
+
+// L'avance du vainqueur quand le dernier pays dépasse le premier (« + 3 points ») ; 0 sinon.
+export function avance(arrivee, tete) {
+  return arrivee > tete ? arrivee - tete : 0
+}
+
+// La durée de l'entrée des drapeaux : 120 ms par pays, 2,5 s au plus (le dernier pays entre après).
+export function dureeEntree(nb, pasMs = 120, plafond = 2500) {
+  return Math.min(plafond, Math.max(0, nb) * pasMs)
+}

@@ -111,38 +111,92 @@
     if (dx > 90 && dy < dx / 2) onferme()
   }
 
+  // 1.8 : le pas est tenu par le serveur (conseil 1.8.0). Les points du public passent seuls toutes les 5 s ; cet écran
+  // n'envoie jamais un numéro de pas, seulement des actions (suivant, revenir, pause, reprendre, aller), et prend le pas
+  // que le serveur lui rend. Il relit le serveur chaque seconde, et tout de suite à l'échéance d'un pays.
+  let auto = $state(null)          // { actif, pause, prochain_dans, duree } tel que lu
+  let luA = $state(0)              // heure de la lecture de `auto` (horloge de cet écran)
+  let maintenantMs = $state(Date.now())
+  let charge = false               // le premier pas lu au chargement ne rejoue pas d'animation
+  let gestes = 0                   // une lecture partie avant un geste est ignorée : elle date d'avant lui
+  let echeance
+
+  function appliquer(lu) {
+    if (lu.pas === null || lu.pas === undefined) return
+    auto = lu.auto || null
+    luA = Date.now()
+    clearTimeout(echeance)
+    if (auto?.actif && !auto.pause && auto.prochain_dans !== null)
+      echeance = setTimeout(relire, auto.prochain_dans + 60)     // le pays suivant, à l'heure du serveur
+    if (lu.pas !== pas || !charge) aller(lu.pas)
+    charge = true
+  }
+  async function relire() {
+    if (!d || document.hidden) return
+    const g = gestes
+    try {
+      const lu = await api.get(`/api/soirees/${soiree}/devoilement`)
+      if (g === gestes && lu.etat === 'devoilement') appliquer(lu)
+    } catch { /* coupure passagère */ }
+  }
+  async function agir(action, extra = {}) {
+    gestes++
+    if (d?.etat !== 'devoilement') {             // on rejoue une archive : tout se passe ici
+      if (action === 'suivant') aller(pas + 1)
+      else if (action === 'revenir') aller(pas - 1)
+      else if (action === 'aller') aller(extra.pas)
+      return
+    }
+    try { appliquer(await api.post(`/api/soirees/${soiree}/pas`, { action, ...extra })) }
+    catch (e) { erreur = e.message }
+  }
+
   onMount(async () => {
     mesurer()
     try {
       const lu = await api.get(`/api/soirees/${soiree}/devoilement`)
       d = { ...lu, chansons: lu.chansons.map(normaliser) }
       pas = pasTri = Math.min(d.pas, fin)
+      auto = lu.auto || null
+      luA = Date.now()
+      if (lu.etat === 'devoilement') appliquer(lu)
+      charge = true
     } catch (e) { erreur = e.message }
+    garderEcran()
   })
 
-  // Le pas est mené depuis le téléphone de l'hôte comme depuis cet écran : on relit celui du serveur chaque seconde,
-  // sauf juste après un geste fait ici (le temps que le serveur l'ait reçu).
-  let dernierGeste = 0
-  const suivi = setInterval(async () => {
-    if (!d || document.hidden || Date.now() - dernierGeste < 2500) return
-    try {
-      const lu = await api.get(`/api/soirees/${soiree}/devoilement`)
-      if (lu.etat === 'devoilement' && lu.pas !== pas) aller(lu.pas, false)
-    } catch { /* coupure passagère */ }
-  }, 1000)
-  onDestroy(() => clearInterval(suivi))
+  const suivi = setInterval(relire, 1000)
+  const horlogeEcran = setInterval(() => (maintenantMs = Date.now()), 100)
+  // 1.8 : « je regarde » toutes les 2 s : sans régie devant l'écran, le serveur arrête le défilement (iPhone verrouillé)
+  const regard = setInterval(() => {
+    if (d?.etat === 'devoilement' && !document.hidden) api.post(`/api/soirees/${soiree}/regard`).catch(() => {})
+  }, 2000)
+  // 1.8 : l'écran reste allumé pendant le dévoilement (sinon l'iPhone se verrouille et la recopie AirPlay s'arrête)
+  let verrou = null
+  async function garderEcran() {
+    try { if ('wakeLock' in navigator && !document.hidden) verrou = await navigator.wakeLock.request('screen') } catch { /* refusé : tant pis */ }
+  }
+  function visibilite() {
+    if (!document.hidden) { garderEcran(); relire(); if (d?.etat === 'devoilement') api.post(`/api/soirees/${soiree}/regard`).catch(() => {}) }
+  }
+  onDestroy(() => { clearInterval(suivi); clearInterval(horlogeEcran); clearInterval(regard); clearTimeout(echeance); try { verrou?.release() } catch { /* rien */ } })
 
-  function aller(n, envoyer = true) {
+  // Le temps qui reste avant le pays suivant (barre rose sous l'addition)
+  let resteMs = $derived(auto?.actif && !auto.pause && auto.prochain_dans !== null ? Math.max(0, auto.prochain_dans - (maintenantMs - luA)) : null)
+  let enPause = $derived(!!auto?.actif && auto.pause)
+  let avantDernier = $derived(pas === etapes.length - 1)
+
+  function aller(n) {
     n = Math.max(0, Math.min(fin, n))
-    animerDernier = n === etapes.length && pas === n - 1 && etapes[n - 1]?.phase === 'public'
-    if (envoyer) dernierGeste = Date.now()
+    // 1.8 : les pays en lice se jouent dès qu'on entre dans le dernier pas depuis un pas plus tôt vu sur cet écran
+    // (pas seulement le pas juste avant) ; au chargement ou en revenant du podium : la fin tout de suite.
+    animerDernier = charge && n === etapes.length && pas < n && etapes[n - 1]?.phase === 'public'
     clearTimeout(attenteTri)
     if (n === pas + 1 && n <= etapes.length) {
       // un pas en avant : les points s'ajoutent sur place, puis la ligne prend sa nouvelle place
       attenteTri = setTimeout(() => (pasTri = n), RETARD_TRI)
     } else pasTri = n               // retour, « Tout afficher » ou podium : tout de suite
     pas = n
-    if (envoyer) api.post(`/api/soirees/${soiree}/pas`, { pas }).catch(() => {})   // une soirée déjà dévoilée ne garde plus le pas : sans importance
   }
   // 1.6 : « Terminer » ouvre les résultats sur les téléphones (avec les jumeaux de chacun) et passe la télé à
   // l'écran des jumeaux de vote ; « Fermer » y revient à la régie.
@@ -152,12 +206,13 @@
     jumeaux = true
   }
   function touche(e) {
-    if (e.key === 'ArrowRight' || e.key === ' ') aller(pas + 1)
-    if (e.key === 'ArrowLeft') aller(pas - 1)
+    if (e.key === 'ArrowRight' || e.key === ' ') agir('suivant')
+    if (e.key === 'ArrowLeft') agir('revenir')
   }
 </script>
 
 <svelte:window onresize={mesurer} onkeydown={touche} />
+<svelte:document onvisibilitychange={visibilite} />
 
 <div class="fixed inset-0 z-30 bg-background" style="--jury: #7aa2e3; --public: var(--primary)"
      ontouchstart={doigtPose} ontouchend={doigtLeve}>
@@ -167,14 +222,13 @@
     </div>
   {:else if d}
     <!-- Toute la surface avance d'un pas ; les trois commandes discrètes sont posées par-dessus -->
-    <button class="absolute inset-0 cursor-default" aria-label="Pas suivant" onclick={() => (fini ? null : aller(pas + 1))}></button>
+    <button class="absolute inset-0 cursor-default" aria-label="Pas suivant" onclick={() => (fini ? null : agir('suivant'))}></button>
 
     {#if dernierPas}
       {#key pas}
-        <div class="pointer-events-none relative h-full px-[max(1rem,env(safe-area-inset-left))] pt-10 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
-          <p class="absolute inset-x-0 top-[max(0.6rem,env(safe-area-inset-top))] text-center text-lg font-light" style="color: var(--public)">Le dernier vote du public</p>
+        <div class="pointer-events-none relative h-full px-[max(1rem,env(safe-area-inset-left))] pt-12 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <DernierVote chansons={d.chansons} totaux={totauxDernier} dernier={courant.chanson} gain={courant.total}
-                       ordre={d.classement.map((l) => l.chanson)} anime={animerDernier} />
+                       ordre={d.classement.map((l) => l.chanson)} gagnant={d.classement[0]?.chanson} anime={animerDernier} />
         </div>
       {/key}
     {:else}
@@ -223,6 +277,9 @@
             {/each}
           </ol>
           <p class="mt-1 text-sm text-muted-foreground">{podium[0].c.artiste}{podium[0].c.titre ? ', ' + podium[0].c.titre : ''}</p>
+          <!-- 1.8 : le bouton des jumeaux sous le podium (avant : en haut à droite) -->
+          <button class="bouton-jumeaux pointer-events-auto mt-4" onclick={terminer}>Voir les jumeaux de vote</button>
+          <p class="mt-1.5 text-xs text-muted-foreground">Termine la soirée et ouvre les résultats sur les téléphones.</p>
         {:else}
           {#key pas}
             {#if courant.phase === 'top'}
@@ -261,6 +318,13 @@
                   </p>
                   <p class="chiffre" style="font-size: 16vh; line-height: 1.05"><Compteur valeur={courant.avant + courant.total} depart={courant.avant} retard={450} duree={1000} /></p>
                   <p class="text-base text-muted-foreground">points en tout</p>
+                  {#if auto?.actif}
+                    <!-- 1.8 : le temps avant le pays suivant -->
+                    <div class="temps mx-auto mt-3" role="timer" aria-label={enPause ? 'Défilement en pause' : `Pays suivant dans ${Math.ceil((resteMs ?? 0) / 1000)} secondes`}>
+                      <span class="barre-temps"><i style="width: {enPause ? 0 : 100 - ((resteMs ?? 0) / auto.duree) * 100}%"></i></span>
+                      <span class="text-sm text-muted-foreground">{enPause ? 'En pause' : `${avantDernier ? 'Le dernier vote du public' : 'Pays suivant'} dans ${Math.max(1, Math.ceil((resteMs ?? 0) / 1000))} s`}</span>
+                    </div>
+                  {/if}
                 {/if}
               </div>
             {:else}
@@ -299,9 +363,10 @@
     <div class="absolute inset-x-0 top-[max(0.5rem,env(safe-area-inset-top))] flex justify-end gap-2 px-4 text-xs">
       <p class="mr-auto self-center text-muted-foreground landscape:hidden">Tourne le téléphone en paysage.</p>
       <p class="geste mr-auto hidden self-center text-muted-foreground portrait:hidden">Glisse vers la droite pour sortir</p>
-      {#if pas > 0}<button class="commande" onclick={() => aller(pas - 1)}>Revenir</button>{/if}
-      {#if !fini}<button class="commande" onclick={() => aller(fin)}>Tout afficher</button>{/if}
-      {#if fini}<button class="commande plein" onclick={terminer}>Terminer · jumeaux de vote</button>{:else}<button class="commande" onclick={onferme}>Fermer</button>{/if}
+      {#if pas > 0}<button class="commande" onclick={() => agir('revenir')}>Revenir</button>{/if}
+      {#if auto?.actif}<button class="commande" onclick={() => agir(enPause ? 'reprendre' : 'pause')}>{enPause ? 'Reprendre' : 'Pause'}</button>{/if}
+      {#if !fini}<button class="commande" onclick={() => agir('aller', { pas: fin })}>Tout afficher</button>{/if}
+      {#if !fini}<button class="commande" onclick={onferme}>Fermer</button>{/if}
     </div>
   {/if}
 </div>
@@ -342,6 +407,12 @@
 
   .commande { min-height: 2.75rem; border-radius: 999px; border: 1px solid var(--border); background: var(--background); padding: 0 1rem; color: var(--muted-foreground); }
   .commande.plein { background: var(--primary); color: var(--primary-foreground); border-color: var(--primary); }
+  .bouton-jumeaux { min-height: 3.2rem; border-radius: 999px; background: var(--primary); color: var(--primary-foreground); padding: 0 1.8rem;
+    font-size: clamp(1rem, 3.4vh, 1.3rem); font-weight: 600; }
+  .bouton-jumeaux:focus-visible { outline: 3px solid var(--foreground); outline-offset: 3px; }
+  .temps { display: grid; width: min(22rem, 90%); gap: 0.4rem; justify-items: center; }
+  .barre-temps { display: block; width: 100%; height: 6px; overflow: hidden; border-radius: 3px; background: var(--muted); }
+  .barre-temps i { display: block; height: 100%; background: var(--public); transition: width 0.1s linear; }
 
   .podium { display: flex; align-items: flex-end; justify-content: center; gap: 1.2vw; }
   .marche { display: flex; width: 11vw; min-width: 4.5rem; flex-direction: column; align-items: center; animation: monter 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) both; }

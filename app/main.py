@@ -33,9 +33,9 @@ import segno
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import __version__, carnet, immich, maison
+from . import __version__, carnet, ecran, immich, maison
 from .auth import COMMUN, DUREE, Sessions, en_https
-from .base import base, fichier, preparer, sauvegarder
+from .base import base, fichier, lecture, preparer, sauvegarder
 from .config import APPLI, Config, charger
 from .points import (ECHELLE, affinites, classement_groupe, classement_par_notes, duos, inserer, jumeaux,
                      points_du_classement)
@@ -64,6 +64,11 @@ def maintenant() -> str:
 
 def cfg() -> Config:
     return ETAT["cfg"]
+
+
+# 1.8 : l'horloge du pas automatique, en secondes (remplacée dans les tests pour simuler le temps)
+def horloge() -> float:
+    return time.time()
 
 
 ANNUAIRE = maison.Annuaire()
@@ -918,7 +923,7 @@ def devoiler(soiree_id: int, corps: dict = Body(default={})):
         random.shuffle(passage)
         # 1.3.1 : un double appui ne relance pas le tirage pendant l'animation
         if not cx.execute("UPDATE soiree SET etat='devoilement', forcee=?, mode_devoilement=?, ordre_devoilement=?, "
-                          "pas_devoilement=0 WHERE id=? AND etat='ouverte'",
+                          "pas_devoilement=0, pas_le=NULL, pause_auto=0, vu_le=NULL WHERE id=? AND etat='ouverte'",
                           (1 if forcer else 0, mode, json.dumps(passage), soiree_id)).rowcount:
             raise HTTPException(409, "Le dévoilement est déjà lancé.")
         journal(cx, "devoilement_lance", str(soiree_id),
@@ -949,7 +954,44 @@ def _devoilement(cx, s) -> dict:
          "chansons": chansons, "invites": invites, "etat": s["etat"],
          "classement": classement_groupe([c["id"] for c in chansons], points, notes, passage)}
     d["marche"] = _marche(d)
+    d["pas"], d["auto"] = _pas_auto(s, d["marche"], horloge())
     return d
+
+
+# ================================================================ 1.8 : les points du public sans cliquer
+# Choix de Julien (20/11/2026) : chaque pays du public passe seul au bout de 5 s, le dernier aussi (il lance
+# l'animation des pays en lice) ; le top 5 du jury et le podium restent au toucher. Le pas est tenu par le serveur
+# (conseil 1.8.0) : il se calcule d'après l'heure du dernier changement (`pas_le`) ; les écrans envoient des actions,
+# jamais un numéro. L'horloge s'arrête quand aucune régie ne regarde plus (`vu_le`, relevé par /regard) : après un
+# trou (iPhone verrouillé, télé éteinte, reprise du lendemain), le défilement se retrouve en pause, jamais en avance.
+DUREE_AUTO = 5.0          # secondes par pays du public
+GARDE_REGIE = 4.0         # sans régie depuis ce temps, l'horloge s'arrête
+
+
+def _bornes_auto(m: dict) -> tuple[int, int]:
+    """Le premier et le dernier pas du public."""
+    debut = 1 if m["jures"] else 0
+    return debut + 1, debut + len(m["public"])
+
+
+def _pas_auto(s, m: dict, t: float) -> tuple[int, dict]:
+    """Le pas effectif et l'état du défilement : {actif, pause, prochain_dans (ms ou None), duree (ms)}."""
+    pas = max(0, min(int(s["pas_devoilement"] or 0), m["fin"]))
+    premier, dernier = _bornes_auto(m)
+    auto = {"actif": False, "pause": bool(s["pause_auto"]), "prochain_dans": None, "duree": int(DUREE_AUTO * 1000)}
+    if s["etat"] != "devoilement" or not premier <= pas < dernier or s["pas_le"] is None:
+        return pas, auto
+    auto["actif"] = True
+    if s["pause_auto"]:
+        return pas, auto
+    ref = t if s["vu_le"] is None else min(t, s["vu_le"] + GARDE_REGIE)
+    ecoule = max(0.0, ref - s["pas_le"])
+    pas = min(dernier, pas + int(ecoule // DUREE_AUTO))
+    if pas < dernier:
+        auto["prochain_dans"] = int(round((DUREE_AUTO - ecoule % DUREE_AUTO) * 1000))
+    else:
+        auto["actif"] = False
+    return pas, auto
 
 
 def _marche(d: dict) -> dict:
@@ -976,19 +1018,69 @@ def _marche(d: dict) -> dict:
 
 @app.get("/api/soirees/{soiree_id}/devoilement")
 def devoilement(soiree_id: int):
-    with base(cfg().data) as cx:
+    with lecture(cfg().data) as cx:          # 1.8 : relu chaque seconde, sans prendre le tour d'écriture
         s = _soiree(cx, soiree_id)
         if s["etat"] not in ("devoilement", "devoilee", "archivee"):
             raise HTTPException(409, "Le dévoilement n'a pas commencé.")
         return _devoilement(cx, s)
 
 
+ACTIONS_PAS = ("suivant", "revenir", "pause", "reprendre", "aller")
+
+
 @app.post("/api/soirees/{soiree_id}/pas")
 def pas(soiree_id: int, corps: dict = Body(...)):
-    """Où en est le dévoilement : gardé côté serveur, pour reprendre après un redémarrage."""
+    """Fait avancer le dévoilement. 1.8 : une action appliquée par le serveur au pas effectif (conseil 1.8.0) :
+    `suivant`, `revenir` (met le défilement en pause), `pause`, `reprendre`, `aller` (avec `pas`, pour « Tout
+    afficher »). L'ancien corps `{"pas": n}` vaut `aller`. Rend le pas et l'état du défilement."""
+    action = str(corps.get("action") or "aller")
+    if action not in ACTIONS_PAS:
+        raise HTTPException(422, "Action inconnue.")
+    t = horloge()
     with base(cfg().data) as cx:
-        cx.execute("UPDATE soiree SET pas_devoilement=? WHERE id=? AND etat='devoilement'",
-                   (max(0, int(corps.get("pas", 0))), soiree_id))
+        s = _soiree(cx, soiree_id)
+        if s["etat"] != "devoilement":       # soirée déjà dévoilée (on rejoue une archive) : rien à garder
+            return {"ok": True, "pas": None}
+        m = _devoilement(cx, s)["marche"]
+        effectif, _ = _pas_auto(s, m, t)
+        pause = bool(s["pause_auto"])
+        if action == "suivant":
+            nouveau = effectif + 1
+        elif action == "revenir":
+            nouveau, pause = effectif - 1, True
+        elif action in ("pause", "reprendre"):
+            nouveau, pause = effectif, action == "pause"
+        else:
+            nouveau = int(corps.get("pas", 0))
+        nouveau = max(0, min(m["fin"], nouveau))
+        premier, dernier = _bornes_auto(m)
+        if action in ("suivant", "aller", "revenir") and not premier <= effectif < dernier:
+            pause = False                     # on entre dans le public depuis le jury ou le départ : il défile
+        if action == "revenir" and not premier <= nouveau < dernier:
+            pause = False                     # revenir au jury ou au départ ne laisse pas de pause en réserve
+        cx.execute("UPDATE soiree SET pas_devoilement=?, pas_le=?, pause_auto=?, vu_le=? WHERE id=?",
+                   (nouveau, t, 1 if pause else 0, t, soiree_id))
+        s = _soiree(cx, soiree_id)
+        p, auto = _pas_auto(s, m, t)
+    return {"ok": True, "pas": p, "auto": auto}
+
+
+@app.post("/api/soirees/{soiree_id}/regard")
+def regard(soiree_id: int):
+    """1.8 : une régie regarde le dévoilement (toutes les 2 s). Après un trou de plus de GARDE_REGIE secondes, le
+    défilement est figé au pas qu'il avait atteint et mis en pause : rien n'a défilé sans personne devant l'écran."""
+    t = horloge()
+    with base(cfg().data) as cx:
+        s = _soiree(cx, soiree_id)
+        if s["etat"] != "devoilement":
+            return {"ok": True}
+        if s["vu_le"] is not None and t - s["vu_le"] > GARDE_REGIE and not s["pause_auto"]:
+            m = _devoilement(cx, s)["marche"]
+            p, auto = _pas_auto(s, m, t)       # calculé jusqu'au départ de la dernière régie
+            if auto["actif"]:
+                cx.execute("UPDATE soiree SET pas_devoilement=?, pas_le=?, pause_auto=1 WHERE id=?", (p, t, soiree_id))
+                journal(cx, "defilement_en_pause", str(soiree_id), {"pas": p})
+        cx.execute("UPDATE soiree SET vu_le=? WHERE id=?", (t, soiree_id))
     return {"ok": True}
 
 
@@ -1127,6 +1219,7 @@ def archiver(soiree_id: int):
         if _soiree(cx, soiree_id)["etat"] != "devoilee":
             raise HTTPException(409, "Seule une soirée dévoilée s'archive.")
         cx.execute("UPDATE soiree SET etat='archivee' WHERE id=?", (soiree_id,))
+        _effacer_vignettes(cx, soiree_id)
     return {"ok": True}
 
 
@@ -1330,7 +1423,7 @@ def _ma_copie(cx, s, p, chansons: list[dict]) -> dict:
 @app.get("/invite/{jeton}/api/etat")
 def invite_etat(jeton: str, request: Request):
     """Tout ce qu'un téléphone a le droit de savoir. Des autres : le prénom, arrivé ou non, envoyé ou non."""
-    with base(cfg().data) as cx:
+    with lecture(cfg().data) as cx:          # 1.8 : relu toutes les 3 s par chaque téléphone
         s = _porte(cx, jeton)
         etat = {"nom": s["nom"], "concours": s["concours"], "annee": s["annee"], "emission": s["emission"],
                 "etat": s["etat"], "pas_note": float(_reglage(cx, "pas_note")), "bareme": [12, 10, 8, 7, 6, 5, 4, 3, 2, 1], "images": _images(s)}
@@ -1484,7 +1577,7 @@ def invite_devoilement(jeton: str, request: Request):
     du jury avant leur pas, ni ceux du public d'une chanson pas encore appelée, ni notes ni commentaires.
     Chaque ligne additionne les points de l'invité, ceux du jury et ceux des autres invités (les siens ne sont
     jamais comptés deux fois)."""
-    with base(cfg().data) as cx:
+    with lecture(cfg().data) as cx:          # 1.8 : relu chaque seconde par chaque téléphone
         s = _porte(cx, jeton)
         if s["etat"] not in ("devoilement", "devoilee"):
             raise HTTPException(409, "Le dévoilement n'a pas commencé.")
@@ -1509,8 +1602,12 @@ def invite_devoilement(jeton: str, request: Request):
         "jury": {str(c): somme(True, c) for c in ids} if m["jures"] and pas >= 1 else None,
         "public": [{"chanson": c, "autres": somme(False, c), "total": somme(False, c, sans_moi=False)} for c in appelees],
     }
+    sortie["auto"] = d["auto"]
     if pas >= m["fin"]:
         sortie["classement"] = d["classement"]
+    elif pas == m["fin"] - 1 and m["public"]:
+        # 1.8 : au dernier vote, le vainqueur du classement (départage d'une égalité au sommet), pour l'animation
+        sortie["gagnant"] = d["classement"][0]["chanson"]
     return sortie
 
 
@@ -1566,14 +1663,19 @@ def _jumeaux(cx, s) -> dict:
     prenoms = {r["id"]: r["prenom"] for r in cx.execute(
         "SELECT p.id, i.prenom FROM participation p JOIN invite i ON i.id=p.invite_id WHERE p.soiree_id=?", (s["id"],))}
     photos: dict[tuple[int, int], int] = defaultdict(int)
-    for r in cx.execute("SELECT participation_id, duo_participation_id FROM photo WHERE soiree_id=? "
-                        "AND duo_participation_id IS NOT NULL", (s["id"],)):
-        photos[tuple(sorted((r["participation_id"], r["duo_participation_id"])))] += 1
+    vignettes: dict[tuple[int, int], int] = {}             # 1.8 : le dernier selfie du duo qui a sa vignette d'écran
+    for r in cx.execute("SELECT id, participation_id, duo_participation_id, ecran FROM photo WHERE soiree_id=? "
+                        "AND duo_participation_id IS NOT NULL ORDER BY id", (s["id"],)):
+        cle = tuple(sorted((r["participation_id"], r["duo_participation_id"])))
+        photos[cle] += 1
+        if r["ecran"]:
+            vignettes[cle] = r["id"]
     sortie = []
     for d in duos(js):
         a, b = d["invites"]
         sortie.append({"cle": f"{min(a, b)}-{max(a, b)}", "invites": [{"id": x, "prenom": prenoms.get(x, "?")} for x in (a, b)],
-                       "reciproques": d["reciproques"], "tranche": d["tranche"], "photos": photos[(min(a, b), max(a, b))]})
+                       "reciproques": d["reciproques"], "tranche": d["tranche"], "photos": photos[(min(a, b), max(a, b))],
+                       "photo": vignettes.get((min(a, b), max(a, b)))})
     return {"duos": sortie, "par_invite": {g: v["jumeau"] for g, v in js.items()}}
 
 
@@ -1657,14 +1759,21 @@ async def invite_photo(jeton: str, request: Request):
     except BaseException:
         provisoire.unlink(missing_ok=True)
         raise
+    # 1.8 : un selfie de duo gagne sa vignette d'écran (JPEG réduit) pour la télé
+    nom_ecran = None
+    if duo and await asyncio.to_thread(ecran.vignette, dossier / nom, dossier / f"{nom.rsplit('.', 1)[0]}.ecran.jpg"):
+        nom_ecran = f"{nom.rsplit('.', 1)[0]}.ecran.jpg"
     try:
         with base(cfg().data) as cx:
             cx.execute("INSERT INTO photo(soiree_id, participation_id, duo_participation_id, fichier, type, taille, "
-                       "recue_le) VALUES(?,?,?,?,?,?,?)", (s["id"], p["id"], duo, nom, forme[1], taille, maintenant()))
+                       "recue_le, ecran) VALUES(?,?,?,?,?,?,?,?)",
+                       (s["id"], p["id"], duo, nom, forme[1], taille, maintenant(), nom_ecran))
             journal(cx, "photo_recue", str(s["id"]), {"duo": bool(duo), "taille": taille})
             compte = _photos_compte(cx, s["id"], p["id"])
     except BaseException:
         (dossier / nom).unlink(missing_ok=True)
+        if nom_ecran:
+            (dossier / nom_ecran).unlink(missing_ok=True)
         raise
     asyncio.get_running_loop().run_in_executor(None, _envoyer_photos_sans_erreur)
     return {"ok": True, "photos": compte}
@@ -1765,7 +1874,11 @@ def nettoyer_photos() -> None:
     if not racine.is_dir():
         return
     with base(c.data) as cx:
-        connus = {(str(r["soiree_id"]), r["fichier"]) for r in cx.execute("SELECT soiree_id, fichier FROM photo")}
+        connus = set()
+        for r in cx.execute("SELECT soiree_id, fichier, ecran FROM photo"):
+            connus.add((str(r["soiree_id"]), r["fichier"]))
+            if r["ecran"]:                                   # 1.8 : vignette d'écran d'un selfie de duo
+                connus.add((str(r["soiree_id"]), r["ecran"]))
         for dossier in racine.iterdir():
             if not dossier.is_dir():
                 continue
@@ -1778,11 +1891,31 @@ def nettoyer_photos() -> None:
                 journal(cx, "photo_perdue", str(r["id"]))
 
 
+@app.get("/api/soirees/{soiree_id}/photos/{photo_id}")
+def photo_ecran(soiree_id: int, photo_id: int):
+    """1.8 : la vignette d'écran d'un selfie de duo, pour la télé (mot de passe commun). Seulement les selfies de duo,
+    jamais les autres photos de la soirée."""
+    with lecture(cfg().data) as cx:
+        r = cx.execute("SELECT ecran FROM photo WHERE id=? AND soiree_id=? AND duo_participation_id IS NOT NULL",
+                       (photo_id, soiree_id)).fetchone()
+    chemin = cfg().data / "photos" / str(soiree_id) / r["ecran"] if r and r["ecran"] else None
+    if chemin is None or not chemin.is_file():
+        raise HTTPException(404, "Pas de photo à montrer.")
+    return FileResponse(chemin, media_type="image/jpeg", headers={"Cache-Control": "private, max-age=86400"})
+
+
+def _effacer_vignettes(cx, soiree_id: int) -> None:
+    """1.8 : à l'archivage, les vignettes d'écran des selfies de duo sont effacées (les originaux sont dans Immich)."""
+    for r in cx.execute("SELECT id, ecran FROM photo WHERE soiree_id=? AND ecran IS NOT NULL", (soiree_id,)).fetchall():
+        (cfg().data / "photos" / str(soiree_id) / r["ecran"]).unlink(missing_ok=True)
+        cx.execute("UPDATE photo SET ecran=NULL WHERE id=?", (r["id"],))
+
+
 @app.get("/api/soirees/{soiree_id}/jumeaux")
 def jumeaux_regie(soiree_id: int):
     """L'écran « Jumeaux de vote » de la télé (après le podium) et la fiche : tous les duos, leur photo reçue ou non,
     et où en sont les photos de la soirée."""
-    with base(cfg().data) as cx:
+    with lecture(cfg().data) as cx:          # 1.8 : relu par la télé
         s = _soiree_devoilee(cx, soiree_id)
         j = _jumeaux(cx, s)
         n = cx.execute("SELECT COUNT(*), SUM(envoyee_le IS NOT NULL), MAX(erreur) FROM photo WHERE soiree_id=?",

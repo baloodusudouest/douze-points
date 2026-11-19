@@ -88,3 +88,42 @@ test('premier des autres : le plus haut total, l\'ordre départage', () => {
   assert.equal(premier({ 1: 50, 2: 80, 3: 80, 4: 99 }, 4, [3, 2, 1, 4]), 3)
   assert.equal(premier({ 1: 50, 2: 80, 3: 80, 4: 99 }, 4, [2, 3, 1, 4]), 2)
 })
+
+// ---- 1.8.0
+import { colonnes, caseDe, placesAutres, avance, dureeEntree } from './dernier.js'
+
+test('colonnes : deux quand les places deviennent trop basses', () => {
+  assert.equal(colonnes(14, 600, 30), 1)        // 42 px par place
+  assert.equal(colonnes(26, 600, 30), 2)        // 23 px par place
+  assert.equal(colonnes(20, 600, 30), 1)        // 30 px tout juste
+  assert.equal(colonnes(1, 10, 30), 1)
+  assert.equal(colonnes(26, 0, 30), 1)          // pas encore mesuré
+})
+
+test('caseDe : moitié haute à gauche, moitié basse à droite', () => {
+  assert.deepEqual(caseDe(1, 26, 2), { col: 0, rang: 1, lignes: 13 })
+  assert.deepEqual(caseDe(13, 26, 2), { col: 0, rang: 13, lignes: 13 })
+  assert.deepEqual(caseDe(14, 26, 2), { col: 1, rang: 1, lignes: 13 })
+  assert.deepEqual(caseDe(25, 25, 2), { col: 1, rang: 12, lignes: 13 })   // nombre impair : la gauche a une ligne de plus
+  assert.deepEqual(caseDe(7, 14, 1), { col: 0, rang: 7, lignes: 14 })
+  assert.deepEqual(caseDe(99, 14, 1), { col: 0, rang: 14, lignes: 14 })
+})
+
+test('placesAutres : ceux que le dernier pays a rejoints descendent d\'une place', () => {
+  const rangs = ['it', 'fr', 'es', 'no']
+  assert.deepEqual(placesAutres(rangs, 5), { it: 1, fr: 2, es: 3, no: 4 })
+  assert.deepEqual(placesAutres(rangs, 3), { it: 1, fr: 2, es: 4, no: 5 })
+  assert.deepEqual(placesAutres(rangs, 1), { it: 2, fr: 3, es: 4, no: 5 })
+})
+
+test('avance : « + 3 points » seulement s\'il passe devant', () => {
+  assert.equal(avance(173, 170), 3)
+  assert.equal(avance(170, 170), 0)
+  assert.equal(avance(150, 170), 0)
+})
+
+test('dureeEntree : 120 ms par pays, 2,5 s au plus', () => {
+  assert.equal(dureeEntree(13), 1560)
+  assert.equal(dureeEntree(40), 2500)
+  assert.equal(dureeEntree(0), 0)
+})

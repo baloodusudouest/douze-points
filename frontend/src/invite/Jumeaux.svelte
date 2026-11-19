@@ -29,7 +29,8 @@
         {/if}
       </div>
     {/each}
-    {#if photos}<p class="text-xs text-muted-foreground">Les photos vont dans l'album de la soirée, chez l'hôte. Personne ne les voit ici.</p>{/if}
+    <!-- 1.8 : le selfie d'un duo s'affiche sur la télé (choix de Julien) : on le dit avant la photo -->
+    {#if photos}<p class="text-xs text-muted-foreground">Votre selfie s'affiche sur la télé, puis part dans l'album de la soirée, chez l'hôte. Personne d'autre ne le voit sur son téléphone.</p>{/if}
   </section>
 {:else if !jumeaux.a_jumeau}
   <p class="mb-6 rounded-2xl border bg-card p-4 text-sm text-muted-foreground">Pas de jumeau de vote ce soir : trop peu de chansons notées en commun avec les autres.</p>

@@ -1,5 +1,37 @@
 # Journal des versions
 
+## 1.8.0 — 20 novembre 2026 (public sans cliquer, pays en lice, selfies des duos, saisie directe)
+Choix de Julien du 20/11/2026, visuels validés sur un canevas ; dossier `docs/ajout-1.8.0.md`, conseil `docs/conseil-1.8.0.md`.
+- **Les points du public passent seuls**, toutes les 5 secondes, avec une barre de temps ; le dernier pays aussi.
+  Le top 5 du jury et le podium restent au toucher. L'hôte garde Revenir et Suivant, et gagne **Pause / Reprendre**
+  (télé et téléphone de l'hôte). **Revenir** sur un pays met le défilement en pause.
+- **Le pas est tenu par le serveur** : les écrans envoient des actions (`suivant`, `revenir`, `pause`, `reprendre`,
+  `aller`), jamais un numéro de pas (avant, une lecture vieille d'une seconde pouvait faire reculer le spectacle).
+  Une régie qui regarde le dit toutes les 2 s (`POST /api/soirees/<id>/regard`) : sans elle, l'horloge s'arrête et le
+  défilement se retrouve en pause (iPhone verrouillé, télé éteinte, dévoilement repris le lendemain). L'écran de la
+  régie reste allumé pendant le dévoilement (Wake Lock).
+- **Les pays en lice** : au dernier vote, tous les pays se posent sur l'échelle, un par un ; les autres pays n'ont que
+  leur drapeau, le pays en tête et le dernier pays gardent nom et drapeau ; puis le dernier pays monte de sa place
+  après le jury jusqu'à sa place finale (rythme de la 1.7.0). Quand il dépasse : « Vainqueur » et son avance
+  (« + 3 points »). Égalité au sommet : « Égalité », le vainqueur est celui du classement de la soirée. Trop de pays
+  pour la hauteur de l'écran : l'échelle est **coupée en deux** (moitié haute à gauche, moitié basse à droite).
+  L'animation se joue dès qu'un écran arrive au dernier pas depuis un pas plus tôt (une relecture manquée ne la saute plus).
+- **Le bouton des jumeaux est sous le podium** (« Voir les jumeaux de vote »), plus en haut à droite.
+- **Le selfie d'un duo s'affiche sur la télé** : en grand 6 s (polaroïd), puis dans la carte du duo. Le serveur en fait
+  une vignette JPEG réduite à la réception (Pillow, pillow-heif pour le HEIC), servie à la régie seule
+  (`GET /api/soirees/<id>/photos/<photo>`), effacée à l'archivage ; l'original part à Immich comme avant. Le téléphone du
+  duo prévient que le selfie s'affiche sur la télé.
+- **Saisir sa grille** : toute la liste d'un coup, une case note et une case mot par chanson, points en direct ; puis
+  le classement à la main (étape existante). « Passer au classement » attend la fin des enregistrements ; une note hors
+  barème le bloque.
+- Les relectures de chaque seconde (télé, téléphones, écran des jumeaux) ne prennent plus le tour d'écriture
+  (`base.lecture()`).
+- Tests : `tests/test_auto_18.py` (temps simulé : défilement, pause, Suivant pile à l'échéance, régie absente, deux
+  lectures pendant une écriture longue), `tests/test_photos_ecran_18.py`, calculs `colonnes`, `caseDe`,
+  `placesAutres`, `avance`, `dureeEntree` (node), tests d'écran (pays en lice, bouton sous le podium, selfie en grand
+  puis dans la carte, saisie directe).
+
+
 ## 1.7.1 — 20 novembre 2026 (plus d'erreurs 500 quand plusieurs téléphones notent en même temps)
 - **Correction** : avec plusieurs téléphones qui notaient ou envoyaient en même temps, certaines demandes échouaient en erreur 500 (`sqlite3.OperationalError: database is locked`, journal du Bac à sable du 19/11/2026, 7 téléphones). Une transaction lisait d'abord puis écrivait ; si un autre téléphone avait écrit entre-temps, SQLite refusait l'écriture tout de suite, sans attendre. `base()` prend maintenant le tour d'écriture dès le début (`BEGIN IMMEDIATE`) et attend son tour jusqu'à 30 s (avant : 10 s).
 - Tests : `tests/test_verrou_171.py` (8 écritures simultanées : 281 refus sur 320 avant, aucun après ; annulation sur erreur ; 4 téléphones qui notent en même temps que la relecture de l'état).
