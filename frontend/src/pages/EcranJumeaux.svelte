@@ -33,7 +33,10 @@
     <ul class="mosaique my-auto" aria-label="Duos de jumeaux de vote" style="--n: {Math.min(j.duos.length, 4)}">
       {#each j.duos as d, i (d.cle)}
         <li class="duo" class:allume={d.photos > 0} style="animation-delay: {i * 0.12}s">
-          <span class="noms"><span>{d.invites[0].prenom}</span><span class="lien" aria-hidden="true">{d.reciproques ? '⇄' : '→'}</span><span>{d.invites[1].prenom}</span></span>
+          <!-- 1.6.1 : les deux prénoms l'un sous l'autre, jamais coupés (deux « Grégoire … » se distinguent par la fin) -->
+          <span class="noms" aria-label="{d.invites[0].prenom} {d.reciproques ? 'et' : 'a pour jumeau'} {d.invites[1].prenom}">
+            <span class="nom">{d.invites[0].prenom}</span><span class="lien" aria-hidden="true">{d.reciproques ? '⇅' : '↓'}</span><span class="nom">{d.invites[1].prenom}</span>
+          </span>
           <span class="tranche">{d.tranche}{d.reciproques ? ' · réciproques' : ''}</span>
           {#if d.photos > 0}<span class="photo">📸 immortalisés</span>{/if}
         </li>
@@ -51,12 +54,14 @@
   .commande { min-height: 2.75rem; border-radius: 999px; border: 1px solid var(--border); background: var(--background); padding: 0 1rem; color: var(--muted-foreground); }
   .mosaique { display: grid; grid-template-columns: repeat(var(--n), minmax(0, 1fr)); gap: 1.2vw; width: 100%; padding: 2vh 0; }
   @media (orientation: portrait) { .mosaique { grid-template-columns: 1fr; } }
-  .duo { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 0.4vh; border-radius: 1rem; border: 1px solid var(--border);
+  .duo { display: flex; min-width: 0; flex-direction: column; align-items: center; gap: 0.8vh; border-radius: 1rem; border: 1px solid var(--border);
     background: var(--card); padding: 2.2vh 1vw; text-align: center; animation: entrer 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) both;
     transition: box-shadow 0.8s, border-color 0.8s, background 0.8s; }
-  .duo .noms { display: flex; max-width: 100%; align-items: baseline; justify-content: center; gap: 0.6vw; font-size: clamp(1rem, 5vh, 2.2rem); font-weight: 300; }
-  .duo .noms span:not(.lien) { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .duo .lien { color: var(--primary); }
+  .duo .noms { display: flex; max-width: 100%; flex-direction: column; align-items: center; line-height: 1.15;
+    font-size: clamp(1rem, 4.6vh, 2.1rem); font-weight: 300; }
+  /* le prénom entier, sur deux lignes s'il le faut, jamais « … » */
+  .duo .nom { max-width: 100%; overflow-wrap: anywhere; text-wrap: balance; }
+  .duo .lien { color: var(--primary); font-size: 0.7em; line-height: 1; margin: 0.15em 0; }
   .duo .tranche { font-size: clamp(0.75rem, 2.6vh, 1.1rem); color: var(--muted-foreground); }
   .duo .photo { font-size: clamp(0.75rem, 2.6vh, 1.1rem); color: var(--primary); }
   /* un duo immortalisé s'allume sous un projecteur */

@@ -2,7 +2,7 @@
   // Le dévoilement sur le téléphone d'un invité (1.0). On regarde le concours à la télé : chacun suit le
   // classement sur son téléphone, l'hôte fait avancer les pas depuis le sien.
   // Pas 0 : le classement de l'invité, avec ses points. Puis tous les points du jury d'un coup, puis ceux des autres
-  // invités chanson par chanson, de la moins servie à la mieux ; à chaque pas les totaux s'additionnent sur place,
+  // invités chanson par chanson, de la plus mal placée par le jury à la mieux placée ; à chaque pas les totaux s'additionnent sur place,
   // puis les lignes prennent leur nouvelle place. Au dernier pas : le podium de la soirée, et sous lui celui de l'invité.
   import { onMount, onDestroy } from 'svelte'
   import { flip } from 'svelte/animate'

@@ -1,5 +1,5 @@
 """Le dévoilement sur les téléphones (1.0) : chaque invité part de ses points, puis le jury d'un coup, puis le public
-chanson par chanson, de la moins bien servie à la mieux. Le téléphone ne voit jamais plus loin que le pas de l'hôte."""
+chanson par chanson, de la plus mal placée par le jury à la mieux placée. Le téléphone ne voit jamais plus loin que le pas de l'hôte."""
 from tests.conftest import PRENOMS
 
 MARQUES = [f"Avis de {p}" for p in PRENOMS]
@@ -42,8 +42,9 @@ def test_au_pas_pres_et_sans_double_compte(client, soiree):
     client.post(f"/api/soirees/{soiree.id}/pas", json={"pas": 4})       # trois chansons du public
     d = lire(client, soiree, "Barnabé")
     assert len(d["public"]) == 3
-    totaux = [x["total"] for x in d["public"]]
-    assert totaux == sorted(totaux)                                     # de la moins servie à la mieux
+    jury = d["jury"]
+    au_jury = [jury[str(x["chanson"])] for x in d["public"]]
+    assert au_jury == sorted(au_jury)                                   # de la plus mal placée par le jury à la mieux
     moi = d["moi"]["points"]
     assert all(x["autres"] == x["total"] - moi.get(str(x["chanson"]), 0) for x in d["public"])
 
@@ -77,3 +78,29 @@ def test_vrais_votes_visibles_par_les_invites(client, soiree):
     v = next(x for x in r["vrais"] if x["chanson"] == soiree.chansons[0])
     assert v["jury"] == 100 and v["total"] == 150 and v["rang"] == 1 and v["notre_rang"] >= 1
     assert r["comparaison"]["ensemble"]["chansons"] == 1
+
+
+def test_ordre_du_public_suit_le_classement_du_jury():
+    """1.6.1 : les points du public partent de la chanson la plus mal placée par le jury, pas de celle qui reçoit le
+    moins de points du public (sinon l'ordre trahit le résultat du public). Égalité au jury : la dernière passée d'abord."""
+    from app.main import _marche
+    chansons = [{"id": c, "ordre": c} for c in (1, 2, 3, 4)]
+    d = {"chansons": chansons, "invites": [
+        {"id": 10, "jury": True, "points": [{"chanson": 1, "points": 12}, {"chanson": 2, "points": 1},
+                                            {"chanson": 3, "points": 8}, {"chanson": 4, "points": 1}]},
+        {"id": 20, "jury": False, "points": [{"chanson": 1, "points": 1}, {"chanson": 2, "points": 12},
+                                             {"chanson": 3, "points": 10}, {"chanson": 4, "points": 8}]},
+    ]}
+    m = _marche(d)
+    assert m["jures"] == [10]
+    assert m["public"] == [4, 2, 3, 1]            # jury : 4 et 2 à 1 point (4 passée après), puis 3 (8), puis 1 (12)
+    assert m["fin"] == 1 + 4 + 1
+
+
+def test_ordre_du_public_sans_jury():
+    """Sans jury, l'ordre suit les points reçus, du moins au plus."""
+    from app.main import _marche
+    d = {"chansons": [{"id": c, "ordre": c} for c in (1, 2, 3)], "invites": [
+        {"id": 10, "jury": False, "points": [{"chanson": 1, "points": 12}, {"chanson": 2, "points": 1},
+                                             {"chanson": 3, "points": 8}]}]}
+    assert _marche(d)["public"] == [2, 3, 1]

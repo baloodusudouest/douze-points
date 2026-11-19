@@ -381,7 +381,7 @@ def test_une_soiree_entiere(serveur, navigateur):
     p.get_by_role("heading", name="Les jumeaux de vote").wait_for()
     duos = p.get_by_role("list", name="Duos de jumeaux de vote").locator("li")
     textes = duos.all_text_contents()
-    assert len(textes) == 2 and any("Aglaé→Hélène" in x for x in textes) and not any("%" in x for x in textes), textes
+    assert len(textes) == 2 and any("Aglaé↓Hélène" in x for x in textes) and not any("%" in x for x in textes), textes
     p.wait_for_timeout(900)
     regie.verifier("paysage-8-jumeaux")
     # le téléphone d'Aglaé : son jumeau, et « Immortaliser » (selfie) ; la photo du duo allume le duo sur la télé

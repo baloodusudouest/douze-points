@@ -23,7 +23,7 @@
   let hauteurEcran = $state(800)
 
   // Les pas (1.0), les mêmes que sur les téléphones des invités (le serveur les fixe : d.marche) :
-  // tous les points du jury d'un coup, puis ceux du public chanson par chanson, de la moins servie à la mieux.
+  // tous les points du jury d'un coup, puis ceux du public chanson par chanson, de la plus mal placée par le jury à la mieux placée (1.6.1).
   let etapes = $derived.by(() => {
     if (!d) return []
     const jures = new Set(d.marche.jures)

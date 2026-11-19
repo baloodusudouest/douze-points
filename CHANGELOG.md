@@ -1,6 +1,11 @@
 # Journal des versions
 
 
+## 1.6.1 — 19 novembre 2026 (ordre des points du public, prénoms des jumeaux)
+- **Points du public dans l'ordre du concours** (demande de Julien du 19/11/2026) : au dévoilement, les points du public sont appelés en partant de la chanson **la plus mal placée par le jury** jusqu'à la mieux placée, comme à l'Eurovision. Avant, l'appli partait de la chanson qui recevait le moins de points du public, ce qui laissait deviner le résultat du public. Égalité au jury : la dernière passée d'abord. Sans jury (ou si tout le monde est du jury), rien ne change : de la chanson qui reçoit le moins de points à celle qui en reçoit le plus.
+- **Écran des jumeaux de vote** (capture de Julien du 19/11/2026) : les prénoms étaient coupés (« Thiba… », « Grégoire … ») dès quatre duos par ligne, ce qui cachait aussi l'initiale qui distingue deux invités du même prénom. Les deux prénoms sont maintenant l'un sous l'autre (⇅ réciproques, ↓ sinon), en entier, sur deux lignes s'il le faut, jamais « … ».
+- Même ordre sur la télé et sur les téléphones (`_marche`, fixé par le serveur). Tests : `test_ordre_du_public_suit_le_classement_du_jury`, `test_ordre_du_public_sans_jury`.
+
 ## 1.6.0 — 19 novembre 2026 (jumeaux de vote et photos de la soirée)
 - **Jumeaux de vote** (demande de Julien du 19/11/2026, `docs/ajout-1.6.0.md`, conseil `docs/conseil-1.6.0.md`) : une fois le classement figé, chaque invité a son jumeau, l'invité dont les notes ressemblent le plus aux siennes (3 chansons communes au moins). L'accord est dit en tranches (« Jumeaux parfaits », « Très proches », « Proches », « Âmes sœurs… de loin »), jamais en pourcentage, qui laisserait deviner les notes de l'autre.
   - **Télé** : « Terminer » ouvre les résultats sur les téléphones et passe à l'écran « Les jumeaux de vote », tous les duos d'un coup (réciproques d'abord) ; un duo s'allume (📸 immortalisés) dès qu'une photo de lui arrive.

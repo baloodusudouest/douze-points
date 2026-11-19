@@ -955,19 +955,22 @@ def _devoilement(cx, s) -> dict:
 def _marche(d: dict) -> dict:
     """Les pas du dévoilement, les mêmes sur la télé et sur chaque téléphone (1.0).
     Pas 0 : le départ (sur un téléphone, les points de l'invité). Pas 1, s'il y a un jury : tous les points du jury
-    d'un coup. Puis un pas par chanson pour les points du public, de celle qui en reçoit le moins à celle qui en
-    reçoit le plus (égalité : la dernière passée d'abord). Dernier pas (`fin`) : le podium.
-    Sans jury, ou si tout le monde est du jury, tous les invités forment le public."""
+    d'un coup. Puis un pas par chanson pour les points du public, comme au concours : de la chanson la plus mal
+    placée par le jury à la mieux placée (1.6.1, demande de Julien du 19/11/2026 ; avant : par points du public
+    croissants, ce qui révélait l'ordre du public). Égalité au jury : la dernière passée d'abord.
+    Sans jury, ou si tout le monde est du jury, tous les invités forment le public : on part alors de la chanson qui
+    reçoit le moins de points à celle qui en reçoit le plus. Dernier pas (`fin`) : le podium."""
     jures = [i["id"] for i in d["invites"] if i["jury"]]
     if len(jures) == len(d["invites"]):
         jures = []
+    jury = {c["id"]: 0 for c in d["chansons"]}
     total = {c["id"]: 0 for c in d["chansons"]}
     for i in d["invites"]:
-        if i["id"] not in jures:
-            for p in i["points"]:
-                total[p["chanson"]] += p["points"]
+        for p in i["points"]:
+            (jury if i["id"] in jures else total)[p["chanson"]] += p["points"]
     passage = {c["id"]: c["ordre"] for c in d["chansons"]}
-    public = sorted(total, key=lambda c: (total[c], -passage[c]))
+    base_ordre = jury if jures else total
+    public = sorted(base_ordre, key=lambda c: (base_ordre[c], -passage[c]))
     return {"jures": jures, "public": public, "fin": (1 if jures else 0) + len(public) + 1}
 
 
