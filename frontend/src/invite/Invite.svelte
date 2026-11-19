@@ -258,8 +258,9 @@
     {:else if e.etat === 'devoilee'}
       {#if resultats}
         {@const monPodium = resultats.invites.find((i) => i.id === e.moi?.id)?.points.slice(-3).reverse() || []}
-        {#if photos && resultats.jumeaux}
-          <Jumeaux {jeton} {tel} moi={e.moi.id} jumeaux={resultats.jumeaux} onenvoye={(c) => { photoRecue(c); relireResultats() }} />
+        {#if e.moi && !estHote && !saisie && resultats.jumeaux}
+          <!-- 1.6.2 : le jumeau toujours, même sans Immich ; « Immortaliser » seulement si les photos sont actives -->
+          <Jumeaux {jeton} {tel} moi={e.moi.id} jumeaux={resultats.jumeaux} {photos} onenvoye={(c) => { photoRecue(c); relireResultats() }} />
         {/if}
         <h2 class="text-lg font-semibold">Le podium de la soirée</h2>
         <Podium places={resultats.classement.slice(0, 3).map((l) => ({ c: parId[l.chanson], points: l.total }))} />

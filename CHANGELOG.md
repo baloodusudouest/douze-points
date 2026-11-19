@@ -1,6 +1,10 @@
 # Journal des versions
 
 
+## 1.6.2 — 19 novembre 2026 (le jumeau de vote même sans Immich)
+- **« Ton jumeau de vote » toujours affiché** sur les téléphones après le dévoilement, même quand Immich n'est pas réglé (clé `DOUZE_POINTS_IMMICH_CLE` absente). Avant, le bandeau entier disparaissait avec les photos. Sans Immich, ni « Immortaliser » ni l'icône 📷 (pas d'album où envoyer). Remarqué par Julien dans le Bac à sable le 19/11/2026.
+- Test d'écran : sans clé Immich, le jumeau reste, ni bouton selfie ni icône.
+
 ## 1.6.1 — 19 novembre 2026 (ordre des points du public, prénoms des jumeaux)
 - **Points du public dans l'ordre du concours** (demande de Julien du 19/11/2026) : au dévoilement, les points du public sont appelés en partant de la chanson **la plus mal placée par le jury** jusqu'à la mieux placée, comme à l'Eurovision. Avant, l'appli partait de la chanson qui recevait le moins de points du public, ce qui laissait deviner le résultat du public. Égalité au jury : la dernière passée d'abord. Sans jury (ou si tout le monde est du jury), rien ne change : de la chanson qui reçoit le moins de points à celle qui en reçoit le plus.
 - **Écran des jumeaux de vote** (capture de Julien du 19/11/2026) : les prénoms étaient coupés (« Thiba… », « Grégoire … ») dès quatre duos par ligne, ce qui cachait aussi l'initiale qui distingue deux invités du même prénom. Les deux prénoms sont maintenant l'un sous l'autre (⇅ réciproques, ↓ sinon), en entier, sur deux lignes s'il le faut, jamais « … ».

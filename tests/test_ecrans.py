@@ -3,6 +3,7 @@
 Un serveur de démonstration est lancé sur un dossier vide (personnes inventées). À chaque écran : aucune
 erreur de page, aucun débordement horizontal. Sans interface compilée ou sans navigateur, ces tests sautent.
 """
+import dataclasses
 import os
 import shutil
 import socket
@@ -391,6 +392,19 @@ def test_une_soiree_entiere(serveur, navigateur):
     t.get_by_text("📸 Immortalisés").wait_for(timeout=10000)
     p.get_by_text("📸 immortalisés").wait_for(timeout=10000)
     regie.verifier("paysage-8-jumeaux-immortalises")
+    # 1.6.2 : sans Immich réglé, le jumeau reste affiché, mais ni « Immortaliser » ni l'icône 📷
+    cfg_photos = main.ETAT["cfg"]
+    main.ETAT["cfg"] = dataclasses.replace(cfg_photos, immich_cle="")
+    try:
+        t.reload()
+        t.get_by_text("Ton jumeau de vote : Hélène").wait_for(timeout=10000)
+        assert t.locator('input[capture="user"]').count() == 0
+        assert t.get_by_role("button", name="Ajouter des photos de la soirée").count() == 0
+        assert t.get_by_text("Les photos vont dans l'album").count() == 0
+    finally:
+        main.ETAT["cfg"] = cfg_photos
+    t.reload()
+    t.get_by_text("Ton jumeau de vote : Hélène").wait_for(timeout=10000)
     p.get_by_role("button", name="Fermer").click()
     p.set_viewport_size(PC)
     p.get_by_text("Soirée dévoilée").wait_for()

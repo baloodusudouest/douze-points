@@ -3,8 +3,9 @@
   // l'ont choisi comme jumeau (un jumeau n'est pas toujours réciproque). Un bouton « Immortaliser » ouvre l'appareil
   // photo en selfie ; dès qu'une photo du duo est arrivée (de l'un ou de l'autre), le duo est « immortalisé ».
   // Jamais de note ni de pourcentage : une tranche (« Très proches »), qui ne laisse pas deviner les notes de l'autre.
+  // 1.6.2 : le jumeau s'affiche toujours ; « Immortaliser » seulement si les photos sont actives (Immich réglé).
   import Photo from './Photo.svelte'
-  let { jeton, tel, moi, jumeaux, onenvoye = () => {} } = $props()
+  let { jeton, tel, moi, jumeaux, photos = true, onenvoye = () => {} } = $props()
 
   const autre = (d) => d.invites.find((x) => x.id !== moi)
   const titre = (d) => d.reciproques ? `Ton jumeau de vote : ${autre(d).prenom}`
@@ -18,7 +19,8 @@
         <p class="text-xs tracking-wide text-muted-foreground uppercase">{d.reciproques ? 'Jumeaux réciproques' : 'Jumeaux de vote'} · {d.tranche}</p>
         <p class="mt-1 text-xl font-light">{titre(d)}</p>
         <p class="mt-1 text-sm text-muted-foreground">Vos notes se ressemblent plus qu'avec n'importe qui d'autre ce soir.</p>
-        {#if d.photos > 0}
+        {#if !photos}
+        {:else if d.photos > 0}
           <p class="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-primary">📸 Immortalisés
             <Photo {jeton} {tel} duo={autre(d).id} selfie libelle="En reprendre une" classe="text-sm text-muted-foreground underline" {onenvoye} />
           </p>
@@ -27,7 +29,7 @@
         {/if}
       </div>
     {/each}
-    <p class="text-xs text-muted-foreground">Les photos vont dans l'album de la soirée, chez l'hôte. Personne ne les voit ici.</p>
+    {#if photos}<p class="text-xs text-muted-foreground">Les photos vont dans l'album de la soirée, chez l'hôte. Personne ne les voit ici.</p>{/if}
   </section>
 {:else if !jumeaux.a_jumeau}
   <p class="mb-6 rounded-2xl border bg-card p-4 text-sm text-muted-foreground">Pas de jumeau de vote ce soir : trop peu de chansons notées en commun avec les autres.</p>
