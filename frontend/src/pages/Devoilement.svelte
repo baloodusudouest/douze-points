@@ -10,6 +10,7 @@
   import Embleme from '$lib/Embleme.svelte'
   import Compteur from '$lib/Compteur.svelte'
   import EcranJumeaux from './EcranJumeaux.svelte'
+  import DernierVote from '$lib/DernierVote.svelte'
   let { soiree, onferme } = $props()
 
   let d = $state(null)
@@ -77,6 +78,16 @@
   let plus = $derived(Math.max(1, ...tableau.map((l) => l.total)))
   let recu = $derived(new Set(courant ? (courant.chanson ? [courant.chanson] : courant.lot.map((p) => p.chanson)) : []))
   let teinte = $derived(courant?.jury ? 'jury' : 'public')
+  // 1.7.0 : le dernier pas du public joue l'animation du dernier vote (lib/DernierVote.svelte) à la place du tableau.
+  // Elle ne se joue que si l'on vient du pas d'avant (« Suivant », ou le téléphone de l'hôte) ; au rechargement ou en
+  // revenant du podium, l'écran montre directement la fin.
+  let dernierPas = $derived(!!courant && courant.phase === 'public' && pas === etapes.length)
+  let animerDernier = $state(false)
+  let totauxDernier = $derived.by(() => {
+    if (!dernierPas) return {}
+    const c = cumul(pas)
+    return Object.fromEntries(d.chansons.map((x) => [x.id, c.jury[x.id] + c.pub[x.id]]))
+  })
 
   // Cotillons du podium : une centaine de papiers, chacun avec sa place, sa couleur, sa durée et son retard.
   const COULEURS = ['#e5559f', '#f2ece2', '#a98fd8', '#7f9cc4', '#8fae6b', '#e0884a']
@@ -123,6 +134,7 @@
 
   function aller(n, envoyer = true) {
     n = Math.max(0, Math.min(fin, n))
+    animerDernier = n === etapes.length && pas === n - 1 && etapes[n - 1]?.phase === 'public'
     if (envoyer) dernierGeste = Date.now()
     clearTimeout(attenteTri)
     if (n === pas + 1 && n <= etapes.length) {
@@ -157,6 +169,15 @@
     <!-- Toute la surface avance d'un pas ; les trois commandes discrètes sont posées par-dessus -->
     <button class="absolute inset-0 cursor-default" aria-label="Pas suivant" onclick={() => (fini ? null : aller(pas + 1))}></button>
 
+    {#if dernierPas}
+      {#key pas}
+        <div class="pointer-events-none relative h-full px-[max(1rem,env(safe-area-inset-left))] pt-10 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
+          <p class="absolute inset-x-0 top-[max(0.6rem,env(safe-area-inset-top))] text-center text-lg font-light" style="color: var(--public)">Le dernier vote du public</p>
+          <DernierVote chansons={d.chansons} totaux={totauxDernier} dernier={courant.chanson} gain={courant.total}
+                       ordre={d.classement.map((l) => l.chanson)} anime={animerDernier} />
+        </div>
+      {/key}
+    {:else}
     <div class="pointer-events-none relative grid h-full gap-x-8 p-[max(1rem,env(safe-area-inset-top))] landscape:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       <div class="min-w-0">
         {#if avecJury}
@@ -264,6 +285,8 @@
         {/if}
       </div>
     </div>
+
+    {/if}
 
     {#if fini}
       <div class="cotillons" aria-hidden="true">

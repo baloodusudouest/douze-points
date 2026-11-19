@@ -1,5 +1,11 @@
 # Journal des versions
 
+## 1.7.0 — 19 novembre 2026 (l'animation du dernier vote du public)
+- **Le dernier vote du public** se joue comme à la finale de l'Eurovision Asia 2026, sur la télé et sur les téléphones : au centre l'échelle des places, à gauche le pays en tête (« En tête »), à droite le dernier pays (« + X points pour gagner ») qui monte l'échelle très vite, ralentit de la 6e à la 2e place, s'arrête 2 secondes à « + 1 point pour gagner », puis monte d'un coup jusqu'à son total s'il dépasse le premier (« Vainqueur », l'ancien premier glisse en 2e). S'il ne passe pas devant, il s'arrête où il est, « + X » disparaît et « Vainqueur » se pose sur le premier. Cotillons, puis le podium au pas suivant. Choix de Julien du 19/11/2026 (`docs/ajout-1.7.0.md`, `docs/conseil-1.7.0.md`).
+- L'animation ne se joue qu'en direct (« Suivant ») ; au rechargement ou pour un téléphone arrivé en retard, la fin s'affiche tout de suite. « Réduire les animations » : la fin directe.
+- `frontend/src/lib/dernier.js` (calculs, testés par `node --test` via `tests/test_dernier_js.py`), `frontend/src/lib/DernierVote.svelte` ; test d'écran du dernier vote (télé et téléphone, rechargement).
+- Les boutons « Revenir » / « Suivant » du dévoilement restent à l'hôte seul (téléphone connecté) : c'était déjà le cas ; le Bac à sable les montrait sur ses téléphones simulés (corrigé dans le Bac à sable 0.1.5).
+
 
 ## 1.6.2 — 19 novembre 2026 (le jumeau de vote même sans Immich)
 - **« Ton jumeau de vote » toujours affiché** sur les téléphones après le dévoilement, même quand Immich n'est pas réglé (clé `DOUZE_POINTS_IMMICH_CLE` absente). Avant, le bandeau entier disparaissait avec les photos. Sans Immich, ni « Immortaliser » ni l'icône 📷 (pas d'album où envoyer). Remarqué par Julien dans le Bac à sable le 19/11/2026.

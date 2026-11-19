@@ -364,7 +364,28 @@ def test_une_soiree_entiere(serveur, navigateur):
     invite.verifier("tel-8-devoilement-public")
     p.wait_for_timeout(600)
     regie.verifier("paysage-7-public")
+    # 1.7.0 : le dernier vote du public, joué en accéléré (le rythme réel : lib/dernier.js, testé par node)
+    vite = "window.__DOUZE_POINTS_RYTHME = {rapide: 200, lent: 60, pause: 300, final: 100, minimum: 20}"
+    p.evaluate(vite)
+    t.evaluate(vite)
     for _ in range(40):
+        if p.get_by_text("Le dernier vote du public").count():
+            break
+        suivant.click(position={"x": 300, "y": 150})
+    dernier_tv = p.get_by_role("group", name="Le dernier vote du public")
+    dernier_tv.wait_for()
+    dernier_tv.get_by_text("Vainqueur", exact=True).wait_for(timeout=10000)          # fin de l'animation sur la télé
+    p.wait_for_timeout(500)
+    regie.verifier("paysage-7-dernier-vote")
+    dernier_tel = t.get_by_role("group", name="Le dernier vote du public")
+    dernier_tel.wait_for(timeout=10000)                                    # le téléphone a suivi, et joue aussi
+    dernier_tel.get_by_text("Vainqueur", exact=True).wait_for(timeout=10000)
+    assert dernier_tel.get_by_text("pour gagner").count() == 0            # « + X » disparaît à la fin
+    invite.verifier("tel-8-dernier-vote")
+    # recharger au dernier pas : la fin tout de suite, sans rejouer la montée
+    t.reload()
+    t.get_by_role("group", name="Le dernier vote du public").get_by_text("Vainqueur", exact=True).wait_for(timeout=10000)
+    for _ in range(5):
         if p.get_by_role("button", name="Terminer").count():
             break
         suivant.click(position={"x": 300, "y": 150})

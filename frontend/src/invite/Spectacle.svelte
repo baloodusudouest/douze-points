@@ -11,6 +11,7 @@
   import { drapeau, normaliser } from '$lib/pays.js'
   import Compteur from '$lib/Compteur.svelte'
   import Podium from './Podium.svelte'
+  import DernierVote from '$lib/DernierVote.svelte'
   let { appel, regie = null } = $props()      // regie : la soirée vue par l'hôte connecté (lui seul fait avancer)
 
   let d = $state(null)
@@ -18,6 +19,7 @@
   let triTotaux = $state({})                   // les totaux qui décident de l'ordre, avec un temps de retard
   let attente, minuterie, vu = -1
   let hauteur = $state(700)
+  let animerDernier = $state(false)
   const RETARD_TRI = 1300
 
   async function lire() {
@@ -28,6 +30,8 @@
       const premier = !d
       d = n
       if (n.pas !== vu) {
+        // 1.7.0 : l'animation du dernier vote ne se joue que si ce téléphone a vu le pas d'avant (pas au rechargement)
+        animerDernier = n.pas === n.fin - 1 && vu === n.fin - 2
         vu = n.pas
         clearTimeout(attente)
         if (premier) triTotaux = totaux()
@@ -63,6 +67,10 @@
     return l.sort((a, b) => t(b) - t(a) || a.c.ordre - b.c.ordre)
   })
   let parId = $derived(d ? Object.fromEntries(d.chansons.map((c) => [c.id, c])) : {})
+  // 1.7.0 : le dernier pas du public, joué par lib/DernierVote.svelte (comme à la télé)
+  let dernierPas = $derived(!!d && !fini && !!appelee && d.pas === d.fin - 1)
+  let totauxDernier = $derived(dernierPas ? Object.fromEntries(lignesDe(d).map((l) => [l.c.id, l.total])) : {})
+  let ordreDernier = $derived(d ? [...d.chansons].sort((a, b) => a.ordre - b.ordre).map((c) => c.id) : [])
   // Toutes les chansons tiennent dans l'écran, sous le bandeau et au-dessus des commandes de l'hôte
   let h = $derived(d ? Math.min(40, Math.max(13, (hauteur - 150 - (regie ? 70 : 0)) / d.chansons.length - 2)) : 30)
 
@@ -114,6 +122,13 @@
           <Podium places={monPodium} petit />
         {/if}
       </div>
+    {:else if dernierPas}
+      {#key d.pas}
+        <div class="min-h-0 flex-1">
+          <DernierVote chansons={d.chansons} totaux={totauxDernier} dernier={appelee.chanson} gain={appelee.autres}
+                       ordre={ordreDernier} anime={animerDernier} compact />
+        </div>
+      {/key}
     {:else}
       <div class="entete" style="--h: {h}px" aria-hidden="true">
         <span class="flex-1">Pays</span>{#if d.moi}<span class="col moi">Moi</span>{/if}{#if d.avec_jury}<span class="col jury">Jury</span>{/if}<span class="col pub">Invités</span><span class="col tot">Total</span>
