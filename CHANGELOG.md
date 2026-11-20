@@ -1,5 +1,47 @@
 # Journal des versions
 
+## 1.11.0 — 20 novembre 2026 (sons sur la télé, compte à rebours avant la révélation, commentaires dans le classement)
+Trois demandes de Julien du 20/11/2026 ; dossier `docs/ajout-1.11.0.md`, conseil `docs/conseil-1.11.0.md` (le
+conseil prime là où ils diffèrent).
+- **Sons sur la télé seulement** (`frontend/src/lib/sons.js`, jamais importé par `src/invite/` : un test parcourt les
+  imports). Neuf sons fabriqués par le navigateur (Web Audio), tous en ré majeur : `attente`, `carillon`, `tous_la`,
+  `point` (gamme pentatonique, plus haut avec plus de points), `douze`, `tambour`, `depasse`, `fanfare` (motif du
+  prélude du *Te Deum* de Charpentier, domaine public, joué par oscillateurs), `applaudissements`. Un seul
+  AudioContext, créé au premier geste sur la régie ; gain général (volume × muet) ; rafales espacées d'au moins 90 ms,
+  6 voix au plus ; `resume()` au retour sur l'onglet.
+  - Écran du QR code : musique d'attente en boucle tant qu'il manque quelqu'un, carillon une fois par invité qui
+    arrive (pas pour ceux déjà là à l'ouverture de l'écran), accord « tout le monde est là » une seule fois.
+  - Dévoilement : un son par pays (public, et chaque ligne du top 5 du jury), « douze » quand le pays a reçu un 12 ;
+    un seul roulement de tambour, du compte à rebours jusqu'au gagnant ; un son par pays dépassé pendant la remontée
+    (`DernierVote` : `ondepasse`, au rythme de l'animation, même accélérée) ; fanfare puis applaudissements au gagnant.
+  - Haut-parleur sur la télé (muet gardé par l'écran, barré et rose quand il est coupé) ; « Activer le son » quand le
+    navigateur le bloque, avec : « Le son se réactive d'un toucher après chaque rechargement. Sur iPhone, le bouton
+    silencieux le coupe. »
+  - Réglages › Dévoilement : interrupteur « Sons sur la télé », volume, la liste des 9 sons avec « Écouter »,
+    « Remplacer par un fichier » (lu dans le navigateur avant l'envoi : refusé s'il ne se lit pas) et « Revenir au son
+    de l'appli ».
+  - Serveur : réglages `sons` (oui) et `volume_sons` (70), dans la sauvegarde des réglages ; `GET /api/sons`,
+    `PUT/GET/DELETE /api/sons/<nom>` (derrière la session, 5 Mo au plus, mp3/m4a/ogg/wav reconnus aux premiers
+    octets, un fichier par son dans `<données>/sons/`). Les fichiers ne sont pas dans la sauvegarde des réglages.
+- **Compte à rebours « 8b »** avant la remontée du dernier pays (`lib/CompteRebours.svelte`) : 5 → 0, un cadre blanc
+  qui se resserre puis le grand chiffre fin au halo rose ; « La révélation dans… » au-dessus ; un voile blanc léger
+  après le 0. Mouvement réduit : les chiffres seuls, toujours 6 s. Calé sur l'heure du serveur (`auto.ecoule_ms`,
+  d'après `pas_le`) : une télé rechargée pendant le compte reprend au bon chiffre ; après, plus de compte.
+  `duree_revelation()` + 6 s ; `revelation_ms` des téléphones compte aussi les 6 s (`compte_ms` à part).
+  « Suivant » au toucher est ignoré pendant le compte (télé, téléphone de l'hôte, et serveur sauf `depuis`).
+- **Téléphones pendant le compte** : « Regardez la télé » (et rien du dernier pays dans le bandeau), puis la remontée ;
+  avant, ils pouvaient montrer le gagnant avant la télé (faille relevée par le conseil).
+- **Commentaires dans le classement du téléphone** : sous « 3e · noté 15 », une ligne tronquée de son commentaire
+  (rien s'il n'y en a pas) ; un toucher sur la ligne ouvre une feuille en bas (pays, note, commentaire entier) ;
+  poignée et flèches inchangées. Lignes de 72 px (avant 56).
+- Pas fait : la ligne de commentaire dans l'exemple du mode d'emploi de la télé (les téléphones dessinés sont serrés,
+  1.10.3) ; le retrait de l'ancienne route `/api/services` annoncé en 1.10.0 (toujours là).
+- Tests : `tests/test_sons_111.py`, `tests/test_sons_invite_111.py`, tests d'écran (compte à rebours, « Regardez la
+  télé », commentaire + feuille + glisser, faux AudioContext : sons demandés sur la télé, aucun sur les téléphones,
+  Réglages des sons sur PC et iPhone). Tests : 167.
+- **Jamais essayé sur la vraie installation** : aucun son n'a été entendu sur une vraie télé (tests avec un faux
+  AudioContext seulement).
+
 ## 1.10.3 — 20 novembre 2026 (écran télé sur un petit écran en paysage)
 - Vu par Julien sur iPhone en paysage (captures du 20/11/2026) :
   - **écran du QR code** : le QR code recouvrait « Mode d'emploi » et le bouton « Rejouer le démarrage » (la barre des boutons flottait par-dessus). La barre a maintenant sa propre place en bas ; le QR code tient dans la place qui reste ;

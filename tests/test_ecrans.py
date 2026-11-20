@@ -5,6 +5,7 @@ erreur de page, aucun débordement horizontal. Sans interface compilée ou sans 
 """
 import dataclasses
 import os
+import re
 import shutil
 import socket
 import threading
@@ -95,6 +96,44 @@ def navigateur():
         nav.close()
 
 
+# 1.11.0 : un faux AudioContext (aucun son réel dans les tests) ; il compte les contextes créés et les sources
+# lancées, et lib/sons.js note chaque son demandé dans window.__DOUZE_POINTS_SONS.
+FAUX_AUDIO = """
+window.__DOUZE_POINTS_SONS = []
+window.__AUDIO = { contextes: 0, sources: 0 }
+class FauxParam { constructor(v) { this.value = v } setValueAtTime(v) { this.value = v; return this }
+  linearRampToValueAtTime(v) { this.value = v; return this } exponentialRampToValueAtTime(v) { this.value = v; return this }
+  setTargetAtTime(v) { this.value = v; return this } cancelScheduledValues() { return this } }
+class FauxNoeud { constructor() { this.gain = new FauxParam(1); this.frequency = new FauxParam(440); this.detune = new FauxParam(0)
+    this.Q = new FauxParam(1); this.playbackRate = new FauxParam(1); this.type = ''; this.buffer = null; this.loop = false }
+  connect(n) { return n } disconnect() {} start() { window.__AUDIO.sources++ } stop() {} }
+class FauxContexte {
+  constructor() { window.__AUDIO.contextes++; this.state = 'suspended'; this.sampleRate = 8000; this.destination = new FauxNoeud()
+    this.t0 = performance.now(); this.onstatechange = null }
+  get currentTime() { return (performance.now() - this.t0) / 1000 }
+  resume() { this.state = 'running'; if (this.onstatechange) this.onstatechange(); return Promise.resolve() }
+  createGain() { return new FauxNoeud() } createOscillator() { return new FauxNoeud() }
+  createBufferSource() { return new FauxNoeud() } createBiquadFilter() { return new FauxNoeud() }
+  createBuffer(c, n, sr) { const d = new Float32Array(n); return { duration: n / sr, getChannelData: () => d } }
+  decodeAudioData() { return Promise.reject(new Error('faux contexte')) }
+}
+window.AudioContext = FauxContexte
+window.webkitAudioContext = FauxContexte
+"""
+
+
+def wav_de_demo() -> bytes:
+    """Un vrai petit WAV (0,1 s de silence, 8 kHz, 16 bits), que le navigateur sait lire."""
+    import struct
+    donnees = b"\x00\x00" * 800
+    return (b"RIFF" + struct.pack("<I", 36 + len(donnees)) + b"WAVEfmt " + struct.pack("<IHHIIHH", 16, 1, 1, 8000, 16000, 2, 16)
+            + b"data" + struct.pack("<I", len(donnees)) + donnees)
+
+
+def sons_demandes(page) -> list:
+    return page.evaluate("window.__DOUZE_POINTS_SONS || []")
+
+
 def image_de_demo(taille: str, texte: str) -> dict:
     """Une image inventée, fabriquée dans le navigateur de test n'est pas nécessaire : un PNG uni suffit."""
     import struct, zlib
@@ -135,6 +174,7 @@ class Ecran:
 def test_une_soiree_entiere(serveur, navigateur):
     # ---------------- régie, sur PC : préparer
     regie = Ecran(navigateur, PC)
+    regie.contexte.add_init_script(FAUX_AUDIO)
     p = regie.page
     p.goto(serveur)
     # l'ouverture : les projecteurs, le 12 qui brille, puis la page ; elle s'efface seule
@@ -219,6 +259,14 @@ def test_une_soiree_entiere(serveur, navigateur):
     for texte in ("Logo de l'évènement", "Poster de l'évènement"):
         assert p.get_by_alt_text(texte).evaluate("i => i.complete && i.naturalWidth > 0")
     regie.verifier("pc-3-accueil")
+    # 1.11.0 : la musique d'attente, et le haut-parleur de la télé (muet gardé par l'écran, bien visible)
+    assert "attente" in sons_demandes(p)
+    p.get_by_role("button", name="Couper le son").click()
+    p.get_by_role("button", name="Remettre le son", pressed=True).wait_for()
+    assert p.evaluate("localStorage.getItem('douze-points:muet')") == "1"
+    regie.verifier("pc-3-accueil-muet")
+    p.get_by_role("button", name="Remettre le son").click()
+    p.get_by_role("button", name="Couper le son", pressed=False).wait_for()
     p.set_viewport_size(PAYSAGE)
     regie.verifier("paysage-3-accueil")
     p.set_viewport_size(PC)
@@ -226,6 +274,7 @@ def test_une_soiree_entiere(serveur, navigateur):
 
     # ---------------- un invité ouvre le lien avant l'ouverture
     invite = Ecran(navigateur, TELEPHONE, tactile=True)
+    invite.contexte.add_init_script(FAUX_AUDIO)
     t = invite.page
     t.goto(lien)
     t.get_by_role("button", name="Passer l'ouverture").click()   # un toucher la passe
@@ -365,7 +414,33 @@ def test_une_soiree_entiere(serveur, navigateur):
     t.get_by_role("button", name="Descendre Italie").click()                   # contre ses notes : France devant
     t.get_by_role("button", name="Reclasser d'après mes notes").wait_for()
     assert "France" in lignes.nth(0).text_content()
+    assert t.get_by_role("dialog").count() == 0                              # les flèches n'ouvrent pas la feuille
     invite.verifier("tel-5-classement")
+    # 1.11.0 : sous chaque chanson, le début de son commentaire ; un toucher le montre en entier (feuille du bas)
+    ligne = t.get_by_role("button", name="Voir le commentaire sur France")
+    assert "« Avis 14 »" in ligne.text_content()
+    ligne.click()
+    feuille = t.get_by_role("dialog", name="Commentaire sur France")
+    feuille.get_by_text("« Avis 14 »").wait_for()
+    feuille.get_by_text("noté 14 sur 20").wait_for()
+    t.wait_for_timeout(400)                                                  # la feuille a fini de monter
+    invite.verifier("tel-5-commentaire")
+    feuille.get_by_role("button", name="Fermer").click()
+    feuille.wait_for(state="detached")
+    # puis le glisser par la poignée marche toujours (lignes de 72 px) : l'Italie remonte d'une ligne…
+    poignee = t.get_by_role("button", name="Glisser Italie").bounding_box()
+    x, y = poignee["x"] + poignee["width"] / 2, poignee["y"] + poignee["height"] / 2
+    t.mouse.move(x, y)
+    t.mouse.down()
+    t.mouse.move(x, y - 40, steps=4)
+    t.mouse.move(x, y - 76, steps=4)
+    t.mouse.up()
+    t.wait_for_timeout(300)
+    assert "Italie" in lignes.nth(0).text_content() and "France" in lignes.nth(1).text_content()
+    assert t.get_by_role("dialog").count() == 0                              # la poignée n'ouvre pas la feuille
+    t.get_by_role("button", name="Descendre Italie").click()                 # … et redescend : l'ordre d'avant
+    t.wait_for_timeout(300)
+    assert "France" in lignes.nth(0).text_content()
     t.get_by_role("button", name="Envoyer mon classement").first.click()
     t.get_by_text("elles ne recevront aucun point de toi").wait_for()
     invite.verifier("tel-6-confirmer")
@@ -415,10 +490,22 @@ def test_une_soiree_entiere(serveur, navigateur):
     vite = "window.__DOUZE_POINTS_RYTHME = {rapide: 200, lent: 60, pause: 300, final: 100, minimum: 20}"
     p.evaluate(vite)
     t.evaluate(vite)
+    compte = p.get_by_role("timer", name=re.compile("La révélation dans"))
     for _ in range(40):
-        if p.get_by_text("Le dernier vote du public").count():
+        if compte.count() or p.get_by_text("Le dernier vote du public").count():
             break
         suivant.click(position={"x": 300, "y": 150})
+    # 1.11.0 : le compte à rebours (8b) sur la télé ; le téléphone dit « Regardez la télé » (rien du gagnant)
+    compte.wait_for(timeout=3000)
+    p.get_by_text("La révélation dans…").wait_for()
+    t.get_by_text("Regardez la télé").wait_for(timeout=5000)
+    assert t.get_by_role("group", name="Le dernier vote du public").count() == 0
+    invite.verifier("tel-8-regardez-la-tele")
+    p.wait_for_timeout(700)
+    regie.verifier("paysage-7-compte-a-rebours")
+    suivant.click(position={"x": 300, "y": 150}, force=True)               # pendant le compte : sans effet
+    assert compte.count() == 1
+    compte.wait_for(state="detached", timeout=8000)
     dernier_tv = p.get_by_role("group", name="Le dernier vote du public")
     dernier_tv.wait_for()
     dernier_tv.get_by_text("Vainqueur", exact=True).wait_for(timeout=10000)          # fin de l'animation sur la télé
@@ -440,6 +527,12 @@ def test_une_soiree_entiere(serveur, navigateur):
     assert p.get_by_role("list", name="Podium").locator("li").count() == 3
     p.wait_for_timeout(600)
     regie.verifier("paysage-8-podium")
+    # 1.11.0 : la télé a demandé ses sons (un seul contexte audio) ; le téléphone de l'invité, aucun
+    demandes = sons_demandes(p)
+    for nom in ("point", "tambour", "fanfare", "applaudissements"):
+        assert nom in demandes, (nom, demandes)
+    assert p.evaluate("window.__AUDIO.contextes") == 1 and p.evaluate("window.__AUDIO.sources") > 0
+    assert sons_demandes(t) == [] and t.evaluate("window.__AUDIO.contextes") == 0
     # sur le téléphone : le podium de la soirée, et sous lui celui de l'invité
     t.get_by_role("list", name="Podium de la soirée").wait_for(timeout=10000)
     t.get_by_role("list", name="Ton podium").wait_for()
@@ -506,6 +599,7 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     """Seconde soirée, préparée par les adresses de la régie : dévoilement « jury puis public », fiche, vrais votes,
     puis suppression. Les invités sont ceux de la première soirée."""
     regie = Ecran(navigateur, PC)
+    regie.contexte.add_init_script(FAUX_AUDIO)
     p = regie.page
     p.goto(serveur)
     p.get_by_role("button", name="Passer l'ouverture").click()
@@ -593,6 +687,14 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     for _ in range(40):
         if p.get_by_role("button", name="Voir les jumeaux de vote").count():
             break
+        p.wait_for_timeout(150)
+        if "compte" not in vus and p.get_by_role("timer", name=re.compile("La révélation dans")).count():
+            # 1.11.0 : pendant le compte à rebours, le téléphone de l'hôte dit « Regardez la télé », « Suivant » éteint
+            vus.add("compte")
+            h.get_by_text("Regardez la télé").wait_for(timeout=5000)
+            assert h.get_by_role("button", name="Suivant", exact=True).is_disabled()
+            hote.verifier("tel-12-hote-regardez-la-tele")
+            regie.verifier("paysage-12-compte-a-rebours")
         suivant.click(position={"x": 300, "y": 150})
         for phase in ("Les points du public",):
             if phase not in vus and p.get_by_text(phase).count():
@@ -612,7 +714,10 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
             assert p.get_by_role("list", name="Classement du groupe").locator("li").count() == len(PAYS)
             bas = p.get_by_role("list", name="Classement du groupe").locator("li").last.bounding_box()
             assert bas["y"] + bas["height"] <= p.viewport_size["height"]
-    assert vus == {"top", "Les points du public"}
+    assert vus == {"top", "Les points du public", "compte"}
+    # 1.11.0 : sur la télé, le top 5 du jury a sonné ; sur le téléphone de l'hôte (page des invités), aucun son
+    assert "point" in sons_demandes(p) or "douze" in sons_demandes(p)
+    assert sons_demandes(h) == [] and h.evaluate("window.__AUDIO.contextes") == 0
     p.get_by_role("list", name="Podium").wait_for()
     p.wait_for_timeout(1800)                                     # le podium est monté, les cotillons tombent
     regie.verifier("paysage-13-podium")
@@ -675,6 +780,7 @@ def test_reglages_webhook_et_restaurer(serveur, navigateur):
     chez l'Anneau (faux Anneau), montre les différences et les applique. Sur PC et sur iPhone."""
     for taille, nom in ((PC, "pc"), (TELEPHONE, "tel")):
         ecran = Ecran(navigateur, taille, tactile=taille is TELEPHONE)
+        ecran.contexte.add_init_script(FAUX_AUDIO)
         p = ecran.page
         p.goto(serveur)
         p.get_by_role("button", name="Passer l'ouverture").click()
@@ -683,6 +789,30 @@ def test_reglages_webhook_et_restaurer(serveur, navigateur):
         p.get_by_role("heading", name="Nouvelle soirée").wait_for()
         p.get_by_role("link", name="Réglages").click()
         p.get_by_role("button", name="Au demi-point (12,5)", pressed=True).wait_for()
+
+        # 1.11.0 : les sons (Réglages › Dévoilement) : interrupteur, volume, les 9 sons, écouter, remplacer, revenir
+        sons = p.get_by_role("list", name="Les sons")
+        sons.locator("li").nth(8).wait_for()
+        assert sons.locator("li").count() == 9
+        interrupteur = p.get_by_role("switch", name="Sons sur la télé")
+        assert interrupteur.get_attribute("aria-checked") == "true"
+        interrupteur.click()
+        p.get_by_role("switch", name="Sons sur la télé", checked=False).wait_for()
+        interrupteur.click()
+        p.get_by_role("switch", name="Sons sur la télé", checked=True).wait_for()
+        p.get_by_role("button", name="Écouter : Fanfare du gagnant").click()
+        assert "fanfare" in sons_demandes(p)
+        fichier = p.get_by_label("Remplacer par un fichier : Fanfare du gagnant")
+        fichier.set_input_files(image_de_demo("4x4", "pas-un-son"))           # illisible : refusé avant l'envoi
+        p.get_by_text("ne se lit pas dans ce navigateur").wait_for()
+        fichier.set_input_files({"name": "fanfare.wav", "mimeType": "audio/wav", "buffer": wav_de_demo()})
+        p.get_by_text("Fanfare du gagnant : remplacé par « fanfare.wav ».").wait_for()
+        sons.get_by_text("Fichier de l'hôte").wait_for()
+        assert httpx.get(f"{serveur}/api/sons").status_code == 401                # derrière la session
+        ecran.verifier(f"{nom}-19-sons")
+        p.get_by_role("button", name="Revenir au son de l'appli : Fanfare du gagnant").click()
+        p.get_by_text("Fanfare du gagnant : de nouveau le son de l'appli.").wait_for()
+        assert sons.get_by_text("Fichier de l'hôte").count() == 0
 
         champ = p.get_by_label("Adresse du webhook de Home Assistant")
         champ.fill("pas une adresse")

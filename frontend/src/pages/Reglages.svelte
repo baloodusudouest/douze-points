@@ -3,6 +3,7 @@
   import { onMount } from 'svelte'
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
+  import * as sons from '$lib/sons.js'
   let { session, deconnecter } = $props()
 
   let concours = $state([])
@@ -25,7 +26,52 @@
     webhook = r.ha_webhook ?? ''
     for (const e of ETAPES) temps[e.cle] = r[e.cle] ?? temps[e.cle]
     auto = r.devoilement_auto ?? true
+    sonsActifs = r.sons ?? true
+    volumeSons = r.volume_sons ?? 70
+    sons.regler(r)
     charges = true
+  }
+  // 1.11.0 : les sons sur la télé : oui / non, un volume, et chaque son remplaçable par un fichier
+  let sonsActifs = $state(true)
+  let volumeSons = $state(70)
+  let listeSons = $state([])
+  let sonsMessage = $state('')
+  let enCours = $state('')          // le son dont un fichier part
+  async function lireSons() { try { listeSons = await api.get('/api/sons') } catch (x) { sonsMessage = x.message } }
+  async function reglerSons(corps) {
+    sonsMessage = ''
+    try { prendre(await api.put('/api/reglages', corps)) } catch (x) { sonsMessage = x.message; prendre(await api.get('/api/reglages')) }
+  }
+  async function remplacer(nom, ev) {
+    const fichier = ev.currentTarget.files?.[0]
+    ev.currentTarget.value = ''
+    if (!fichier) return
+    sonsMessage = ''
+    if (fichier.size > 5 * 1024 * 1024) { sonsMessage = 'Fichier trop lourd : 5 Mo au plus.'; return }
+    enCours = nom
+    try {
+      const octets = await fichier.arrayBuffer()
+      try { await sons.decoder(octets) }          // avis du conseil : un fichier illisible ici est refusé avant l'envoi
+      catch { throw new Error(`« ${fichier.name} » ne se lit pas dans ce navigateur : rien n'est envoyé.`) }
+      const r = await fetch(`/api/sons/${nom}`, { method: 'PUT', credentials: 'same-origin', body: octets,
+        headers: { 'Content-Type': fichier.type || 'application/octet-stream' } })
+      if (!r.ok) throw new Error((await r.json().catch(() => null))?.detail || `Le serveur a répondu ${r.status}.`)
+      sons.oublier(nom)
+      await sons.chargerFichiers()
+      sonsMessage = `${sons.LIBELLES[nom]} : remplacé par « ${fichier.name} ».`
+      await lireSons()
+    } catch (x) { sonsMessage = x.message } finally { enCours = '' }
+  }
+  async function revenir(nom) {
+    sonsMessage = ''
+    try {
+      const r = await fetch(`/api/sons/${nom}`, { method: 'DELETE', credentials: 'same-origin' })
+      if (!r.ok) throw new Error(`Le serveur a répondu ${r.status}.`)
+      sons.oublier(nom)
+      await sons.chargerFichiers()
+      sonsMessage = `${sons.LIBELLES[nom]} : de nouveau le son de l'appli.`
+      await lireSons()
+    } catch (x) { sonsMessage = x.message }
   }
   // 1.9 : le dévoilement, manuel (tout au toucher) ou automatique, et le temps de chaque étape (choix de Julien)
   const ETAPES = [
@@ -77,7 +123,7 @@
   const NOMS = { pas_note: 'Pas de la note', ha_webhook: 'Webhook de Home Assistant', devoilement_auto: 'Dévoilement automatique',
     duree_depart: 'Temps du départ', duree_jury: 'Temps du jury', duree_public: 'Temps par pays du public',
     duree_revelation: 'Durée maximum de la révélation', duree_podium: 'Temps du podium', duree_selfie: 'Selfie en grand',
-    duree_mode_emploi: 'Mode d\'emploi sur la télé' }
+    duree_mode_emploi: 'Mode d\'emploi sur la télé', sons: 'Sons sur la télé', volume_sons: 'Volume des sons' }
   const PAS = { 1: 'au point', 0.5: 'au demi-point', 0.25: 'au quart de point' }
   const montrer = (cle, v) => (cle === 'pas_note' ? (PAS[v] ?? String(v)) : v === '' || v == null ? '(vide)' : String(v))
   let dates = $state([])
@@ -125,7 +171,7 @@
     erreur = ''
     try { await api.put('/api/invites/' + invite.id, corps); await lire() } catch (x) { erreur = x.message }
   }
-  onMount(() => lire().catch((e) => (erreur = e.message)))
+  onMount(() => { lire().catch((e) => (erreur = e.message)); lireSons() })
 
   async function ajouter(e) {
     e.preventDefault()
@@ -193,6 +239,38 @@
     {/each}
   </div>
   {#if tempsMessage}<p class="mt-2 text-sm text-muted-foreground" role="status">{tempsMessage}</p>{/if}
+
+  <!-- 1.11.0 : les sons, joués par la télé seulement (les téléphones des invités restent muets) -->
+  <div class="mt-5 border-t pt-4" role="group" aria-label="Sons">
+    <div class="flex flex-wrap items-center gap-3">
+      <h3 class="mr-auto font-semibold">Sons sur la télé</h3>
+      <button class="interrupteur" role="switch" aria-checked={sonsActifs} aria-label="Sons sur la télé" disabled={!charges}
+              onclick={() => reglerSons({ sons: !sonsActifs })}><i></i></button>
+    </div>
+    <p class="mt-1 text-sm text-muted-foreground">Fabriqués par l'appli ; chacun peut être remplacé par un fichier (mp3, m4a, ogg ou wav, 5 Mo au plus). La télé a aussi son bouton haut-parleur pour couper d'un geste.</p>
+    <label class="mt-3 flex items-center gap-3 text-sm">
+      <span class="w-16 shrink-0">Volume</span>
+      <input type="range" min="0" max="100" step="5" class="min-w-0 flex-1" bind:value={volumeSons} disabled={!charges || !sonsActifs}
+             onchange={() => reglerSons({ volume_sons: Number(volumeSons) })} aria-label="Volume des sons" />
+      <span class="chiffre w-10 text-right">{volumeSons}</span>
+    </label>
+    <ul class="mt-3 grid gap-2" aria-label="Les sons">
+      {#each listeSons as s (s.nom)}
+        <li class="flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2">
+          <span class="min-w-0 flex-1 basis-48"><span class="block text-sm font-medium">{sons.LIBELLES[s.nom] ?? s.nom}</span>
+            <span class="block text-xs text-muted-foreground">{s.fichier ? `Fichier de l'hôte (${Math.max(1, Math.round(s.taille / 1024))} Ko)` : 'Son de l\'appli'}</span></span>
+          <Button variant="outline" size="sm" onclick={() => sons.ecouterSon(s.nom)} aria-label="Écouter : {sons.LIBELLES[s.nom]}">Écouter</Button>
+          <label class="remplacer">
+            <input type="file" accept="audio/mpeg,audio/mp4,audio/x-m4a,audio/ogg,audio/wav,audio/x-wav,.mp3,.m4a,.ogg,.wav" class="sr-only"
+                   aria-label="Remplacer par un fichier : {sons.LIBELLES[s.nom]}" disabled={!!enCours} onchange={(ev) => remplacer(s.nom, ev)} />
+            <span>{enCours === s.nom ? 'Envoi…' : 'Remplacer par un fichier'}</span>
+          </label>
+          {#if s.fichier}<Button variant="outline" size="sm" onclick={() => revenir(s.nom)} aria-label="Revenir au son de l'appli : {sons.LIBELLES[s.nom]}">Revenir au son de l'appli</Button>{/if}
+        </li>
+      {/each}
+    </ul>
+    {#if sonsMessage}<p class="mt-2 text-sm text-muted-foreground" role="status">{sonsMessage}</p>{/if}
+  </div>
 </section>
 
 <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Envoi vers carnet">
@@ -283,3 +361,17 @@
   <span>Douze points {session.version}</span>
   <Button variant="outline" onclick={deconnecter}>Se déconnecter</Button>
 </p>
+
+<style>
+  /* 1.11.0 : l'interrupteur « Sons sur la télé » et le bouton « Remplacer par un fichier » */
+  .interrupteur { position: relative; width: 3.25rem; height: 1.9rem; flex-shrink: 0; border-radius: 999px; background: var(--muted);
+    border: 1px solid var(--border); transition: background-color 0.2s; }
+  .interrupteur i { position: absolute; top: 0.2rem; left: 0.2rem; width: 1.4rem; height: 1.4rem; border-radius: 999px;
+    background: var(--foreground); transition: transform 0.2s; }
+  .interrupteur[aria-checked="true"] { background: var(--primary); border-color: var(--primary); }
+  .interrupteur[aria-checked="true"] i { transform: translateX(1.35rem); background: var(--primary-foreground); }
+  .interrupteur:focus-visible, .remplacer:focus-within { outline: 3px solid color-mix(in oklab, var(--primary) 55%, transparent); outline-offset: 2px; }
+  .remplacer { display: inline-flex; min-height: 2rem; align-items: center; border-radius: 0.5rem; border: 1px solid var(--border);
+    padding: 0 0.75rem; font-size: 0.875rem; cursor: pointer; }
+  @media (prefers-reduced-motion: reduce) { .interrupteur, .interrupteur i { transition: none; } }
+</style>

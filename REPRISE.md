@@ -1,8 +1,25 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 20/11/2026, version 1.10.3.
+À lire en premier. Mis à jour le 20/11/2026, version 1.11.0.
 
 ## Où on en est
+
+- **1.11.0 (20/11/2026)** : `docs/ajout-1.11.0.md`, `docs/conseil-1.11.0.md`.
+  - Sons de la télé : `lib/sons.js` (seul module audio ; `installer()` dans `App.svelte`, `regler()` sur chaque écran
+    de la télé, `jouer`, `boucle`/`arreter`, `enchainer`, `ecouterSon`, `decoder` ; `window.__DOUZE_POINTS_SONS` note
+    les sons demandés pour les tests). **Ne jamais l'importer depuis `src/invite/`** (`tests/test_sons_invite_111.py`
+    parcourt les imports). `lib/BoutonSon.svelte` (haut-parleur, « Activer le son ») dans `Accueil` et `Devoilement`.
+  - Serveur (`main.py`, section « 1.11 ») : `SONS`, `SON_MAX`, `_type_son`, routes `/api/sons…`, fichiers dans
+    `<données>/sons/` ; réglages `sons`, `volume_sons`.
+  - Compte à rebours : `COMPTE_REBOURS` (6 s) dans `duree_revelation` ; `_pas_auto` rend `auto.ecoule_ms` (temps passé
+    dans le pas effectif) ; `POST /pas` ignore `suivant` sans `depuis` pendant le compte. `lib/CompteRebours.svelte`
+    monté par `Devoilement` (`aller(n, ecoule)`, `compte`, `finCompte`, voile) ; `Spectacle` : `regardezTele`,
+    `compte_ms`, remontée en `revelation_ms - compte_ms`.
+  - Classement du téléphone : `HAUTEUR = 72`, `feuille` (id de la chanson montrée) dans `invite/Invite.svelte`.
+  - **Jamais essayé sur la vraie installation** : aucun son entendu sur une vraie télé (ni en recopie AirPlay, ni le
+    bouton silencieux de l'iPhone, ni un fichier mp3/m4a de l'hôte lu par Safari), le compte à rebours sur la télé,
+    la feuille du commentaire sous un vrai doigt. La fanfare est écrite de mémoire : à écouter. Bac à sable pas mis à
+    jour ici.
 
 - **1.10.3 (20/11/2026)** : petit écran en paysage. `Accueil.svelte` : barre des boutons sortie du flux fixe (elle a sa place sous la grille), QR code `height: min(50vh, 70vw); max-height: 100%` dans une rangée `minmax(0,1fr)`. `ModeEmploi.svelte` : `.tel` à l'échelle (`--l`, `font-size: calc(var(--l) / 24)`, tout en em, rangées du classement en 1,9 em). Test : fin du bloc « mode d'emploi » de `test_une_soiree_entiere` (paysage). **Jamais essayé sur la vraie installation.**
 - **1.10.2 (20/11/2026)** : copies communes du socle 0.11.1 (titre « Pour le relier » quand le réglage est dans l'appli).
@@ -76,6 +93,8 @@
 - `app/points.py` : le calcul seul (classement d'un invité, barème, départage du groupe).
 - `app/base.py` : schéma SQLite, sauvegarde de la base (au dévoilement).
 - `/data/reglages.json` : réglages d'usage hors base (webhook de Home Assistant).
+- `/data/sons/` (1.11) : les fichiers de son de l'hôte (`<nom>.<ext>`, un par son), hors sauvegarde des réglages.
+- `frontend/src/lib/sons.js` (1.11) : tous les sons, sur la télé et les Réglages seulement.
 - `app/main.py` : la régie sous `/api/…` (mot de passe commun), la porte invité sous `/invite/<jeton>/api/…` (en-tête `X-Telephone` : le jeton personnel du téléphone).
 - `frontend/src/pages/` : la régie (`Soiree`, `Accueil`, `Devoilement`) ; `frontend/src/invite/Invite.svelte` : le téléphone des invités ; `main.js` choisit selon l'adresse.
 - `tests/test_ecrans.py` : une soirée entière dans un navigateur (`CAPTURES=/un/dossier` garde des captures).
