@@ -10,6 +10,8 @@
   import { api } from '$lib/api.js'
   import { normaliser } from '$lib/pays.js'
   import ModeEmploi from '$lib/ModeEmploi.svelte'
+  import BoutonSon from '$lib/BoutonSon.svelte'
+  import * as sons from '$lib/sons.js'
   let { soiree, onferme, onrejouer } = $props()
 
   // 1.9 : quand tous les invités attendus ont choisi leur prénom, le mode d'emploi s'affiche (30 s par défaut,
@@ -28,6 +30,24 @@
     minuteMode = setTimeout(() => (modeEmploi = false), reglages.duree_mode_emploi * 1000)
     try { sessionStorage.setItem(CLE_VU, '1') } catch { /* rien */ }
   }
+  // 1.11.0 : les sons de l'écran du QR code (lib/sons.js) : musique d'attente en boucle tant qu'il manque quelqu'un,
+  // un carillon par invité qui arrive (une fois par invité et par soirée sur cette page ; ceux déjà là au chargement ne
+  // sont pas salués), l'accord « tout le monde est là » une seule fois.
+  let salues = null                 // ids des invités déjà là (null : pas encore lu)
+  let tousLaJoue = false
+  function sonsDesArrivees(gens) {
+    const la = gens.filter((g) => g.pris || g.etat === 'envoye').map((g) => g.id)
+    const tous = gens.length > 0 && la.length === gens.length
+    if (salues === null) {
+      salues = new Set(la)
+      tousLaJoue = tous
+    } else {
+      for (const id of la) if (!salues.has(id)) { salues.add(id); sons.jouer('carillon') }
+      if (tous && !tousLaJoue) { tousLaJoue = true; sons.jouer('tous_la') }
+    }
+    if (tous) sons.arreter('attente')
+    else sons.boucle('attente')
+  }
   async function surveiller() {
     try {
       const d = await api.get(`/api/soirees/${soiree.id}`)
@@ -35,17 +55,18 @@
       const gens = d.participants.filter((g) => g.etat !== 'ecarte')
       attendus = gens.length
       presents = gens.filter((g) => g.pris || g.etat === 'envoye').length
+      sonsDesArrivees(gens)
       let vu = false
       try { vu = !!sessionStorage.getItem(CLE_VU) } catch { /* rien */ }
       if (d.etat === 'ouverte' && attendus && presents === attendus && !vu && !modeEmploi) montrerMode()
     } catch { /* plus tard */ }
   }
   onMount(async () => {
-    try { reglages = { ...reglages, ...(await api.get('/api/reglages')) }; cran = reglages.pas_note } catch { /* défauts */ }
+    try { reglages = { ...reglages, ...(await api.get('/api/reglages')) }; cran = reglages.pas_note; sons.regler(reglages) } catch { /* défauts */ }
     surveiller()
     minuterieEtat = setInterval(() => { if (!document.hidden) surveiller() }, 3000)
   })
-  onDestroy(() => { clearInterval(minuterieEtat); clearTimeout(minuteMode) })
+  onDestroy(() => { clearInterval(minuterieEtat); clearTimeout(minuteMode); sons.arreter('attente') })
 
   const qr = `/api/soirees/${soiree.id}/qr.svg`
   const image = (sorte) => (soiree.images[sorte] ? `/api/soirees/${soiree.id}/image/${sorte}?v=${soiree.images[sorte]}` : null)
@@ -137,7 +158,10 @@
 
 <div class="fixed inset-0 z-30 flex flex-col bg-background">
   <!-- la scène : des projecteurs qui balaient doucement le « 12 », en continu -->
-  <div class="shrink-0" style="height: clamp(5rem, 27vh, 16rem)"><Scene /></div>
+  <div class="relative shrink-0" style="height: clamp(5rem, 27vh, 16rem)"><Scene />
+    <!-- 1.11.0 : le haut-parleur (et « Activer le son » si le navigateur le bloque), en haut à droite -->
+    <div class="absolute top-[max(0.5rem,env(safe-area-inset-top))] right-[max(0.75rem,env(safe-area-inset-right))] z-10"><BoutonSon /></div>
+  </div>
 <div class="grid min-h-0 flex-1 px-[max(1.25rem,env(safe-area-inset-left))] landscape:grid-rows-[minmax(0,1fr)] landscape:items-center landscape:gap-8 portrait:content-center portrait:justify-items-center portrait:gap-5 {poster ? 'landscape:grid-cols-[auto_1fr_auto]' : 'landscape:grid-cols-[1fr_auto]'}">
   {#if poster}<img src={poster} alt="Poster de l'évènement" class="rounded-xl object-contain portrait:hidden" style="max-height: 50vh; max-width: 24vw" />{/if}
   <div class="min-w-0 portrait:text-center">

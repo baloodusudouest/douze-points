@@ -24,8 +24,10 @@
   // compact : téléphone en portrait ; rythme : accéléré par les tests (window.__DOUZE_POINTS_RYTHME, jamais en soirée).
   // 1.9.0 : maxMs = la durée maximum de la remontée (Réglages › Dévoilement, « Révélation ») : rythme accéléré à
   // proportion, pause de 2 s gardée ; onfini() est appelé une fois l'animation jouée (la télé enchaîne sur le podium).
+  // 1.11.0 : ondepasse() est appelé une fois par pays dépassé, au début de l'étape qui le dépasse (les sons de la télé
+  // suivent ainsi l'animation, même accélérée : aucun minuteur à part).
   let { chansons, totaux, dernier, gain, ordre, gagnant = null, anime = true, compact = false, maxMs = 0,
-        onfini = () => {},
+        onfini = () => {}, ondepasse = () => {},
         rythme = (typeof window !== 'undefined' && window.__DOUZE_POINTS_RYTHME) || RYTHME } = $props()
 
   const parId = $derived(Object.fromEntries(chansons.map((c) => [c.id, c])))
@@ -56,8 +58,11 @@
   function jouer(i) {
     if (i >= le_plan.etapes.length) { phase = 'fin'; onfini(); return }
     const e = le_plan.etapes[i]
+    const avant = le_plan.deja ? 1 : place(affiche, autres)
     duree = e.duree
     affiche = e.total
+    const apres = le_plan.deja ? 1 : place(affiche, autres)
+    for (let k = apres; k < avant; k++) ondepasse()
     minuteur = setTimeout(() => jouer(i + 1), e.duree + e.pause)
   }
   $effect(() => {

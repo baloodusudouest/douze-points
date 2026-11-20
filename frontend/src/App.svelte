@@ -14,6 +14,7 @@
   import Reglages from './pages/Reglages.svelte'
   import Services from '$lib/services/Services.svelte'   // 1.10.0 : écran commun (contrat 3, socle 0.10.0)
   import ATraiter from './pages/ATraiter.svelte'
+  import { installer as installerSons } from '$lib/sons.js'
 
   const onglets = [
     { page: 'soiree', nom: 'Soirée', icone: Mic },
@@ -49,7 +50,9 @@
   // 1.9 : le nombre de soirées à clôturer, sur l'entrée « À traiter »
   let aTraiter = $state(0)
   async function compter() { try { aTraiter = (await api.get('/api/a-traiter')).nombre } catch { /* plus tard */ } }
-  onMount(async () => { await verifier(); if (connecte) compter() })
+  // 1.11.0 : les sons de la télé (lib/sons.js) : le contexte audio naît au premier geste sur la régie (jamais sur la
+  // page des invités, qui n'importe pas sons.js)
+  onMount(async () => { installerSons(); await verifier(); if (connecte) compter() })
 </script>
 
 <Ouverture />

@@ -11,6 +11,10 @@
   import Compteur from '$lib/Compteur.svelte'
   import EcranJumeaux from './EcranJumeaux.svelte'
   import DernierVote from '$lib/DernierVote.svelte'
+  import CompteRebours from '$lib/CompteRebours.svelte'
+  import BoutonSon from '$lib/BoutonSon.svelte'
+  import { prefersReducedMotion } from 'svelte/motion'
+  import * as sons from '$lib/sons.js'
   let { soiree, onferme } = $props()
 
   let d = $state(null)
@@ -83,6 +87,13 @@
   // revenant du podium, l'écran montre directement la fin.
   let dernierPas = $derived(!!courant && courant.phase === 'public' && pas === etapes.length)
   let animerDernier = $state(false)
+  // 1.11.0 : le compte à rebours (lib/CompteRebours.svelte) avant la remontée, calé sur l'heure du serveur (`ecoule_ms`
+  // du pas, d'après `pas_le`) : rechargée pendant le compte, la télé reprend au bon chiffre ; après 6 s, pas de compte.
+  const COMPTE_MS = 6000
+  let compte = $state(false)
+  let compteDebut = $state(0)
+  let voile = $state(false)          // le voile blanc après le 0 (jamais en mouvement réduit)
+  let jouerPas = false               // ce pas vient d'un pas plus tôt vu ici : ses sons se jouent
   let totauxDernier = $derived.by(() => {
     if (!dernierPas) return {}
     const c = cumul(pas)
@@ -128,7 +139,7 @@
     clearTimeout(echeance)
     if (auto?.actif && !auto.pause && auto.prochain_dans !== null)
       echeance = setTimeout(relire, auto.prochain_dans + 60)     // le pays suivant, à l'heure du serveur
-    if (lu.pas !== pas || !charge) aller(lu.pas)
+    if (lu.pas !== pas || !charge) aller(lu.pas, lu.auto?.ecoule_ms ?? null)
     charge = true
   }
   async function relire() {
@@ -142,6 +153,7 @@
     } catch { /* coupure passagère */ }
   }
   async function agir(action, extra = {}) {
+    if (compte && action === 'suivant') return     // 1.11.0 : pendant le compte à rebours, « suivant » est sans effet
     gestes++
     if (d?.etat !== 'devoilement') {             // on rejoue une archive : tout se passe ici
       if (action === 'suivant') aller(pas + 1)
@@ -157,6 +169,9 @@
   let reglages = $state({ duree_revelation: 60, duree_selfie: 6, devoilement_auto: true })
   let attenteFin
   function finRevelation() {
+    // 1.11.0 : le gagnant : le tambour s'arrête, la fanfare puis les applaudissements (sur l'horloge audio)
+    sons.arreter('tambour')
+    sons.enchainer(['fanfare', 'applaudissements'])
     // l'animation est jouée : 5 s sur « Vainqueur », puis le podium (le serveur l'ignore s'il est déjà passé)
     clearTimeout(attenteFin)
     if (d?.etat !== 'devoilement' || !auto?.actif || auto.pause) return
@@ -174,7 +189,7 @@
 
   onMount(async () => {
     mesurer()
-    api.get('/api/reglages').then((r) => (reglages = { ...reglages, ...r })).catch(() => {})
+    api.get('/api/reglages').then((r) => { reglages = { ...reglages, ...r }; sons.regler(r) }).catch(() => {})
     try {
       const lu = await api.get(`/api/soirees/${soiree}/devoilement`)
       d = { ...lu, chansons: lu.chansons.map(normaliser) }
@@ -201,18 +216,29 @@
   function visibilite() {
     if (!document.hidden) { garderEcran(); relire(); if (d?.etat === 'devoilement') api.post(`/api/soirees/${soiree}/regard`).catch(() => {}) }
   }
-  onDestroy(() => { clearInterval(suivi); clearInterval(horlogeEcran); clearInterval(regard); clearTimeout(echeance); clearTimeout(attenteFin); try { verrou?.release() } catch { /* rien */ } })
+  onDestroy(() => { sons.arreterTout(); clearTimeout(attenteVoile); clearInterval(suivi); clearInterval(horlogeEcran); clearInterval(regard); clearTimeout(echeance); clearTimeout(attenteFin); try { verrou?.release() } catch { /* rien */ } })
 
   // Le temps qui reste avant le pays suivant (barre rose sous l'addition)
   let resteMs = $derived(auto?.actif && !auto.pause && auto.prochain_dans !== null ? Math.max(0, auto.prochain_dans - (maintenantMs - luA)) : null)
   let enPause = $derived(!!auto?.actif && auto.pause)
   let avantDernier = $derived(pas === etapes.length - 1)
 
-  function aller(n) {
+  function aller(n, ecoule = null) {
     n = Math.max(0, Math.min(fin, n))
     // 1.8 : les pays en lice se jouent dès qu'on entre dans le dernier pas depuis un pas plus tôt vu sur cet écran
     // (pas seulement le pas juste avant) ; au chargement ou en revenant du podium : la fin tout de suite.
-    animerDernier = charge && n === etapes.length && pas < n && etapes[n - 1]?.phase === 'public'
+    // 1.11.0 : chargée pendant le compte à rebours (d'après le serveur), la télé reprend le compte et joue la remontée.
+    const versDernier = n === etapes.length && etapes[n - 1]?.phase === 'public'
+    const dansLeCompte = d?.etat === 'devoilement' && ecoule !== null && ecoule < COMPTE_MS
+    animerDernier = versDernier && ((charge && pas < n) || dansLeCompte)
+    jouerPas = charge && n > pas
+    if (animerDernier && (ecoule === null || ecoule < COMPTE_MS)) {
+      compte = true
+      compteDebut = Date.now() - Math.max(0, ecoule ?? 0)
+    } else compte = false
+    if (animerDernier) sons.boucle('tambour')       // un seul roulement : du compte à rebours jusqu'à la fanfare
+    else sons.arreter('tambour')
+    if (jouerPas && n >= 1 && n <= etapes.length) sonsDuPas(etapes[n - 1], n)
     clearTimeout(attenteTri)
     if (n === pas + 1 && n <= etapes.length) {
       // un pas en avant : les points s'ajoutent sur place, puis la ligne prend sa nouvelle place
@@ -227,6 +253,24 @@
     try { await api.post(`/api/soirees/${soiree}/terminer`) } catch { /* déjà terminée : on rejoue une archive */ }
     jumeaux = true
   }
+  // 1.11.0 : les sons des points. Public : un son par pays, plus haut avec plus de points ; « douze » s'il a reçu un
+  // 12. Jury (top 5) : un son à l'arrivée de chaque ligne (animationstart) ; en mouvement réduit, tous d'un coup.
+  const aUnDouze = (lot, chanson) => lot.some((p) => p.points === 12 && (chanson === undefined || p.chanson === chanson))
+  function sonsDuPas(e, n) {
+    if (e?.phase === 'top' && prefersReducedMotion.current) for (const t of [...e.top].reverse()) sonDuJury(t)
+    else if (e?.phase === 'public' && n < etapes.length) sons.jouer(aUnDouze(e.lot) ? 'douze' : 'point', { points: e.total })
+  }
+  function sonDuJury(t) { sons.jouer(aUnDouze(courant?.lot ?? [], t.chanson) ? 'douze' : 'point', { points: t.points }) }
+  function arriveeJury(t) { if (jouerPas) sonDuJury(t) }
+  let attenteVoile
+  function finCompte() {
+    compte = false
+    if (prefersReducedMotion.current) return
+    voile = true
+    clearTimeout(attenteVoile)
+    attenteVoile = setTimeout(() => (voile = false), 700)
+  }
+
   function touche(e) {
     if (e.key === 'ArrowRight' || e.key === ' ') agir('suivant')
     if (e.key === 'ArrowLeft') agir('revenir')
@@ -248,12 +292,17 @@
 
     {#if dernierPas}
       {#key pas}
+        {#if compte}
+          <CompteRebours debut={compteDebut} duree={COMPTE_MS} onfin={finCompte} />
+        {:else}
         <div class="pointer-events-none relative h-full px-[max(1rem,env(safe-area-inset-left))] pt-12 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <DernierVote chansons={d.chansons} totaux={totauxDernier} dernier={courant.chanson} gain={courant.total}
                        ordre={d.classement.map((l) => l.chanson)} gagnant={d.classement[0]?.chanson} anime={animerDernier}
-                       maxMs={reglages.duree_revelation * 1000} onfini={finRevelation} />
+                       maxMs={reglages.duree_revelation * 1000} onfini={finRevelation} ondepasse={() => sons.jouer('depasse')} />
         </div>
+        {/if}
       {/key}
+      {#if voile}<div class="voile" aria-hidden="true"></div>{/if}
     {:else}
     <div class="pointer-events-none relative grid h-full gap-x-8 p-[max(1rem,env(safe-area-inset-top))] landscape:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)]">
       <div class="min-w-0">
@@ -312,7 +361,7 @@
                   {#each courant.top as t, i (t.chanson)}
                     {@const c = chansons[t.chanson]}
                     <!-- du cinquième au premier, l'un après l'autre -->
-                    <li class:premier={i === 0} style="animation-delay: {(courant.top.length - 1 - i) * 0.45}s">
+                    <li class:premier={i === 0} style="animation-delay: {(courant.top.length - 1 - i) * 0.45}s" onanimationstart={() => arriveeJury(t)}>
                       <span class="chiffre rang">{i + 1}</span>
                       <span class="shrink-0">{drapeau(c.pays, c.code_pays)}</span>
                       <span class="min-w-0 flex-1 truncate text-left">{c.pays}</span>
@@ -383,7 +432,7 @@
       </div>
     {/if}
 
-    <div class="absolute inset-x-0 top-[max(0.5rem,env(safe-area-inset-top))] flex justify-end gap-2 px-4 text-xs">
+    <div class="absolute inset-x-0 top-[max(0.5rem,env(safe-area-inset-top))] z-50 flex items-start justify-end gap-2 px-4 text-xs">
       <p class="mr-auto self-center text-muted-foreground landscape:hidden">Tourne le téléphone en paysage.</p>
       <p class="geste mr-auto hidden self-center text-muted-foreground portrait:hidden">Glisse vers la droite pour sortir</p>
       {#if auto?.actif && courant?.phase !== 'public'}
@@ -394,6 +443,7 @@
       {#if auto?.actif}<button class="commande" onclick={() => agir(enPause ? 'reprendre' : 'pause')}>{enPause ? 'Reprendre' : 'Pause'}</button>{/if}
       {#if !fini}<button class="commande" onclick={() => agir('aller', { pas: fin })}>Tout afficher</button>{/if}
       {#if !fini}<button class="commande" onclick={onferme}>Fermer</button>{/if}
+      <BoutonSon />
     </div>
   {/if}
 </div>
@@ -453,6 +503,9 @@
   .m3 { animation-delay: 0.15s; } .m2 { animation-delay: 0.45s; } .m1 { animation-delay: 0.8s; }
   @keyframes monter { from { opacity: 0; transform: translateY(8vh); } to { opacity: 1; transform: none; } }
 
+  /* 1.11.0 : après le 0, un voile blanc à 50 % au plus, une fois */
+  .voile { pointer-events: none; position: fixed; inset: 0; z-index: 46; background: #fff; opacity: 0; animation: voile 0.6s ease-out both; }
+  @keyframes voile { 0% { opacity: 0; } 25% { opacity: 0.5; } 100% { opacity: 0; } }
   .cotillons { pointer-events: none; position: absolute; inset: 0; overflow: hidden; }
   .cotillons i { position: absolute; top: -4vh; opacity: 0; animation: tomber linear infinite; }
   @keyframes tomber {
