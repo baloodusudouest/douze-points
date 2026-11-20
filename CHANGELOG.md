@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 1.10.2 — 20 novembre 2026 (socle 0.11.1)
+- Copies communes du socle 0.11.1 : sur une fiche « Connexion », le titre devient « Pour le relier » quand le réglage se fait dans Réglages de l'appli (et non dans la stack).
+- **Jamais essayé sur la vraie installation.**
+
 ## 1.10.1 — 20 novembre 2026 (socle 0.11.0)
 - `maison.py` et l'interface commune du socle 0.11.0 (guide facultatif d'une fiche « Connexion » ; Douze points n'en a pas besoin).
 

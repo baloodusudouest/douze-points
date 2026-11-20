@@ -4,6 +4,7 @@
 
 ## Où on en est
 
+- **1.10.2 (20/11/2026)** : copies communes du socle 0.11.1 (titre « Pour le relier » quand le réglage est dans l'appli).
 - **1.10.1 (20/11/2026)** : copies communes du socle 0.11.0 (guide facultatif des fiches).
 - **1.10.0 (20/11/2026)** : fiches « Connexion » communes (contrat 3, socle 0.10.0) : `SERVICES` dans `main.py` (section « fiches Connexion »), `maison.monter_services` après la garde, écran `$lib/services/Services.svelte` (commun, signé : ne pas le retoucher ici). Ancienne `/api/services` à retirer en 1.11.0. **Jamais essayé sur la vraie installation.**
 - **1.9.0 (20/11/2026)** : `docs/ajout-1.9.0.md`, `docs/conseil-1.9.0.md`.
