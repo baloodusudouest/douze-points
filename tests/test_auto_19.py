@@ -25,7 +25,7 @@ def test_tout_s_enchaine_jusqu_aux_jumeaux(client, soiree, temps):
     d = lu(client, soiree)
     assert d["pas"] == 13                                     # 11 pays à 5 s : le dernier vote du public
     plafond = main.duree_revelation(12)
-    assert d["auto"]["duree"] == int(plafond * 1000) and 66 < plafond < 68
+    assert d["auto"]["duree"] == int(plafond * 1000) and 72 < plafond < 74       # 1.11 : + 6 s de compte à rebours
     regarder(client, soiree, temps, 1080 + plafond)
     assert lu(client, soiree)["pas"] == 14                    # le podium
     regarder(client, soiree, temps, 1080 + plafond + 14.9)
@@ -67,4 +67,4 @@ def test_temps_reglables_et_bornes(client, soiree, temps):
     jury_puis_public(client, soiree)
     action(client, soiree, "aller", pas=2)
     assert lu(client, soiree)["auto"]["duree"] == 8000
-    assert abs(main.duree_revelation(12) - (1.32 + 0.9 + 45 + 5)) < 1e-9
+    assert abs(main.duree_revelation(12) - (6 + 1.32 + 0.9 + 45 + 5)) < 1e-9

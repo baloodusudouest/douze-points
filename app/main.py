@@ -90,7 +90,9 @@ def adresse() -> str:
 REGLAGES_DEFAUTS = {"ha_webhook": "",
                     # 1.9 : le dévoilement automatique et le temps de chaque étape, en secondes (choix de Julien, 20/11/2026)
                     "devoilement_auto": True, "duree_depart": 10, "duree_jury": 15, "duree_public": 5,
-                    "duree_revelation": 60, "duree_podium": 15, "duree_selfie": 6, "duree_mode_emploi": 30}
+                    "duree_revelation": 60, "duree_podium": 15, "duree_selfie": 6, "duree_mode_emploi": 30,
+                    # 1.11 : les sons sur la télé (choix de Julien, 20/11/2026), oui par défaut, volume de 0 à 100
+                    "sons": True, "volume_sons": 70}
 DUREES = {"duree_depart": (2, 600), "duree_jury": (2, 600), "duree_public": (2, 120), "duree_revelation": (5, 300),
           "duree_podium": (2, 600), "duree_selfie": (2, 60), "duree_mode_emploi": (5, 600)}
 REGLAGES_VARIABLES = {"ha_webhook": "DOUZE_POINTS_HA_WEBHOOK"}
@@ -493,6 +495,15 @@ def changer_reglages(cx, corps: dict) -> dict:
         propres["devoilement_auto"] = corps["devoilement_auto"]
         # changer de mode en plein dévoilement : l'horloge repart de maintenant (rien ne saute)
         cx.execute("UPDATE soiree SET pas_le=? WHERE etat='devoilement'", (horloge(),))
+    if "sons" in corps:                                   # 1.11 : sons sur la télé
+        if not isinstance(corps["sons"], bool):
+            raise HTTPException(400, "Les sons sont oui ou non (vrai ou faux).")
+        propres["sons"] = corps["sons"]
+    if "volume_sons" in corps:
+        v = corps["volume_sons"]
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v != int(v) or not 0 <= v <= 100:
+            raise HTTPException(400, "Le volume des sons va de 0 à 100.")
+        propres["volume_sons"] = int(v)
     for cle, (bas, haut) in DUREES.items():
         if cle in corps:
             v = corps[cle]
@@ -525,6 +536,93 @@ def reglages_ecrire(corps: dict = Body(...)):
     `ha_webhook` : adresse du webhook de Home Assistant, ou vide."""
     with base(cfg().data) as cx:
         return changer_reglages(cx, corps)
+
+
+# ---------------------------------------------------------------- 1.11 : les fichiers de son de l'hôte
+# Les sons sont fabriqués par la télé (frontend/src/lib/sons.js, Web Audio) ; chacun peut être remplacé par un
+# fichier de l'hôte, rangé dans <données>/sons/<nom>.<ext>. Un fichier n'est pas un réglage : il n'est pas dans la
+# sauvegarde des réglages. Le type est reconnu aux premiers octets, jamais au nom du fichier.
+SONS = ("attente", "carillon", "tous_la", "point", "douze", "tambour", "depasse", "fanfare", "applaudissements")
+SON_MAX = 5 * 1024 * 1024
+TYPES_SON = {"mp3": "audio/mpeg", "m4a": "audio/mp4", "ogg": "audio/ogg", "wav": "audio/wav"}
+
+
+def _type_son(contenu: bytes) -> str | None:
+    """mp3 (ID3 ou trame MPEG), m4a (« ftyp » au 5e octet), ogg (OggS), wav (RIFF….WAVE) ; sinon None."""
+    if contenu[:3] == b"ID3" or (len(contenu) > 1 and contenu[0] == 0xFF and contenu[1] & 0xE0 == 0xE0):
+        return "mp3"
+    if contenu[4:8] == b"ftyp":
+        return "m4a"
+    if contenu[:4] == b"OggS":
+        return "ogg"
+    if contenu[:4] == b"RIFF" and contenu[8:12] == b"WAVE":
+        return "wav"
+    return None
+
+
+def _dossier_sons():
+    return cfg().data / "sons"
+
+
+def _fichier_son(nom: str):
+    """Le fichier de l'hôte pour ce son, ou None. Nom inconnu : 404."""
+    if nom not in SONS:
+        raise HTTPException(404, "Son inconnu.")
+    for ext in TYPES_SON:
+        f = _dossier_sons() / f"{nom}.{ext}"
+        if f.is_file():
+            return f
+    return None
+
+
+@app.get("/api/sons")
+def sons_lire():
+    """Les neuf sons, et pour chacun s'il est remplacé par un fichier de l'hôte."""
+    sortie = []
+    for nom in SONS:
+        f = _fichier_son(nom)
+        sortie.append({"nom": nom, "fichier": bool(f), "taille": f.stat().st_size if f else 0})
+    return sortie
+
+
+@app.put("/api/sons/{nom}")
+async def son_deposer(nom: str, request: Request):
+    """Remplace un son de l'appli par un fichier (corps brut) : mp3, m4a, ogg ou wav, 5 Mo au plus."""
+    if nom not in SONS:
+        raise HTTPException(404, "Son inconnu.")
+    contenu = await request.body()
+    if len(contenu) > SON_MAX:
+        raise HTTPException(413, "Fichier trop lourd : 5 Mo au plus.")
+    ext = _type_son(contenu)
+    if not ext:
+        raise HTTPException(415, "Format non reconnu : il faut un fichier mp3, m4a, ogg ou wav.")
+    dossier = _dossier_sons()
+    dossier.mkdir(parents=True, exist_ok=True)
+    for autre in TYPES_SON:                      # un seul fichier par son
+        (dossier / f"{nom}.{autre}").unlink(missing_ok=True)
+    (dossier / f"{nom}.{ext}").write_bytes(contenu)
+    with base(cfg().data) as cx:
+        journal(cx, "son_remplace", nom, {"format": ext, "taille": len(contenu)})
+    return {"nom": nom, "fichier": True, "taille": len(contenu)}
+
+
+@app.get("/api/sons/{nom}")
+def son_lire(nom: str):
+    f = _fichier_son(nom)
+    if not f:
+        raise HTTPException(404, "Ce son n'est pas remplacé : la télé joue celui de l'appli.")
+    return FileResponse(f, media_type=TYPES_SON[f.suffix[1:]], headers={"Cache-Control": "no-store"})
+
+
+@app.delete("/api/sons/{nom}")
+def son_retirer(nom: str):
+    """Revient au son de l'appli."""
+    f = _fichier_son(nom)
+    if f:
+        f.unlink(missing_ok=True)
+        with base(cfg().data) as cx:
+            journal(cx, "son_retire", nom)
+    return {"nom": nom, "fichier": False, "taille": 0}
 
 
 # ---------------------------------------------------------------- restaurer (sauvegardes gardées par l'Anneau)
@@ -1016,6 +1114,7 @@ def _devoilement(cx, s) -> dict:
 # jamais un numéro. L'horloge s'arrête quand aucune régie ne regarde plus (`vu_le`, relevé par /regard) : après un
 # trou (iPhone verrouillé, télé éteinte, reprise du lendemain), le défilement se retrouve en pause, jamais en avance.
 DUREE_AUTO = 5.0          # secondes par pays du public
+COMPTE_REBOURS = 6.0      # 1.11 : le compte à rebours 5 → 0 avant la remontée du dernier pays (visuel 8b)
 GARDE_REGIE = 4.0         # sans régie depuis ce temps, l'horloge s'arrête
 
 
@@ -1030,10 +1129,11 @@ def _reglage_auto(cle: str):
 
 
 def duree_revelation(nb_chansons: int) -> float:
-    """1.9 : le plafond du dernier pas : entrée des drapeaux (120 ms par pays, 2,5 s au plus) + 0,9 s pour voir le
+    """1.11 : d'abord le compte à rebours (COMPTE_REBOURS). 1.9 : le plafond du dernier pas : entrée des drapeaux (120 ms par pays, 2,5 s au plus) + 0,9 s pour voir le
     point de départ + la remontée (au plus `duree_revelation`) + 5 s sur « Vainqueur ». La télé, son animation
     jouée, envoie « suivant » plus tôt (conseil 1.9.0 : un seul plan, celui de lib/dernier.js)."""
-    return min(2.5, 0.12 * max(0, nb_chansons - 1)) + 0.9 + float(_reglage_auto("duree_revelation")) + 5.0
+    return (COMPTE_REBOURS + min(2.5, 0.12 * max(0, nb_chansons - 1)) + 0.9 + float(_reglage_auto("duree_revelation"))
+            + 5.0)
 
 
 def _duree_pas(pas: int, m: dict) -> float | None:
@@ -1058,9 +1158,14 @@ def _pas_auto(s, m: dict, t: float) -> tuple[int, dict]:
     1.9 : toutes les étapes s'enchaînent seules en automatique (réglage), aucune en manuel ; après le podium,
     `terminer` dit que le dévoilement est à finir (fait par /regard ou par la télé)."""
     pas = max(0, min(int(s["pas_devoilement"] or 0), m["fin"]))
+    # 1.11 : `ecoule_ms`, le temps déjà passé dans le pas effectif (d'après `pas_le`, l'heure du serveur) : la télé et
+    # les téléphones y calent le compte à rebours du dernier pas (rechargés pendant le compte : au bon chiffre).
     auto = {"actif": False, "pause": bool(s["pause_auto"]), "prochain_dans": None, "duree": None, "terminer": False,
-            "mode": "auto" if _reglage_auto("devoilement_auto") else "manuel"}
-    if s["etat"] != "devoilement" or s["pas_le"] is None or not _reglage_auto("devoilement_auto"):
+            "mode": "auto" if _reglage_auto("devoilement_auto") else "manuel", "ecoule_ms": None}
+    if s["etat"] != "devoilement" or s["pas_le"] is None:
+        return pas, auto
+    if not _reglage_auto("devoilement_auto"):
+        auto["ecoule_ms"] = int(max(0.0, t - s["pas_le"]) * 1000)
         return pas, auto
     ref = t if s["vu_le"] is None else min(t, s["vu_le"] + GARDE_REGIE)
     ecoule = max(0.0, ref - s["pas_le"])
@@ -1077,6 +1182,7 @@ def _pas_auto(s, m: dict, t: float) -> tuple[int, dict]:
                 break
             ecoule -= d
             pas += 1
+    auto["ecoule_ms"] = int(max(0.0, ecoule) * 1000)
     d = _duree_pas(pas, m)
     if d is None:
         return pas, auto
@@ -1133,8 +1239,13 @@ def pas(soiree_id: int, corps: dict = Body(...)):
         if s["etat"] != "devoilement":       # soirée déjà dévoilée (on rejoue une archive) : rien à garder
             return {"ok": True, "pas": None}
         m = _devoilement(cx, s)["marche"]
-        effectif, _ = _pas_auto(s, m, t)
+        effectif, deja = _pas_auto(s, m, t)
         pause = bool(s["pause_auto"])
+        premier, dernier = _bornes_auto(m)
+        if (action == "suivant" and corps.get("depuis") is None and m["public"] and effectif == dernier
+                and deja["ecoule_ms"] is not None and deja["ecoule_ms"] < COMPTE_REBOURS * 1000):
+            # 1.11 (conseil) : pendant le compte à rebours, « suivant » au toucher est ignoré
+            return {"ok": True, "pas": effectif, "auto": deja, "ignore": "compte_a_rebours"}
         if action == "suivant":
             depuis = corps.get("depuis")
             if depuis is not None and int(depuis) != effectif:     # 1.9 : la télé a fini sa révélation trop tard
@@ -1148,7 +1259,6 @@ def pas(soiree_id: int, corps: dict = Body(...)):
         else:
             nouveau = int(corps.get("pas", 0))
         nouveau = max(0, min(m["fin"], nouveau))
-        premier, dernier = _bornes_auto(m)
         if action in ("suivant", "aller", "revenir") and not premier <= effectif < dernier:
             pause = False                     # on entre dans le public depuis le jury ou le départ : il défile
         if action == "revenir" and not premier <= nouveau < dernier:
@@ -1987,7 +2097,10 @@ def invite_devoilement(jeton: str, request: Request):
         "public": [{"chanson": c, "autres": somme(False, c), "total": somme(False, c, sans_moi=False)} for c in appelees],
     }
     sortie["auto"] = d["auto"]
-    sortie["revelation_ms"] = int(_reglage_auto("duree_revelation")) * 1000      # 1.9 : même plafond que la télé
+    # 1.9 : même plafond que la télé. 1.11 : compte à rebours compris (`compte_ms`) : la remontée dure au plus
+    # revelation_ms - compte_ms, après « Regardez la télé » pendant le compte.
+    sortie["compte_ms"] = int(COMPTE_REBOURS * 1000)
+    sortie["revelation_ms"] = int(_reglage_auto("duree_revelation")) * 1000 + sortie["compte_ms"]
     if pas >= m["fin"]:
         sortie["classement"] = d["classement"]
     elif pas == m["fin"] - 1 and m["public"]:
