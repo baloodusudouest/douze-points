@@ -138,7 +138,7 @@
 <div class="fixed inset-0 z-30 flex flex-col bg-background">
   <!-- la scène : des projecteurs qui balaient doucement le « 12 », en continu -->
   <div class="shrink-0" style="height: clamp(5rem, 27vh, 16rem)"><Scene /></div>
-<div class="grid min-h-0 flex-1 px-[max(1.25rem,env(safe-area-inset-left))] pb-14 landscape:items-center landscape:gap-8 portrait:content-center portrait:justify-items-center portrait:gap-5 {poster ? 'landscape:grid-cols-[auto_1fr_auto]' : 'landscape:grid-cols-[1fr_auto]'}">
+<div class="grid min-h-0 flex-1 px-[max(1.25rem,env(safe-area-inset-left))] landscape:grid-rows-[minmax(0,1fr)] landscape:items-center landscape:gap-8 portrait:content-center portrait:justify-items-center portrait:gap-5 {poster ? 'landscape:grid-cols-[auto_1fr_auto]' : 'landscape:grid-cols-[1fr_auto]'}">
   {#if poster}<img src={poster} alt="Poster de l'évènement" class="rounded-xl object-contain portrait:hidden" style="max-height: 50vh; max-width: 24vw" />{/if}
   <div class="min-w-0 portrait:text-center">
     {#if apero}<img src={apero} alt="Photo apéro de la soirée" class="rounded-2xl object-cover portrait:mx-auto" style="max-height: 26vh; max-width: 40vw" />
@@ -150,12 +150,15 @@
     </p>
   </div>
   {#if soiree.lien}
-    <img src={qr} alt="QR code du lien des invités" class="rounded-2xl" style="width: min(50vh, 70vw); height: auto" />
+    <!-- 1.10.3 : le QR code ne déborde plus sur les boutons (petit écran en paysage) : il tient dans la place qui reste -->
+    <img src={qr} alt="QR code du lien des invités" class="rounded-2xl" style="height: min(50vh, 70vw); max-height: 100%; width: auto; aspect-ratio: 1" />
   {:else}
     <p class="max-w-xs rounded-2xl border p-5 text-sm">Aucune adresse pour les invités : l'Anneau ne répond pas, ou sa tuile « Douze points » n'a pas d'adresse locale. Pas de QR code ni de lien.</p>
   {/if}
 
-  <div class="fixed inset-x-0 bottom-[max(0.75rem,env(safe-area-inset-bottom))] flex flex-wrap items-center justify-center gap-2 px-4">
+</div>
+  <!-- 1.10.3 : la barre des boutons a sa propre place sous la scène (elle flottait par-dessus le QR code) -->
+  <div class="flex shrink-0 flex-wrap items-center justify-center gap-2 px-4 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
     {#if soiree.lien}
       <input bind:this={champLien} readonly value={soiree.lien} aria-label="Lien des invités" class="saisie w-56 text-xs" style="min-height: 2.25rem; font-size: 0.75rem" />
       <Button variant="outline" size="sm" onclick={copier}>Copier le lien</Button>
@@ -169,7 +172,6 @@
     <Button variant="outline" size="sm" onclick={onferme}>Fermer</Button>
     {#if message}<p class="basis-full text-center text-xs text-muted-foreground" role="status">{message}</p>{/if}
   </div>
-</div>
 {#if modeEmploi}
   <button class="fixed inset-0 z-50 cursor-default" aria-label="Fermer le mode d'emploi" onclick={() => (modeEmploi = false)}></button>
   <ModeEmploi {chansons} {cran} {presents} {attendus} />

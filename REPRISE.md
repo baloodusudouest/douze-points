@@ -1,9 +1,10 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 20/11/2026, version 1.10.1.
+À lire en premier. Mis à jour le 20/11/2026, version 1.10.3.
 
 ## Où on en est
 
+- **1.10.3 (20/11/2026)** : petit écran en paysage. `Accueil.svelte` : barre des boutons sortie du flux fixe (elle a sa place sous la grille), QR code `height: min(50vh, 70vw); max-height: 100%` dans une rangée `minmax(0,1fr)`. `ModeEmploi.svelte` : `.tel` à l'échelle (`--l`, `font-size: calc(var(--l) / 24)`, tout en em, rangées du classement en 1,9 em). Test : fin du bloc « mode d'emploi » de `test_une_soiree_entiere` (paysage). **Jamais essayé sur la vraie installation.**
 - **1.10.2 (20/11/2026)** : copies communes du socle 0.11.1 (titre « Pour le relier » quand le réglage est dans l'appli).
 - **1.10.1 (20/11/2026)** : copies communes du socle 0.11.0 (guide facultatif des fiches).
 - **1.10.0 (20/11/2026)** : fiches « Connexion » communes (contrat 3, socle 0.10.0) : `SERVICES` dans `main.py` (section « fiches Connexion »), `maison.monter_services` après la garde, écran `$lib/services/Services.svelte` (commun, signé : ne pas le retoucher ici). Ancienne `/api/services` à retirer en 1.11.0. **Jamais essayé sur la vraie installation.**

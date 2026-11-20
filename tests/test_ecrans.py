@@ -274,6 +274,40 @@ def test_une_soiree_entiere(serveur, navigateur):
     regie.verifier("pc-4-mode-d-emploi")
     p.get_by_role("button", name="Fermer le mode d'emploi").click()
     p.get_by_role("region", name="Mode d'emploi").wait_for(state="detached")
+    # 1.10.3 : petit écran en paysage (iPhone) : le QR code ne recouvre plus les boutons, les téléphones du mode
+    # d'emploi sont à l'échelle (rien de coupé, le bouton « Envoyer » sous la liste)
+    p.set_viewport_size(PAYSAGE)
+    p.wait_for_timeout(300)
+    qr = p.get_by_alt_text("QR code du lien des invités").bounding_box()
+    for nom in ("Mode d'emploi", "Fermer", "Rejouer le démarrage"):
+        b = p.get_by_role("button", name=nom, exact=True).bounding_box()
+        assert qr["y"] + qr["height"] <= b["y"] + 1 or qr["x"] + qr["width"] <= b["x"] + 1 or b["x"] + b["width"] <= qr["x"] + 1, nom
+        assert b["y"] + b["height"] <= PAYSAGE["height"], nom
+    regie.verifier("paysage-4-accueil")
+    p.get_by_role("button", name="Mode d'emploi").click()
+    region = p.get_by_role("region", name="Mode d'emploi")
+    region.wait_for()
+    p.wait_for_timeout(700)
+    defauts = p.evaluate("""() => {
+      const d = []
+      for (const tel of document.querySelectorAll('.tel')) {
+        const t = tel.getBoundingClientRect()
+        for (const el of tel.querySelectorAll('.carte, .voisine, .rangs li, .bouton, .petit, .pays')) {
+          const r = el.getBoundingClientRect()
+          if (r.right > t.right + 0.5 || r.left < t.left - 0.5) d.push('dépasse : ' + el.className + ' ' + el.textContent.trim().slice(0, 20))
+        }
+        for (const el of tel.querySelectorAll('.carte .nom, .voisine .nom')) if (el.scrollWidth > el.clientWidth + 1) d.push('coupé : ' + el.textContent.trim().slice(0, 20))
+        const liste = tel.querySelector('.rangs'), bouton = tel.querySelector('.bouton')
+        if (liste && bouton && liste.getBoundingClientRect().bottom > bouton.getBoundingClientRect().top + 0.5) d.push('bouton sur la liste')
+        if (bouton && bouton.getBoundingClientRect().bottom > t.bottom + 0.5) d.push('bouton hors du téléphone')
+      }
+      return d
+    }""")
+    assert defauts == [], defauts
+    regie.verifier("paysage-4-mode-d-emploi")
+    p.get_by_role("button", name="Fermer le mode d'emploi").click()
+    region.wait_for(state="detached")
+    p.set_viewport_size(PC)
     p.get_by_role("button", name="Fermer").click()
     # une seconde soirée se prépare pendant que la première est en cours ; on passe de l'une à l'autre en cliquant
     p.get_by_role("button", name="Toutes les soirées").click()

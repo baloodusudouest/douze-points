@@ -1,5 +1,12 @@
 # Journal des versions
 
+## 1.10.3 — 20 novembre 2026 (écran télé sur un petit écran en paysage)
+- Vu par Julien sur iPhone en paysage (captures du 20/11/2026) :
+  - **écran du QR code** : le QR code recouvrait « Mode d'emploi » et le bouton « Rejouer le démarrage » (la barre des boutons flottait par-dessus). La barre a maintenant sa propre place en bas ; le QR code tient dans la place qui reste ;
+  - **mode d'emploi** : textes coupés dans les deux téléphones (« Juste au-dess… », « Nor… », note coupée à droite) et « Envoyer mon classement » par-dessus la liste. Les téléphones sont désormais dessinés à l'échelle : tout est en em et leur taille de texte suit leur largeur (sur la télé, la même taille qu'avant).
+- Test d'écran : en paysage 844 × 390, aucun bouton sous le QR code, rien de coupé ni de sorti des téléphones, le bouton sous la liste. Tests : 158.
+- **Jamais essayé sur la vraie installation.**
+
 ## 1.10.2 — 20 novembre 2026 (socle 0.11.1)
 - Copies communes du socle 0.11.1 : sur une fiche « Connexion », le titre devient « Pour le relier » quand le réglage se fait dans Réglages de l'appli (et non dans la stack).
 - **Jamais essayé sur la vraie installation.**

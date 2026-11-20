@@ -61,9 +61,9 @@
     </div>
     <div class="tel" aria-label="Exemple d'écran de classement">
       <p class="petit">Rangé d'après tes notes. Glisse une ligne par sa poignée.</p>
-      <ol class="rangs" style="height: {classement.length * 30}px">
+      <ol class="rangs" style="height: {classement.length * 1.9}em">
         {#each classement as l (l.c.pays + l.i)}
-          <li class:tenue={l.tenue} style="top: {l.i * 30}px"><span class="pts">{l.i < 10 ? BAREME[l.i] : '·'}</span><span class="nom">{drapeau(l.c.pays, l.c.code_pays)} {l.c.pays}</span></li>
+          <li class:tenue={l.tenue} style="top: {l.i * 1.9}em"><span class="pts">{l.i < 10 ? BAREME[l.i] : '·'}</span><span class="nom">{drapeau(l.c.pays, l.c.code_pays)} {l.c.pays}</span></li>
         {/each}
       </ol>
       <span class="bouton">Envoyer mon classement</span>
@@ -85,29 +85,31 @@
   .explication .titre { margin-top: 0.5rem; font-size: clamp(1.1rem, 3.6vh, 2rem); font-weight: 300; }
   .explication .aide { margin-top: 0.6rem; font-size: clamp(0.85rem, 2.4vh, 1.25rem); line-height: 1.45; color: var(--muted-foreground); }
   .droite-texte { text-align: right; }
-  .tel { width: min(36vh, 22vw); height: min(74vh, 46vw); box-sizing: border-box; border-radius: 2.4rem; border: 6px solid #2f2a26; padding: 1.4rem 0.8rem 1rem;
-    display: flex; flex-direction: column; box-shadow: 0 1.2rem 4rem rgba(0, 0, 0, 0.55); overflow: hidden; }
-  .petit { font-size: 0.7rem; color: var(--muted-foreground); }
-  .pays { font-size: 1.25rem; font-weight: 300; }
-  .pile { margin: auto 0; display: grid; gap: 0.35rem; }
-  .reste { text-align: center; font-size: 0.65rem; color: #8b8276; }
-  .voisine, .carte { display: flex; align-items: center; gap: 0.45rem; border-radius: 0.6rem; padding: 0.35rem 0.6rem; background: var(--card); border: 1px solid var(--border); font-size: 0.8rem; }
+  /* 1.10.3 : le téléphone est dessiné à l'échelle. Tout ce qu'il contient est en em, et sa taille de texte suit sa
+     largeur (24 em de large) : sur un petit écran en paysage, il rapetisse en entier au lieu de couper les textes. */
+  .tel { --l: min(36vh, 22vw); width: var(--l); height: min(74vh, 46vw); font-size: calc(var(--l) / 24); box-sizing: border-box; border-radius: 2.4em;
+    border: 0.38em solid #2f2a26; padding: 1.4em 0.8em 1em; display: flex; flex-direction: column; box-shadow: 0 1.2em 4em rgba(0, 0, 0, 0.55); overflow: hidden; }
+  .petit { font-size: 0.7em; color: var(--muted-foreground); }
+  .pays { font-size: 1.25em; font-weight: 300; }
+  .pile { margin: auto 0; display: grid; gap: 0.35em; }
+  .reste { text-align: center; font-size: 0.65em; color: #8b8276; }
+  .voisine, .carte { display: flex; align-items: center; gap: 0.45em; border-radius: 0.6em; padding: 0.35em 0.6em; background: var(--card); border: 1px solid var(--border); font-size: 0.8em; }
   .voisine .nom, .carte .nom { flex: 1; min-width: 0; display: flex; flex-direction: column; font-weight: 600; }
-  .carte { background: color-mix(in oklab, var(--primary) 22%, var(--background)); border: 2px solid var(--primary); padding: 0.55rem 0.7rem; }
-  .carte small { font-size: 0.6rem; font-weight: 400; color: color-mix(in oklab, var(--primary) 50%, white); }
-  .carte .grand { font-size: 2.4rem; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; transition: opacity 0.2s; }
+  .carte { background: color-mix(in oklab, var(--primary) 22%, var(--background)); border: 2px solid var(--primary); padding: 0.55em 0.7em; }
+  .carte small { font-size: 0.75em; font-weight: 400; color: color-mix(in oklab, var(--primary) 50%, white); }
+  .carte .grand { font-size: 2.4em; font-weight: 600; line-height: 1; font-variant-numeric: tabular-nums; transition: opacity 0.2s; }
   .n { font-weight: 600; font-variant-numeric: tabular-nums; }
-  .curseur { position: relative; height: 6px; border-radius: 3px; background: var(--muted); margin: 0.8rem 0.4rem 0.4rem; }
-  .curseur i { position: absolute; inset: 0 auto 0 0; border-radius: 3px; background: var(--primary); transition: width 0.4s; }
-  .curseur b { position: absolute; top: 50%; width: 1rem; height: 1rem; margin-left: -0.5rem; transform: translateY(-50%); border-radius: 999px; background: var(--foreground); border: 2px solid var(--primary); transition: left 0.4s; }
-  .rangs { position: relative; margin-top: 0.5rem; }
-  .rangs li { position: absolute; left: 0; right: 0; height: 27px; display: flex; align-items: center; gap: 0.5rem; padding: 0 0.5rem; border-radius: 0.45rem;
-    background: var(--card); font-size: 0.72rem; transition: top 0.6s cubic-bezier(0.3, 0.7, 0.3, 1); }
-  .rangs li.tenue { z-index: 1; background: color-mix(in oklab, var(--primary) 22%, var(--background)); box-shadow: 0 0.3rem 1rem rgba(0, 0, 0, 0.5), inset 0 0 0 2px var(--primary); }
-  .rangs .pts { width: 1.2rem; text-align: right; font-weight: 600; color: var(--primary); font-variant-numeric: tabular-nums; }
+  .curseur { position: relative; height: 0.38em; border-radius: 0.19em; background: var(--muted); margin: 0.8em 0.4em 0.4em; }
+  .curseur i { position: absolute; inset: 0 auto 0 0; border-radius: 0.19em; background: var(--primary); transition: width 0.4s; }
+  .curseur b { position: absolute; top: 50%; width: 1em; height: 1em; margin-left: -0.5em; transform: translateY(-50%); border-radius: 999px; background: var(--foreground); border: 2px solid var(--primary); transition: left 0.4s; }
+  .rangs { position: relative; margin-top: 0.5em; flex-shrink: 0; }
+  .rangs li { position: absolute; left: 0; right: 0; height: 1.7em; display: flex; align-items: center; gap: 0.5em; padding: 0 0.5em; border-radius: 0.45em;
+    background: var(--card); font-size: 1em; transition: top 0.6s cubic-bezier(0.3, 0.7, 0.3, 1); }
+  .rangs li.tenue { z-index: 1; background: color-mix(in oklab, var(--primary) 22%, var(--background)); box-shadow: 0 0.3em 1em rgba(0, 0, 0, 0.5), inset 0 0 0 2px var(--primary); }
+  .rangs .pts { width: 1.4em; text-align: right; font-weight: 600; color: var(--primary); font-variant-numeric: tabular-nums; }
   .rangs .nom { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .bouton { margin-top: auto; display: grid; min-height: 2.2rem; place-items: center; border-radius: 0.6rem; background: var(--primary); color: var(--primary-foreground); font-size: 0.75rem; font-weight: 600; }
+  .bouton { margin-top: auto; flex-shrink: 0; display: grid; min-height: 2.6em; place-items: center; border-radius: 0.6em; background: var(--primary); color: var(--primary-foreground); font-size: 0.85em; font-weight: 600; }
   .pied { text-align: center; color: var(--muted-foreground); font-size: clamp(0.85rem, 2.4vh, 1.2rem); }
-  @media (orientation: portrait) { .milieu { grid-template-columns: 1fr 1fr; } .explication { display: none; } .tel { width: 44vw; height: 60vh; } }
+  @media (orientation: portrait) { .milieu { grid-template-columns: 1fr 1fr; } .explication { display: none; } .tel { --l: 44vw; height: 60vh; } }
   @media (prefers-reduced-motion: reduce) { .rangs li, .curseur i, .curseur b { transition: none; } }
 </style>
