@@ -21,7 +21,7 @@ def registre(monkeypatch):
 def test_health_porte_taches_et_copie(registre, client, monkeypatch):
     monkeypatch.setenv("MAISON_JETON", COMMUN)
     d = client.get("/health").json()
-    assert d["ok"] is True and d["version_socle"] == "0.10.0"
+    assert d["ok"] is True and d["version_socle"] == "0.11.0"
     noms = {t["nom"]: t for t in d["taches"]}
     assert set(noms) == {"copie-des-bases", "envoi-immich"}      # 1.6 : envoi des photos vers Immich, toutes les 10 min
     assert noms["envoi-immich"]["type"] == "reguliere" and noms["envoi-immich"]["periode_s"] == 600
