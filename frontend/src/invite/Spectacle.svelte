@@ -21,6 +21,11 @@
   let hauteur = $state(700)
   let animerDernier = $state(false)
   const RETARD_TRI = 1300
+  // 1.11.0 (avis du conseil) : la télé joue d'abord 6 s de compte à rebours ; pendant ce temps, les téléphones disent
+  // « Regardez la télé » au lieu de lancer la remontée (sinon ils montreraient le gagnant avant la télé). Calé sur
+  // l'heure du serveur comme la télé (`auto.ecoule_ms`, d'après `pas_le`).
+  let regardezTele = $state(false)
+  let finRegard
 
   async function lire() {
     if (document.hidden) return
@@ -32,7 +37,12 @@
       if (n.pas !== vu) {
         // 1.7.0 : l'animation du dernier vote ne se joue pas au rechargement. 1.8 : elle se joue dès que ce téléphone
         // arrive au dernier pas depuis un pas plus tôt (un pays manqué pendant une relecture ne la saute plus).
-        animerDernier = n.pas === n.fin - 1 && vu >= 0 && vu < n.fin - 1
+        const compteMs = n.compte_ms ?? 0, ecoule = n.auto?.ecoule_ms
+        const dansLeCompte = n.etat === 'devoilement' && n.pas === n.fin - 1 && ecoule !== null && ecoule !== undefined && ecoule < compteMs
+        animerDernier = n.pas === n.fin - 1 && ((vu >= 0 && vu < n.fin - 1) || dansLeCompte)
+        clearTimeout(finRegard)
+        regardezTele = dansLeCompte || (animerDernier && (ecoule === null || ecoule === undefined) && compteMs > 0)
+        if (regardezTele) finRegard = setTimeout(() => (regardezTele = false), compteMs - (dansLeCompte ? ecoule : 0))
         vu = n.pas
         clearTimeout(attente)
         if (premier) triTotaux = totaux()
@@ -53,7 +63,7 @@
   }
   function visibilite() { if (!document.hidden) { lire(); signaler(); garderEcran() } }
   onMount(() => { hauteur = innerHeight; lire(); minuterie = setInterval(lire, 1000); regard = setInterval(signaler, 2000); garderEcran() })
-  onDestroy(() => { clearInterval(minuterie); clearInterval(regard); clearTimeout(attente); try { verrou?.release() } catch { /* rien */ } })
+  onDestroy(() => { clearTimeout(finRegard); clearInterval(minuterie); clearInterval(regard); clearTimeout(attente); try { verrou?.release() } catch { /* rien */ } })
 
   let autres = $derived(d ? Object.fromEntries(d.public.map((x) => [x.chanson, x.autres])) : {})
   function lignesDe(x) {
@@ -122,6 +132,7 @@
       <div class="bandeau" class:jury={phaseJury} class:public={appelee} in:fade={{ duration: 250 }} role="status">
         {#if fini}<span>Le podium de la soirée</span>
         {:else if phaseJury}<span>Les points du jury</span>
+        {:else if dernierPas && regardezTele}<span>Le dernier vote du public</span>
         {:else if appelee}
           <span class="min-w-0 truncate">{drapeau(parId[appelee.chanson].pays, parId[appelee.chanson].code_pays)} {parId[appelee.chanson].pays} : <b>+{appelee.autres}</b> des autres invités</span>
           <span class="ml-auto shrink-0 text-xs opacity-75">{d.public.length} sur {d.nb_public}</span>
@@ -137,11 +148,18 @@
           <Podium places={monPodium} petit />
         {/if}
       </div>
+    {:else if dernierPas && regardezTele}
+      <div class="regardez grid min-h-0 flex-1 place-items-center text-center" role="status">
+        <div><p class="text-5xl" aria-hidden="true">📺</p><p class="mt-4 text-3xl font-light">Regardez la télé</p>
+          <p class="mt-2 text-sm text-muted-foreground">Le dernier vote du public arrive.</p></div>
+      </div>
     {:else if dernierPas}
       {#key d.pas}
         <div class="min-h-0 flex-1">
+          <!-- 1.11.0 : revelation_ms compte le compte à rebours (compte_ms) ; la remontée a le reste, comme à la télé -->
           <DernierVote chansons={d.chansons} totaux={totauxDernier} dernier={appelee.chanson} gain={appelee.autres}
-                       ordre={ordreDernier} gagnant={d.gagnant ?? null} anime={animerDernier} maxMs={d.revelation_ms || 0} compact />
+                       ordre={ordreDernier} gagnant={d.gagnant ?? null} anime={animerDernier}
+                       maxMs={Math.max(0, (d.revelation_ms || 0) - (d.compte_ms || 0))} compact />
         </div>
       {/key}
     {:else}
@@ -172,7 +190,7 @@
         {#if fini}
           <button class="commande suivant" onclick={terminer} disabled={d.etat !== 'devoilement'}>{d.etat === 'devoilement' ? 'Fin du dévoilement' : 'Dévoilement terminé'}</button>
         {:else}
-          <button class="commande suivant" onclick={() => agir('suivant')} disabled={occupe}>Suivant</button>
+          <button class="commande suivant" onclick={() => agir('suivant')} disabled={occupe || (dernierPas && regardezTele)}>Suivant</button>
         {/if}
       </div>
     {/if}
