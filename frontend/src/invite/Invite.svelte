@@ -197,7 +197,11 @@
   const pas = (d) => { valeur = Math.max(0, Math.min(20, Math.round((valeur + d * cran) / cran) * cran)); touche = true }
 
   // ---- classement : flèches, ou glisser par la poignée
-  const HAUTEUR = 56
+  // 1.11 : 72 px (avant 56) pour la ligne du commentaire sous « 3e · noté 15 » ; la hauteur reste fixe (le glisser
+  // compte en lignes de HAUTEUR).
+  const HAUTEUR = 72
+  // 1.11 : la feuille du bas avec le commentaire entier (toucher la ligne ; jamais la poignée ni les flèches)
+  let feuille = $state(null)      // id de la chanson montrée
   function deplacer(id, vers) {
     const de = ordre.indexOf(id)
     vers = Math.max(0, Math.min(ordre.length - 1, vers))
@@ -233,6 +237,7 @@
 </script>
 
 <Ouverture />
+<svelte:window onkeydown={(ev) => { if (ev.key === 'Escape' && feuille !== null) feuille = null }} />
 
 <main class="mx-auto min-h-dvh max-w-lg px-4 pt-[calc(1rem+env(safe-area-inset-top))] pb-[calc(6.5rem+env(safe-area-inset-bottom))]">
   {#if ferme}
@@ -354,8 +359,17 @@
               {@const c = parId[id]}
               <li animate:flip={{ duration: 180 }} class="rang" class:tenu={glisse?.id === id} class:dixieme={i === 9 && ordre.length > 10} style="height: {HAUTEUR}px">
                 <span class="chiffre w-8 shrink-0 text-right text-xl {i < 10 ? 'text-primary' : 'text-muted-foreground'}" title={i < 10 ? `${BAREME[i]} points` : 'aucun point'}>{i < 10 ? BAREME[i] : '·'}</span>
-                <span class="min-w-0 flex-1"><span class="block truncate">{drapeau(c.pays, c.code_pays)} {c.pays}</span>
-                  <span class="block text-xs text-muted-foreground">{i + 1}{i ? 'e' : 'er'} · noté {note(notes[id]?.valeur)}</span></span>
+                {#if notes[id]?.commentaire}
+                  <!-- 1.11 : le début de son commentaire ; un toucher montre tout -->
+                  <button class="ligne-avis min-w-0 flex-1 text-left" aria-label="Voir le commentaire sur {c.pays}" aria-haspopup="dialog" onclick={() => (feuille = id)}>
+                    <span class="block truncate">{drapeau(c.pays, c.code_pays)} {c.pays}</span>
+                    <span class="block text-xs text-muted-foreground">{i + 1}{i ? 'e' : 'er'} · noté {note(notes[id]?.valeur)}</span>
+                    <span class="avis block truncate text-xs">« {notes[id].commentaire} »</span>
+                  </button>
+                {:else}
+                  <span class="min-w-0 flex-1"><span class="block truncate">{drapeau(c.pays, c.code_pays)} {c.pays}</span>
+                    <span class="block text-xs text-muted-foreground">{i + 1}{i ? 'e' : 'er'} · noté {note(notes[id]?.valeur)}</span></span>
+                {/if}
                 {#if ouverte}
                   <button class="fleche" aria-label="Monter {c.pays}" disabled={i === 0} onclick={() => fleche(id, -1)}><ChevronUp class="size-5" /></button>
                   <button class="fleche" aria-label="Descendre {c.pays}" disabled={i === ordre.length - 1} onclick={() => fleche(id, 1)}><ChevronDown class="size-5" /></button>
@@ -491,6 +505,27 @@
   </div>
 {/if}
 
+{#if feuille !== null && parId[feuille]}
+  {@const c = parId[feuille]}
+  {@const r = ordre.indexOf(feuille)}
+  <!-- 1.11 : la feuille du commentaire entier ; un toucher à côté, « Fermer » ou Échap la referment -->
+  <button class="fixed inset-0 z-20 cursor-default bg-black/50" aria-label="Fermer le commentaire" onclick={() => (feuille = null)}></button>
+  <div class="feuille fixed inset-x-0 bottom-0 z-30 mx-auto max-w-lg rounded-t-2xl border bg-card px-5 pt-4 pb-[calc(1rem+env(safe-area-inset-bottom))]"
+       role="dialog" aria-modal="true" aria-label="Commentaire sur {c.pays}">
+    <div class="flex items-start gap-3">
+      <span class="text-3xl leading-none">{drapeau(c.pays, c.code_pays)}</span>
+      <div class="min-w-0 flex-1">
+        <p class="truncate text-lg font-medium">{c.pays}</p>
+        <p class="truncate text-sm text-muted-foreground">{c.artiste}{c.titre ? ', ' + c.titre : ''}</p>
+      </div>
+      <span class="chiffre text-3xl">{note(notes[feuille]?.valeur)}</span>
+    </div>
+    <p class="mt-1 text-xs text-muted-foreground">{r + 1}{r ? 'e' : 'er'} de ton classement · noté {note(notes[feuille]?.valeur)} sur 20</p>
+    <p class="mt-3 max-h-[40dvh] overflow-y-auto text-base break-words whitespace-pre-line">« {notes[feuille]?.commentaire} »</p>
+    <Button class="mt-4 w-full" variant="outline" size="lg" onclick={() => (feuille = null)}>Fermer</Button>
+  </div>
+{/if}
+
 {#if confirmer}
   <div class="fixed inset-0 z-20 grid place-items-end bg-black/60 p-4 sm:place-items-center" role="alertdialog" aria-label="Envoyer mon classement">
     <div class="w-full max-w-md rounded-2xl border bg-card p-5">
@@ -521,6 +556,12 @@
   .fleche { display: grid; width: 2.75rem; height: 2.75rem; place-items: center; border-radius: 0.6rem; color: var(--muted-foreground); }
   .fleche:disabled { opacity: 0.25; cursor: default; }
   .poignee { touch-action: none; cursor: grab; }
+  .ligne-avis { display: block; align-self: stretch; padding: 0.35rem 0; border-radius: 0.5rem; }
+  .ligne-avis:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .ligne-avis .avis { color: color-mix(in oklab, var(--foreground) 72%, var(--muted-foreground)); font-style: italic; }
+  .feuille { animation: monter-feuille 0.22s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+  @keyframes monter-feuille { from { transform: translateY(100%); } to { transform: none; } }
+  @media (prefers-reduced-motion: reduce) { .feuille { animation: none; } }
   .onglet { min-height: 2.75rem; border-radius: 0.7rem; font-size: 0.85rem; color: var(--muted-foreground); }
   .onglet[aria-current="page"] { background: var(--secondary); color: var(--foreground); }
   .demi { width: 3.25rem; height: 3.25rem; border-radius: 999px; border: 1px solid var(--border); font-size: 1.6rem; font-weight: 300; }
