@@ -8,7 +8,7 @@ WEBP = b"RIFF\x00\x00\x00\x00WEBP" + b"\x00" * 64
 
 def test_deposer_lire_remplacer_retirer(client, soiree, tmp_path):
     base = f"/api/soirees/{soiree.id}"
-    assert client.get(base).json()["images"] == {"logo": None, "banniere": None, "poster": None}
+    assert client.get(base).json()["images"] == {"logo": None, "banniere": None, "poster": None, "apero": None}
     for sorte, contenu, type_mime in (("logo", PNG, "image/png"), ("banniere", JPEG, "image/jpeg"), ("poster", WEBP, "image/webp")):
         assert client.put(f"{base}/image/{sorte}", content=contenu).status_code == 200
         r = client.get(f"{base}/image/{sorte}")

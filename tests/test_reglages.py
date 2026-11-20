@@ -4,6 +4,7 @@ import json
 import urllib.error
 
 import pytest
+from app.main import REGLAGES_DEFAUTS as _RD
 from fastapi.testclient import TestClient
 
 from app import __version__, main, maison
@@ -11,6 +12,9 @@ from app.config import Config
 from tests.conftest import MOT_DE_PASSE, connecter, faux_annuaire
 
 WEBHOOK = "http://ha.exemple:8123/api/webhook/essai-douze-points"
+
+# 1.9 : réglages du dévoilement (défauts)
+DEV = {k: v for k, v in _RD.items() if k != "ha_webhook"}
 
 
 @pytest.fixture()
@@ -35,14 +39,14 @@ def test_reprise_de_l_ancienne_variable_au_premier_demarrage(tmp_path, env):
     env.setenv("DOUZE_POINTS_HA_WEBHOOK", WEBHOOK)
     with demarrer(tmp_path) as c:
         connecter(c)
-        assert c.get("/api/reglages").json() == {"pas_note": 0.5, "ha_webhook": WEBHOOK}
+        assert c.get("/api/reglages").json() == {"pas_note": 0.5, "ha_webhook": WEBHOOK, **DEV}
         assert c.get("/api/session").json()["notification"] is True
         journal = c.get("/api/journal").json()
         reprise = [j for j in journal if j["action"] == "reglage_repris"]
         assert [(j["cible"], json.loads(j["detail"])) for j in reprise] == [
             ("ha_webhook", {"variable": "DOUZE_POINTS_HA_WEBHOOK"})]
         assert WEBHOOK not in c.get("/api/journal").text                       # le nom, jamais la valeur
-    assert json.loads((tmp_path / "reglages.json").read_text()) == {"ha_webhook": WEBHOOK}
+    assert json.loads((tmp_path / "reglages.json").read_text()) == {"ha_webhook": WEBHOOK, **DEV}
     # second démarrage : la variable a changé (ou disparu), elle n'est plus lue
     env.setenv("DOUZE_POINTS_HA_WEBHOOK", "http://autre.exemple/api/webhook/x")
     with demarrer(tmp_path) as c:
@@ -58,7 +62,7 @@ def test_reprise_de_l_ancienne_variable_au_premier_demarrage(tmp_path, env):
 
 def test_sans_variable_le_defaut(client):
     connecter(client)
-    assert client.get("/api/reglages").json() == {"pas_note": 0.5, "ha_webhook": ""}
+    assert client.get("/api/reglages").json() == {"pas_note": 0.5, "ha_webhook": "", **DEV}
     assert client.get("/api/session").json()["notification"] is False
 
 
@@ -67,9 +71,9 @@ def test_sans_variable_le_defaut(client):
 def test_changer_les_reglages(client, tmp_path):
     connecter(client)
     r = client.put("/api/reglages", json={"ha_webhook": f"  {WEBHOOK} ", "pas_note": 0.25, "inconnu": 3})
-    assert r.status_code == 200 and r.json() == {"pas_note": 0.25, "ha_webhook": WEBHOOK}
+    assert r.status_code == 200 and r.json() == {"pas_note": 0.25, "ha_webhook": WEBHOOK, **DEV}
     assert client.get("/api/session").json()["notification"] is True
-    assert json.loads((tmp_path / "reglages.json").read_text()) == {"ha_webhook": WEBHOOK}
+    assert json.loads((tmp_path / "reglages.json").read_text()) == {"ha_webhook": WEBHOOK, **DEV}
     assert WEBHOOK not in client.get("/api/journal").text
     assert client.put("/api/reglages", json={"ha_webhook": ""}).json()["ha_webhook"] == ""
 
@@ -81,7 +85,7 @@ def test_mauvais_type_400_et_rien_ne_change(client, corps):
     connecter(client)
     r = client.put("/api/reglages", json=corps)
     assert r.status_code == 400 and r.json()["detail"]
-    assert client.get("/api/reglages").json() == {"pas_note": 0.5, "ha_webhook": ""}
+    assert client.get("/api/reglages").json() == {"pas_note": 0.5, "ha_webhook": "", **DEV}
 
 
 def test_reglages_fermes_sans_connexion(client):
@@ -107,7 +111,7 @@ def test_sauvegarde_ouverte_par_le_jeton_commun_seul(client, env):
     s = r.json()
     assert s["contrat"] == maison.CONTRAT_SAUVEGARDE == 1
     assert s["appli"] == "douze-points" and s["version"] == __version__
-    assert s["reglages"] == {"pas_note": 1.0}
+    assert s["reglages"] == {"pas_note": 1.0, **DEV}
     for interdit in ("ha_webhook", "webhook", WEBHOOK, "ha.exemple", MOT_DE_PASSE, "jeton-commun",
                      "DOUZE_POINTS", "MAISON_", "/data", "reglages.json"):
         assert interdit not in r.text, interdit
@@ -160,8 +164,8 @@ def test_restaurer_dates_differences_application(client, monkeypatch):
     assert d["differences"] == [{"cle": "pas_note", "actuel": 0.5, "sauve": 0.25}]
     r = client.post("/api/restaurer", json={"le": "2026-11-14"})
     assert r.status_code == 200
-    assert r.json() == {"le": "2026-11-14", "restaures": ["pas_note"], "reglages": {"pas_note": 0.25, "ha_webhook": WEBHOOK}}
-    assert client.get("/api/reglages").json() == {"pas_note": 0.25, "ha_webhook": WEBHOOK}
+    assert r.json() == {"le": "2026-11-14", "restaures": ["pas_note"], "reglages": {"pas_note": 0.25, "ha_webhook": WEBHOOK, **DEV}}
+    assert client.get("/api/reglages").json() == {"pas_note": 0.25, "ha_webhook": WEBHOOK, **DEV}
     ligne = next(j for j in client.get("/api/journal").json() if j["action"] == "reglages_restaures")
     assert ligne["cible"] == "2026-11-14" and json.loads(ligne["detail"]) == {"cles": ["pas_note"]}
     assert client.post("/api/restaurer", json={"le": "2026-11-14"}).json()["restaures"] == []     # déjà fait

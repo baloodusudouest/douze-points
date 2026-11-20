@@ -153,6 +153,9 @@ def test_une_soiree_entiere(serveur, navigateur):
     p.get_by_label("Nom d'un nouveau concours").fill("Concours de démonstration")
     p.get_by_role("button", name="Ajouter").click()
     p.get_by_role("button", name="Retirer Concours de démonstration").wait_for()
+    # 1.9 : le dévoilement, automatique par défaut, et le temps de chaque étape
+    assert p.get_by_role("group", name="Manuel ou automatique").get_by_role("button", name="Automatique").get_attribute("aria-pressed") == "true"
+    assert p.get_by_label("Public, en secondes").input_value() == "5"
     regie.verifier("pc-0-reglages")
     # Connexion : la tuile de carnet, ce qui y est lu, et « Vérifier »
     p.get_by_role("link", name="Connexion").click()
@@ -264,6 +267,13 @@ def test_une_soiree_entiere(serveur, navigateur):
     p.get_by_role("button", name="Pas encore").wait_for()
     p.get_by_role("button", name="Démarrer la soirée").click()
     p.get_by_alt_text("QR code du lien des invités").wait_for(timeout=6000)
+    # 1.9 : le mode d'emploi (deux téléphones animés), au pas de note de la soirée ; un toucher le referme
+    p.get_by_role("button", name="Mode d'emploi").click()
+    p.get_by_role("region", name="Mode d'emploi").get_by_role("heading", name="Comment noter").wait_for()       # 1 sur 4 arrivé
+    p.wait_for_timeout(1800)
+    regie.verifier("pc-4-mode-d-emploi")
+    p.get_by_role("button", name="Fermer le mode d'emploi").click()
+    p.get_by_role("region", name="Mode d'emploi").wait_for(state="detached")
     p.get_by_role("button", name="Fermer").click()
     # une seconde soirée se prépare pendant que la première est en cours ; on passe de l'une à l'autre en cliquant
     p.get_by_role("button", name="Toutes les soirées").click()
@@ -298,6 +308,9 @@ def test_une_soiree_entiere(serveur, navigateur):
         t.get_by_label("Note sur 20").fill(str(valeur))
         t.get_by_label("Un mot sur cette chanson").fill(f"Avis {valeur}")
         if valeur == 9.5:
+            # 1.9 (6b) : la France (14) est juste au-dessus, sa place parmi les chansons déjà notées
+            t.get_by_role("dialog").get_by_text("2e de tes 2 chansons").wait_for()
+            assert t.get_by_role("dialog").get_by_text("Juste au-dessus").count() == 0      # pas de libellé : la carte
             invite.verifier("tel-4-notation")
         t.get_by_role("button", name="Suivante").click()
     t.get_by_role("heading", name="Ukraine").wait_for()
@@ -466,8 +479,10 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     p.get_by_role("button", name="Se connecter").click()
     p.get_by_role("heading", name="Nouvelle soirée").wait_for()
 
-    # Réglages : deux membres du jury, les autres sont le public
+    # Réglages : deux membres du jury, les autres sont le public ; 1.9 : dévoilement en manuel (tout au toucher)
     p.get_by_role("link", name="Réglages").click()
+    p.get_by_role("group", name="Manuel ou automatique").get_by_role("button", name="Manuel").click()
+    p.get_by_role("group", name="Manuel ou automatique").get_by_role("button", name="Manuel").and_(p.locator('[aria-pressed="true"]')).wait_for()
     for prenom in ("Aglaé", "Barnabé"):
         p.get_by_role("button", name=f"{prenom} : jury").click()
         p.get_by_role("button", name=f"{prenom} : jury", pressed=True).wait_for()
@@ -618,6 +633,7 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
     p.get_by_role("heading", name="Nouvelle soirée").wait_for()
     assert httpx.get(f"{serveur}/invite/{jeton}/api/etat").status_code == 404
     regie.verifier("pc-18-apres-suppression")
+    assert p.request.put(f"{serveur}/api/reglages", data={"devoilement_auto": True}).ok      # 1.9 : retour au défaut
 
 
 def test_reglages_webhook_et_restaurer(serveur, navigateur):
@@ -770,6 +786,20 @@ def test_grille_papier_saisie_libelle_et_affinites(serveur, navigateur):
     t.get_by_role("heading", name="Écarts et affinités").scroll_into_view_if_needed()
     tel.verifier("tel-33-affinites")
     tel.contexte.close()
+
+    # 1.9 : « À traiter » (une demi-finale : les qualifiés), puis la clôture
+    p.get_by_role("link", name="À traiter").click()
+    p.get_by_role("heading", name="À traiter").wait_for()
+    p.get_by_role("button").filter(has_text="Soirée de la grille").first.click()
+    qualifies = p.get_by_role("list", name="Qualifiés").get_by_role("checkbox")
+    qualifies.nth(0).check()
+    qualifies.nth(2).check()
+    p.get_by_text("2 qualifiés cochés").wait_for()
+    regie.verifier("pc-34-a-traiter-demi")
+    p.get_by_role("button", name="Clôturer la soirée").click()
+    p.get_by_text("Soirée clôturée (résultat officiel n° 1)").wait_for()
+    p.get_by_role("button").filter(has_text="Clôturée le").first.wait_for()
+    regie.verifier("pc-34-a-traiter-cloturee")
 
     # ménage : la soirée de test disparaît
     assert api.delete(f"{serveur}/api/soirees/{soiree}", data={"confirmation": True}).ok

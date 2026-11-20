@@ -6,11 +6,50 @@
   import Embleme from '$lib/Embleme.svelte'
   import Scene from '$lib/Scene.svelte'
   import RotateCcw from '@lucide/svelte/icons/rotate-ccw'
+  import { onMount, onDestroy } from 'svelte'
+  import { api } from '$lib/api.js'
+  import { normaliser } from '$lib/pays.js'
+  import ModeEmploi from '$lib/ModeEmploi.svelte'
   let { soiree, onferme, onrejouer } = $props()
+
+  // 1.9 : quand tous les invités attendus ont choisi leur prénom, le mode d'emploi s'affiche (30 s par défaut,
+  // Réglages › Dévoilement), une fois par soirée sur cet écran ; un bouton le remontre quand l'hôte veut (un absent
+  // ne le bloque pas).
+  let modeEmploi = $state(false)
+  let presents = $state(0), attendus = $state(0)
+  let chansons = $state([])
+  let reglages = { duree_mode_emploi: 30, pas_note: 0.5 }
+  let cran = $state(0.5)
+  let minuterieEtat, minuteMode
+  const CLE_VU = `douze-points:mode-emploi:${soiree.id}`
+  function montrerMode() {
+    modeEmploi = true
+    clearTimeout(minuteMode)
+    minuteMode = setTimeout(() => (modeEmploi = false), reglages.duree_mode_emploi * 1000)
+    try { sessionStorage.setItem(CLE_VU, '1') } catch { /* rien */ }
+  }
+  async function surveiller() {
+    try {
+      const d = await api.get(`/api/soirees/${soiree.id}`)
+      chansons = d.chansons.map(normaliser)
+      const gens = d.participants.filter((g) => g.etat !== 'ecarte')
+      attendus = gens.length
+      presents = gens.filter((g) => g.pris || g.etat === 'envoye').length
+      let vu = false
+      try { vu = !!sessionStorage.getItem(CLE_VU) } catch { /* rien */ }
+      if (d.etat === 'ouverte' && attendus && presents === attendus && !vu && !modeEmploi) montrerMode()
+    } catch { /* plus tard */ }
+  }
+  onMount(async () => {
+    try { reglages = { ...reglages, ...(await api.get('/api/reglages')) }; cran = reglages.pas_note } catch { /* défauts */ }
+    surveiller()
+    minuterieEtat = setInterval(() => { if (!document.hidden) surveiller() }, 3000)
+  })
+  onDestroy(() => { clearInterval(minuterieEtat); clearTimeout(minuteMode) })
 
   const qr = `/api/soirees/${soiree.id}/qr.svg`
   const image = (sorte) => (soiree.images[sorte] ? `/api/soirees/${soiree.id}/image/${sorte}?v=${soiree.images[sorte]}` : null)
-  const logo = image('logo'), poster = image('poster')
+  const logo = image('logo'), poster = image('poster'), apero = image('apero')     // 1.9 : la photo apéro remplace le logo
 
   async function charger(src) {
     const img = new Image()
@@ -102,7 +141,8 @@
 <div class="grid min-h-0 flex-1 px-[max(1.25rem,env(safe-area-inset-left))] pb-14 landscape:items-center landscape:gap-8 portrait:content-center portrait:justify-items-center portrait:gap-5 {poster ? 'landscape:grid-cols-[auto_1fr_auto]' : 'landscape:grid-cols-[1fr_auto]'}">
   {#if poster}<img src={poster} alt="Poster de l'évènement" class="rounded-xl object-contain portrait:hidden" style="max-height: 50vh; max-width: 24vw" />{/if}
   <div class="min-w-0 portrait:text-center">
-    {#if logo}<p style="font-size: clamp(2.5rem, 13vh, 8rem); line-height: 1" class="portrait:flex portrait:justify-center"><Embleme src={logo} /></p>{/if}
+    {#if apero}<img src={apero} alt="Photo apéro de la soirée" class="rounded-2xl object-cover portrait:mx-auto" style="max-height: 26vh; max-width: 40vw" />
+    {:else if logo}<p style="font-size: clamp(2.5rem, 13vh, 8rem); line-height: 1" class="portrait:flex portrait:justify-center"><Embleme src={logo} /></p>{/if}
     <h1 class="mt-2 font-light tracking-tight" style="font-size: clamp(1.5rem, 6.5vh, 4rem); line-height: 1.08">{soiree.nom}</h1>
     <p class="mt-3 text-muted-foreground" style="font-size: clamp(0.95rem, 3.2vh, 1.7rem)">
       {soiree.concours} {soiree.annee}, {EMISSIONS[soiree.emission].toLowerCase()}<br />
@@ -123,10 +163,15 @@
       <a class="text-xs text-muted-foreground underline" href="/invite/{soiree.jeton_invite}">Passer à la notation</a>
       <Button variant="outline" size="sm" onclick={partager}>Partager l'image</Button>
     {/if}
+    <Button variant="outline" size="sm" onclick={montrerMode}>Mode d'emploi</Button>
     <!-- repartir du noir : l'écran éteint, le bouton, les projecteurs, puis de nouveau cet écran -->
     <Button variant="outline" size="sm" onclick={onrejouer} aria-label="Rejouer le démarrage" title="Rejouer le démarrage"><RotateCcw class="size-4" aria-hidden="true" /></Button>
     <Button variant="outline" size="sm" onclick={onferme}>Fermer</Button>
     {#if message}<p class="basis-full text-center text-xs text-muted-foreground" role="status">{message}</p>{/if}
   </div>
 </div>
+{#if modeEmploi}
+  <button class="fixed inset-0 z-50 cursor-default" aria-label="Fermer le mode d'emploi" onclick={() => (modeEmploi = false)}></button>
+  <ModeEmploi {chansons} {cran} {presents} {attendus} />
+{/if}
 </div>

@@ -33,7 +33,7 @@ import segno
 from fastapi import Body, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 
-from . import __version__, carnet, ecran, immich, maison
+from . import __version__, carnet, ecran, immich, maison, resultat
 from .auth import COMMUN, DUREE, Sessions, en_https
 from .base import base, fichier, lecture, preparer, sauvegarder
 from .config import APPLI, Config, charger
@@ -44,7 +44,7 @@ ETAT: dict = {}
 PUBLIQUES = ("/api/connexion", "/api/session")
 EMISSIONS = ("demi1", "demi2", "finale", "unique")
 LIBELLES = {"demi1": "première demi-finale", "demi2": "seconde demi-finale", "finale": "finale", "unique": ""}
-IMAGES = ("logo", "banniere", "poster")
+IMAGES = ("logo", "banniere", "poster", "apero")        # 1.9 : la photo apéro (déposée par /apero)
 
 
 def titre_evenement(concours: str, annee: int, emission: str, ville: str = "") -> str:
@@ -87,7 +87,12 @@ def adresse() -> str:
 # `pas_note` reste dans la table `reglage` de la base (1.0) ; les autres sont dans /data/reglages.json
 # (maison.Reglages) : repris une fois de l'ancienne variable de la stack au premier démarrage, puis seul l'écran
 # Réglages fait foi.
-REGLAGES_DEFAUTS = {"ha_webhook": ""}
+REGLAGES_DEFAUTS = {"ha_webhook": "",
+                    # 1.9 : le dévoilement automatique et le temps de chaque étape, en secondes (choix de Julien, 20/11/2026)
+                    "devoilement_auto": True, "duree_depart": 10, "duree_jury": 15, "duree_public": 5,
+                    "duree_revelation": 60, "duree_podium": 15, "duree_selfie": 6, "duree_mode_emploi": 30}
+DUREES = {"duree_depart": (2, 600), "duree_jury": (2, 600), "duree_public": (2, 120), "duree_revelation": (5, 300),
+          "duree_podium": (2, 600), "duree_selfie": (2, 60), "duree_mode_emploi": (5, 600)}
 REGLAGES_VARIABLES = {"ha_webhook": "DOUZE_POINTS_HA_WEBHOOK"}
 # Jamais dans une sauvegarde (maison.est_secret l'écarte déjà ; la liste le dit en clair).
 EXCLUS_SAUVEGARDE = ("ha_webhook",)
@@ -238,7 +243,7 @@ def _soiree(cx, soiree_id: int):
 
 def _chansons(cx, soiree_id: int) -> list[dict]:
     return [dict(r) for r in cx.execute(
-        "SELECT id, ordre, pays, code_pays, artiste, titre, officiel_jury, officiel_public FROM chanson "
+        "SELECT id, ordre, pays, code_pays, artiste, titre, officiel_jury, officiel_public, officiel_rang, officiel_qualifie FROM chanson "
         "WHERE soiree_id=? ORDER BY ordre", (soiree_id,))]
 
 
@@ -449,6 +454,18 @@ def changer_reglages(cx, corps: dict) -> dict:
     propres = {}
     if "ha_webhook" in corps:
         propres["ha_webhook"] = _ha_webhook(corps["ha_webhook"])
+    if "devoilement_auto" in corps:                       # 1.9 : manuel (tout au toucher) ou automatique
+        if not isinstance(corps["devoilement_auto"], bool):
+            raise HTTPException(400, "Le dévoilement est manuel ou automatique (vrai ou faux).")
+        propres["devoilement_auto"] = corps["devoilement_auto"]
+        # changer de mode en plein dévoilement : l'horloge repart de maintenant (rien ne saute)
+        cx.execute("UPDATE soiree SET pas_le=? WHERE etat='devoilement'", (horloge(),))
+    for cle, (bas, haut) in DUREES.items():
+        if cle in corps:
+            v = corps[cle]
+            if isinstance(v, bool) or not isinstance(v, (int, float)) or v != int(v) or not bas <= v <= haut:
+                raise HTTPException(400, f"Un temps d'étape va de {bas} à {haut} secondes.")
+            propres[cle] = int(v)
     if pas is not None:
         cx.execute("INSERT INTO reglage(cle, valeur) VALUES('pas_note', ?) "
                    "ON CONFLICT(cle) DO UPDATE SET valeur=excluded.valeur", (pas,))
@@ -459,7 +476,7 @@ def changer_reglages(cx, corps: dict) -> dict:
         except (TypeError, ValueError) as e:
             raise HTTPException(400, f"Réglage refusé : {e}.")
         for k, v in propres.items():
-            journal(cx, "reglage", k, {"rempli": bool(v)})
+            journal(cx, "reglage", k, {"valeur": v} if k != "ha_webhook" else {"rempli": bool(v)})
     return tous_reglages(cx)
 
 
@@ -627,8 +644,9 @@ def soiree_lire(soiree_id: int):
 
 @app.put("/api/soirees/{soiree_id}/image/{sorte}")
 async def image_deposer(soiree_id: int, sorte: str, request: Request):
-    """Logo, bannière ou poster de l'évènement, déposés par l'hôte. Gardés dans /data/images, jamais dans le dépôt."""
-    if sorte not in IMAGES:
+    """Logo, bannière ou poster de l'évènement, déposés par l'hôte. Gardés dans /data/images, jamais dans le dépôt.
+    1.9 : la photo apéro passe par PUT /api/soirees/<id>/apero (HEIC accepté, copie réduite, envoi à Immich)."""
+    if sorte not in IMAGES or sorte == "apero":
         raise HTTPException(404, "Image inconnue.")
     contenu = await request.body()
     if len(contenu) > IMAGE_MAX:
@@ -923,8 +941,8 @@ def devoiler(soiree_id: int, corps: dict = Body(default={})):
         random.shuffle(passage)
         # 1.3.1 : un double appui ne relance pas le tirage pendant l'animation
         if not cx.execute("UPDATE soiree SET etat='devoilement', forcee=?, mode_devoilement=?, ordre_devoilement=?, "
-                          "pas_devoilement=0, pas_le=NULL, pause_auto=0, vu_le=NULL WHERE id=? AND etat='ouverte'",
-                          (1 if forcer else 0, mode, json.dumps(passage), soiree_id)).rowcount:
+                          "pas_devoilement=0, pas_le=?, pause_auto=0, vu_le=? WHERE id=? AND etat='ouverte'",
+                          (1 if forcer else 0, mode, json.dumps(passage), horloge(), horloge(), soiree_id)).rowcount:
             raise HTTPException(409, "Le dévoilement est déjà lancé.")
         journal(cx, "devoilement_lance", str(soiree_id),
                 {"force": forcer, "retenus": len(retenus), "ecartes": len(ecartes)})
@@ -974,23 +992,63 @@ def _bornes_auto(m: dict) -> tuple[int, int]:
     return debut + 1, debut + len(m["public"])
 
 
-def _pas_auto(s, m: dict, t: float) -> tuple[int, dict]:
-    """Le pas effectif et l'état du défilement : {actif, pause, prochain_dans (ms ou None), duree (ms)}."""
-    pas = max(0, min(int(s["pas_devoilement"] or 0), m["fin"]))
+def _reglage_auto(cle: str):
+    return ETAT["reglages"].get(cle) if "reglages" in ETAT else REGLAGES_DEFAUTS[cle]
+
+
+def duree_revelation(nb_chansons: int) -> float:
+    """1.9 : le plafond du dernier pas : entrée des drapeaux (120 ms par pays, 2,5 s au plus) + 0,9 s pour voir le
+    point de départ + la remontée (au plus `duree_revelation`) + 5 s sur « Vainqueur ». La télé, son animation
+    jouée, envoie « suivant » plus tôt (conseil 1.9.0 : un seul plan, celui de lib/dernier.js)."""
+    return min(2.5, 0.12 * max(0, nb_chansons - 1)) + 0.9 + float(_reglage_auto("duree_revelation")) + 5.0
+
+
+def _duree_pas(pas: int, m: dict) -> float | None:
+    """Le temps d'un pas en automatique (1.9) : départ, jury, chaque pays du public, révélation, podium ; None :
+    au toucher."""
     premier, dernier = _bornes_auto(m)
-    auto = {"actif": False, "pause": bool(s["pause_auto"]), "prochain_dans": None, "duree": int(DUREE_AUTO * 1000)}
-    if s["etat"] != "devoilement" or not premier <= pas < dernier or s["pas_le"] is None:
-        return pas, auto
-    auto["actif"] = True
-    if s["pause_auto"]:
+    if pas == 0:
+        return float(_reglage_auto("duree_depart"))
+    if m["jures"] and pas == 1:
+        return float(_reglage_auto("duree_jury"))
+    if premier <= pas < dernier:
+        return float(_reglage_auto("duree_public"))
+    if pas == dernier and m["public"]:
+        return duree_revelation(len(m["public"]))
+    if pas == m["fin"]:
+        return float(_reglage_auto("duree_podium"))
+    return None
+
+
+def _pas_auto(s, m: dict, t: float) -> tuple[int, dict]:
+    """Le pas effectif et l'état du défilement : {actif, pause, prochain_dans (ms ou None), duree (ms), terminer}.
+    1.9 : toutes les étapes s'enchaînent seules en automatique (réglage), aucune en manuel ; après le podium,
+    `terminer` dit que le dévoilement est à finir (fait par /regard ou par la télé)."""
+    pas = max(0, min(int(s["pas_devoilement"] or 0), m["fin"]))
+    auto = {"actif": False, "pause": bool(s["pause_auto"]), "prochain_dans": None, "duree": None, "terminer": False,
+            "mode": "auto" if _reglage_auto("devoilement_auto") else "manuel"}
+    if s["etat"] != "devoilement" or s["pas_le"] is None or not _reglage_auto("devoilement_auto"):
         return pas, auto
     ref = t if s["vu_le"] is None else min(t, s["vu_le"] + GARDE_REGIE)
     ecoule = max(0.0, ref - s["pas_le"])
-    pas = min(dernier, pas + int(ecoule // DUREE_AUTO))
-    if pas < dernier:
-        auto["prochain_dans"] = int(round((DUREE_AUTO - ecoule % DUREE_AUTO) * 1000))
-    else:
-        auto["actif"] = False
+    if not s["pause_auto"]:
+        while True:
+            d = _duree_pas(pas, m)
+            if d is None:
+                break
+            if ecoule < d:
+                auto["prochain_dans"] = int(round((d - ecoule) * 1000))
+                break
+            if pas >= m["fin"]:                   # le podium a eu son temps : place aux jumeaux
+                auto["terminer"] = True
+                break
+            ecoule -= d
+            pas += 1
+    d = _duree_pas(pas, m)
+    if d is None:
+        return pas, auto
+    auto["actif"] = True
+    auto["duree"] = int(d * 1000)
     return pas, auto
 
 
@@ -1045,6 +1103,10 @@ def pas(soiree_id: int, corps: dict = Body(...)):
         effectif, _ = _pas_auto(s, m, t)
         pause = bool(s["pause_auto"])
         if action == "suivant":
+            depuis = corps.get("depuis")
+            if depuis is not None and int(depuis) != effectif:     # 1.9 : la télé a fini sa révélation trop tard
+                p, auto = _pas_auto(s, m, t)
+                return {"ok": True, "pas": p, "auto": auto}
             nouveau = effectif + 1
         elif action == "revenir":
             nouveau, pause = effectif - 1, True
@@ -1081,17 +1143,29 @@ def regard(soiree_id: int):
                 cx.execute("UPDATE soiree SET pas_devoilement=?, pas_le=?, pause_auto=1 WHERE id=?", (p, t, soiree_id))
                 journal(cx, "defilement_en_pause", str(soiree_id), {"pas": p})
         cx.execute("UPDATE soiree SET vu_le=? WHERE id=?", (t, soiree_id))
+        s = _soiree(cx, soiree_id)
+        if not s["pause_auto"]:
+            m = _devoilement(cx, s)["marche"]
+            _, auto = _pas_auto(s, m, t)
+            if auto["terminer"]:                  # 1.9 : le podium a eu son temps : le dévoilement se termine seul
+                cx.execute("UPDATE soiree SET etat='devoilee', devoilee_le=? WHERE id=? AND etat='devoilement'",
+                           (maintenant(), soiree_id))
+                journal(cx, "devoilement_termine_seul", str(soiree_id))
     return {"ok": True}
 
 
 @app.post("/api/soirees/{soiree_id}/terminer")
 def terminer(soiree_id: int):
-    """Fin du dévoilement : la synthèse s'ouvre aux invités. 1.5 : la soirée part à carnet."""
+    """Fin du dévoilement : la synthèse s'ouvre aux invités. 1.9 : la soirée ne part plus à carnet ici, mais à la
+    clôture (« À traiter », choix de Julien du 20/11/2026). Idempotent : déjà terminée, rien ne change."""
     with base(cfg().data) as cx:
-        if _soiree(cx, soiree_id)["etat"] != "devoilement":
+        etat = _soiree(cx, soiree_id)["etat"]
+        if etat in ("devoilee", "archivee"):
+            return {"ok": True}
+        if etat != "devoilement":
             raise HTTPException(409, "Aucun dévoilement en cours.")
         cx.execute("UPDATE soiree SET etat='devoilee', devoilee_le=? WHERE id=?", (maintenant(), soiree_id))
-    return {"ok": True, "carnet": envoyer_soiree(soiree_id)}
+    return {"ok": True}
 
 
 # ================================================================ 1.5 : la soirée envoyée à carnet 3.1
@@ -1160,7 +1234,7 @@ def envoyer_soiree(soiree_id: int) -> str:
         return "carnet pas réglé : rien n'est envoyé"
     with base(cfg().data) as cx:
         s = _soiree(cx, soiree_id)
-        if s["etat"] not in ("devoilee", "archivee"):
+        if s["etat"] not in ("devoilee", "archivee") or not s["cloturee_le"]:     # 1.9 : à la clôture seulement
             return ""
         corps = _corps_soiree(cx, s)
     erreur = ""
@@ -1203,9 +1277,10 @@ async def _boucle_carnet() -> None:
 
 @app.post("/api/carnet/envoyer")
 def carnet_envoyer_tout():
-    """Réglages › « Envoyer à carnet » : toutes les soirées dévoilées (reprise de l'historique)."""
+    """Réglages › « Envoyer à carnet » : toutes les soirées clôturées (reprise de l'historique)."""
     with base(cfg().data) as cx:
-        ids = [r["id"] for r in cx.execute("SELECT id FROM soiree WHERE etat IN ('devoilee','archivee') ORDER BY id")]
+        ids = [r["id"] for r in cx.execute("SELECT id FROM soiree WHERE etat IN ('devoilee','archivee') "
+                                           "AND cloturee_le IS NOT NULL ORDER BY id")]
     resultats = [envoyer_soiree(i) for i in ids]
     with base(cfg().data) as cx:
         attente = cx.execute("SELECT COUNT(*) FROM envoi_carnet").fetchone()[0]
@@ -1214,7 +1289,7 @@ def carnet_envoyer_tout():
 
 @app.post("/api/soirees/{soiree_id}/archiver")
 def archiver(soiree_id: int):
-    """Clôture : le lien des invités ne répond plus."""
+    """Archiver : le lien des invités ne répond plus (1.9 : ce n'est pas la clôture, qui envoie à carnet)."""
     with base(cfg().data) as cx:
         if _soiree(cx, soiree_id)["etat"] != "devoilee":
             raise HTTPException(409, "Seule une soirée dévoilée s'archive.")
@@ -1289,7 +1364,17 @@ def _fiche(cx, s) -> dict:
     a_jury = any(i["jury"] for i in d["invites"])
     # 1.3 : écarts et affinités, sur les classements figés au dévoilement (rendus par identifiants)
     ordres = {i: sorted(r, key=r.get) for i, r in rangs.items()}
+    # 1.9 : palmarès des invités (plus proche du vrai classement = écart de rang moyen) et écarts jury / public,
+    # mêmes calculs que le journal (app/resultat.py) ; ex æquo officiels au rang moyen, rang officiel saisi prioritaire
+    saisis = {c["id"]: c["officiel_rang"] for c in chansons}
+    off_moyen = resultat.rangs_moyens(off_total, saisis)
+    off_moyen_j, off_moyen_p = resultat.rangs_moyens(off_jury), resultat.rangs_moyens(off_public)
+    prenoms_f = {i["id"]: i["prenom"] for i in d["invites"]}
+    palm = resultat.palmares(rangs, off_moyen, len(ids), prenoms_f) if any(v is not None for v in off_moyen.values()) else []
+    def ecart_de(nous, eux):
+        return abs(nous - eux) if nous is not None and eux is not None else None
     return {
+        "palmares": [{**x, "prenom": prenoms_f.get(x["invite"], "?")} for x in palm],
         "soiree": {**_resume(s), "forcee": bool(s["forcee"])}, "a_jury": a_jury,
         "affinites": affinites(notes, ordres, points, passage),
         "invites": [{"id": i["id"], "prenom": i["prenom"], "jury": i["jury"], "notees": i["notees"],
@@ -1300,6 +1385,9 @@ def _fiche(cx, s) -> dict:
             "rang": groupe[c["id"]]["rang"], "jury": jury[c["id"]], "public": public[c["id"]],
             "officiel": {"jury": off_jury[c["id"]], "public": off_public[c["id"]], "total": off_total[c["id"]],
                          "rang_jury": rj[c["id"]], "rang_public": rp[c["id"]], "rang": rt[c["id"]]},
+            "ecart": {"rang": ecart_de(groupe[c["id"]]["rang"], off_moyen[c["id"]]),
+                      "jury": ecart_de(jury[c["id"]]["rang"], off_moyen_j[c["id"]]) if a_jury else None,
+                      "public": ecart_de(public[c["id"]]["rang"], off_moyen_p[c["id"]]) if a_jury else None},
             "invites": {str(i["id"]): {"note": notes[i["id"]][c["id"]] / ECHELLE, "rang": rangs[i["id"]].get(c["id"]),
                                        "points": points[i["id"]].get(c["id"], 0),
                                        "commentaire": commentaires[i["id"]].get(c["id"], "")}
@@ -1371,12 +1459,275 @@ def officiel(soiree_id: int, corps: dict = Body(...)):
         if not 0 <= n <= 9999:
             raise HTTPException(422, "Les vrais votes sont des nombres de points.")
         return n
+    def rang(v):
+        n = nombre(v)
+        if n is not None and not 1 <= n <= 99:
+            raise HTTPException(422, "Le rang officiel va de 1 à 99.")
+        return n
+    def qualifie(v):
+        return None if v is None or v == "" else (1 if v in (True, 1, "1", "oui") else 0)
     with base(cfg().data) as cx:
         _soiree(cx, soiree_id)
         for r in corps.get("resultats") or []:
+            # 1.9 : rang officiel (ex æquo départagés par le concours) et qualifiée (demi-finale) ; une clé absente
+            # ne change pas la valeur (les anciens écrans n'envoient que jury et public)
+            cid = int(r.get("chanson_id", 0))
             cx.execute("UPDATE chanson SET officiel_jury=?, officiel_public=? WHERE id=? AND soiree_id=?",
-                       (nombre(r.get("jury")), nombre(r.get("public")), int(r.get("chanson_id", 0)), soiree_id))
+                       (nombre(r.get("jury")), nombre(r.get("public")), cid, soiree_id))
+            if "rang" in r:
+                cx.execute("UPDATE chanson SET officiel_rang=? WHERE id=? AND soiree_id=?", (rang(r.get("rang")), cid, soiree_id))
+            if "qualifie" in r:
+                cx.execute("UPDATE chanson SET officiel_qualifie=? WHERE id=? AND soiree_id=?", (qualifie(r.get("qualifie")), cid, soiree_id))
     return {"ok": True}
+
+
+# ================================================================ 1.9 : clôture, « À traiter », résultat officiel
+# Choix de Julien du 20/11/2026 (deux conversations réunies, dossier docs/ajout-1.9.0.md, conseil docs/conseil-1.9.0.md) :
+# la fin du dévoilement ouvre les résultats aux invités ; la soirée part à carnet seulement quand l'hôte la clôture,
+# dans « À traiter », après avoir saisi les vrais votes (jury, public, rang officiel ; qualifiés pour une demi). La
+# clôture fige un journal versionné (contrat docs/journal-exemple.json, format resultat.VERSION_CONTRAT) lu par Gazette
+# sur /externe/ (jeton commun). Clôturer avec ce qui est saisi est permis ; reclôturer refait une version.
+
+TYPES_SOIREE = {"finale": "Finale", "demi1": "1re demi-finale", "demi2": "2e demi-finale", "unique": "Finale"}
+
+
+def _manques(s, chansons: list) -> list[str]:
+    """Ce qui manque encore pour un résultat officiel complet (affiché, jamais exigé)."""
+    if s["emission"] in ("demi1", "demi2"):
+        sans = [c["pays"] for c in chansons if c["officiel_qualifie"] is None]
+        n = sum(1 for c in chansons if c["officiel_qualifie"])
+        return ([f"qualifiée ou non : {len(sans)} pays"] if sans else []) + ([] if n else ["aucun qualifié coché"])
+    sans = [c["pays"] for c in chansons if c["officiel_jury"] is None and c["officiel_public"] is None]
+    return [f"vrais votes : {len(sans)} pays sans points"] if sans else []
+
+
+@app.get("/api/a-traiter")
+def a_traiter():
+    """La section « À traiter » : les soirées dévoilées pas encore clôturées (et celles à reclôturer)."""
+    with lecture(cfg().data) as cx:
+        sortie = []
+        for r in cx.execute("SELECT * FROM soiree WHERE etat IN ('devoilee','archivee') ORDER BY id DESC").fetchall():
+            ch = _chansons(cx, r["id"])
+            v = cx.execute("SELECT MAX(version) FROM journal_soiree WHERE soiree_id=?", (r["id"],)).fetchone()[0]
+            sortie.append({**_resume(r), "cloturee_le": r["cloturee_le"], "version": v, "manques": _manques(r, ch),
+                           "demi": r["emission"] in ("demi1", "demi2"), "a_cloturer": not r["cloturee_le"]})
+        return {"soirees": sortie, "nombre": sum(1 for x in sortie if x["a_cloturer"])}
+
+
+def _figer_images(s, version: int) -> dict:
+    """Copie les images de la soirée à la clôture (le journal ne change plus si l'hôte remplace la photo apéro)."""
+    dossier = cfg().data / "journaux" / str(s["id"]) / str(version)
+    dossier.mkdir(parents=True, exist_ok=True)
+    figees = {}
+    for sorte in IMAGES:
+        source = cfg().data / "images" / s[sorte] if s[sorte] else None
+        if source and source.is_file():
+            cible = dossier / f"{sorte}{source.suffix}"
+            shutil.copyfile(source, cible)
+            figees[sorte] = cible.name
+    return figees
+
+
+def _resultat(cx, s, version: int, le: str, images: dict, date_finale: str = "") -> dict:
+    """Le journal d'une soirée clôturée : faits bruts (notes, points, vrais votes) et calculs (resultat.py)."""
+    f = _fiche(cx, s)
+    d = _devoilement(cx, s)
+    ids = [c["id"] for c in f["chansons"]]
+    ordre = {c["id"]: c["ordre"] for c in f["chansons"]}
+    brut = {c["id"]: c for c in _chansons(cx, s["id"])}
+    ident = {r["id"]: r for r in cx.execute(
+        "SELECT p.id, i.prenom, i.carnet_id, i.personne_id FROM participation p JOIN invite i ON i.id=p.invite_id "
+        "WHERE p.soiree_id=?", (s["id"],))}
+    prenoms = {i: r["prenom"] for i, r in ident.items()}
+    maison = {c["id"]: c["rang"] for c in f["chansons"]}
+    off_total = {c["id"]: c["officiel"]["total"] for c in f["chansons"]}
+    officiel = resultat.rangs_moyens(off_total, {c: brut[c]["officiel_rang"] for c in ids})
+    off_jury = resultat.rangs_moyens({c["id"]: c["officiel"]["jury"] for c in f["chansons"]})
+    off_public = resultat.rangs_moyens({c["id"]: c["officiel"]["public"] for c in f["chansons"]})
+    ecart = resultat.ecarts(maison, officiel)
+    mieux, rates = resultat.mieux_et_moins_bien(ecart, ordre)
+    classements = {i["id"]: {int(c): v["rang"] for c, v in ((c["id"], c["invites"].get(str(i["id"]))) for c in f["chansons"])
+                             if v and v["rang"] is not None} for i in f["invites"]}
+    demi = s["emission"] in ("demi1", "demi2")
+    qualifies = {c for c in ids if brut[c]["officiel_qualifie"]}
+    palm = resultat.palmares(classements, officiel, len(ids), prenoms) if not demi else []
+    plus_proche = next((x["invite"] for x in palm if x["complet"]), None)
+    j = _jumeaux(cx, s)
+    photos_duo: dict[str, list] = defaultdict(list)
+    for r in cx.execute("SELECT id, participation_id, duo_participation_id, immich_id FROM photo WHERE soiree_id=? "
+                        "AND duo_participation_id IS NOT NULL AND apero=0 ORDER BY id", (s["id"],)):
+        a, b = sorted((r["participation_id"], r["duo_participation_id"]))
+        photos_duo[f"{a}-{b}"].append({"photo": r["id"], "immich_id": r["immich_id"]})
+    apero = cx.execute("SELECT immich_id FROM photo WHERE soiree_id=? AND apero=1 ORDER BY id DESC LIMIT 1", (s["id"],)).fetchone()
+    a_jury_off = any(c["officiel"]["jury"] is not None for c in f["chansons"])
+    type_soiree = TYPES_SOIREE.get(s["emission"], "Finale")
+    sortie = {
+        "format": resultat.VERSION_CONTRAT, "version": version, "le": le, "appli": "douze-points", "version_appli": __version__,
+        "soiree": {"id": s["id"], "nom": s["nom"], "concours": s["concours"], "annee": s["annee"], "emission": s["emission"],
+                   "type": type_soiree, "ville": s["ville"], "date": s["date"] or (s["devoilee_le"] or "")[:10],
+                   "numero": resultat.numero(s["annee"], s["concours"], type_soiree), "livret": "qualifies" if demi else "finale",
+                   "avec_jury_maison": f["a_jury"], "avec_jury_officiel": a_jury_off},
+        "images": {sorte: (f"/externe/soirees/{s['id']}/journal/{version}/image/{sorte}" if sorte in images else None)
+                   for sorte in IMAGES},
+        "apero_immich_id": apero["immich_id"] if apero else None,
+        "invites": [{"id": i["id"], "prenom": i["prenom"], "carnet_id": ident[i["id"]]["carnet_id"],
+                     "personne_id": ident[i["id"]]["personne_id"], "jury": i["jury"], "moyenne": i["moyenne"],
+                     "complet": len(classements.get(i["id"], {})) >= len(ids)} for i in f["invites"]],
+        "chansons": [{
+            "id": c["id"], "ordre": c["ordre"], "pays": c["pays"], "code_pays": c["code_pays"], "artiste": c["artiste"],
+            "titre": c["titre"],
+            "maison": {"points": c["points"], "rang": c["rang"], "moyenne": c["moyenne"],
+                       "jury": c["jury"], "public": c["public"]},
+            "officiel": {**c["officiel"], "rang": officiel[c["id"]], "rang_jury": off_jury[c["id"]],
+                         "rang_public": off_public[c["id"]], "rang_saisi": brut[c["id"]]["officiel_rang"],
+                         "qualifie": None if brut[c["id"]]["officiel_qualifie"] is None else bool(brut[c["id"]]["officiel_qualifie"])},
+            "ecart": {"rang": ecart.get(c["id"]),
+                      "jury": abs(c["jury"]["rang"] - off_jury[c["id"]]) if c["jury"]["rang"] and off_jury[c["id"]] else None,
+                      "public": abs(c["public"]["rang"] - off_public[c["id"]]) if c["public"]["rang"] and off_public[c["id"]] else None},
+            "notes": [{"invite": int(k), **v} for k, v in c["invites"].items()],
+        } for c in f["chansons"]],
+        "podium_maison": [l["chanson"] for l in d["classement"][:3]],
+        "podium_officiel": sorted((c for c in ids if officiel[c] is not None), key=lambda c: officiel[c])[:3],
+        "mieux_devines": mieux, "plus_rates": rates,
+        "palmares": palm, "plus_proche": plus_proche,
+        "commentaires": [{"invite": int(k), "chanson": c["id"], "texte": v["commentaire"], "note": v["note"], "points": v["points"]}
+                         for c in f["chansons"] for k, v in c["invites"].items() if v["commentaire"]],
+        "duos": [{"cle": x["cle"], "invites": [y["id"] for y in x["invites"]], "reciproques": x["reciproques"],
+                  "tranche": x["tranche"], "photos": photos_duo.get(x["cle"], [])} for x in j["duos"]],
+        "demi": None,
+    }
+    if demi:
+        moyennes = {c["id"]: c["moyenne"] for c in f["chansons"]}
+        sortie["demi"] = {**resultat.demi_finale(maison, qualifies, classements, moyennes, prenoms),
+                          "qualifies": sorted(qualifies, key=lambda c: brut[c]["pays"]), "date_finale": date_finale}
+    return sortie
+
+
+@app.post("/api/soirees/{soiree_id}/cloturer")
+def cloturer(soiree_id: int, corps: dict = Body(default={})):
+    """« Clôturer » (À traiter) : envoie la soirée à carnet, puis fige une nouvelle version du journal (après la
+    réponse de carnet, conseil 1.9.0). Permis avec ce qui est saisi ; reclôturer refait une version et remplace la
+    soirée dans carnet (même adresse)."""
+    date_finale = str(corps.get("date_finale") or "").strip()[:10]
+    if date_finale and not DATE.match(date_finale):
+        raise HTTPException(422, "La date de la finale s'écrit AAAA-MM-JJ.")
+    with base(cfg().data) as cx:
+        s = _soiree(cx, soiree_id)
+        if s["etat"] not in ("devoilee", "archivee"):
+            raise HTTPException(409, "On clôture une soirée une fois son dévoilement terminé.")
+        cx.execute("UPDATE soiree SET cloturee_le=? WHERE id=?", (maintenant(), soiree_id))
+    message = envoyer_soiree(soiree_id)
+    with base(cfg().data) as cx:
+        s = _soiree(cx, soiree_id)
+        version = (cx.execute("SELECT MAX(version) FROM journal_soiree WHERE soiree_id=?", (soiree_id,)).fetchone()[0] or 0) + 1
+        le = maintenant()
+        contenu = _resultat(cx, s, version, le, _figer_images(s, version), date_finale)
+        cx.execute("INSERT INTO journal_soiree(soiree_id, version, le, contenu) VALUES(?,?,?,?)",
+                   (soiree_id, version, le, json.dumps(contenu, ensure_ascii=False)))
+        journal(cx, "soiree_cloturee", str(soiree_id), {"version": version})
+    return {"ok": True, "version": version, "carnet": message}
+
+
+def _porte_externe(request: Request) -> None:
+    """Toutes les routes /externe/ du journal : jeton commun seul ; MAISON_JETON vide : porte fermée (404)."""
+    acceptes = maison.jetons()
+    if not acceptes or not maison.jeton_valide(maison.jeton_propose(request.headers), acceptes):
+        raise HTTPException(404, "Introuvable.")
+
+
+@app.get("/externe/soirees")
+def externe_soirees(request: Request):
+    """Pour Gazette : les soirées clôturées et la dernière version de leur journal (une reclôture se voit ici)."""
+    _porte_externe(request)
+    with lecture(cfg().data) as cx:
+        return [{"id": r["id"], "nom": r["nom"], "emission": r["emission"], "annee": r["annee"], "version": r["v"], "le": r["le"]}
+                for r in cx.execute("SELECT s.id, s.nom, s.emission, s.annee, j.version AS v, j.le FROM soiree s "
+                                    "JOIN journal_soiree j ON j.soiree_id=s.id WHERE j.version=(SELECT MAX(version) "
+                                    "FROM journal_soiree WHERE soiree_id=s.id) ORDER BY s.id")]
+
+
+def _journal_lu(soiree_id: int, version: int | None):
+    with lecture(cfg().data) as cx:
+        if version is None:
+            r = cx.execute("SELECT contenu FROM journal_soiree WHERE soiree_id=? ORDER BY version DESC LIMIT 1", (soiree_id,)).fetchone()
+        else:
+            r = cx.execute("SELECT contenu FROM journal_soiree WHERE soiree_id=? AND version=?", (soiree_id, version)).fetchone()
+    if not r:
+        raise HTTPException(404, "Pas de journal pour cette soirée.")
+    return json.loads(r["contenu"])
+
+
+@app.get("/externe/soirees/{soiree_id}/journal")
+def externe_journal(soiree_id: int, request: Request):
+    _porte_externe(request)
+    return _journal_lu(soiree_id, None)
+
+
+@app.get("/externe/soirees/{soiree_id}/journal/{version}")
+def externe_journal_version(soiree_id: int, version: int, request: Request):
+    """Une version précise : un numéro de Gazette déjà paru renvoie à la version qu'il a mise en page."""
+    _porte_externe(request)
+    return _journal_lu(soiree_id, version)
+
+
+@app.get("/externe/soirees/{soiree_id}/journal/{version}/image/{sorte}")
+def externe_journal_image(soiree_id: int, version: int, sorte: str, request: Request):
+    """Les images figées à la clôture (photo apéro, poster, logo, bannière)."""
+    _porte_externe(request)
+    if sorte not in IMAGES:
+        raise HTTPException(404, "Pas d'image.")
+    dossier = cfg().data / "journaux" / str(soiree_id) / str(version)
+    trouve = next((f for f in dossier.glob(f"{sorte}.*") if f.is_file()), None) if dossier.is_dir() else None
+    if trouve is None:
+        raise HTTPException(404, "Pas d'image.")
+    return FileResponse(trouve, headers={"X-Content-Type-Options": "nosniff"})
+
+
+# ---------------------------------------------------------------- 1.9 : la photo apéro
+
+@app.put("/api/soirees/{soiree_id}/apero")
+async def apero_deposer(soiree_id: int, request: Request):
+    """La photo apéro de l'hôte (JPEG, PNG, WebP, HEIC ; 25 Mo au plus) : une par soirée, remplaçable. Une copie JPEG
+    réduite devient l'image « apero » (elle remplace le logo sur l'écran d'accueil, la liste, la fiche) ; l'original
+    part dans l'album Immich de la soirée, tag « Apéro » (même file que les autres photos)."""
+    contenu = await request.body()
+    if len(contenu) > PHOTO_MAX:
+        raise HTTPException(413, "Photo trop lourde (25 Mo au plus).")
+    forme = _format_photo(contenu[:16])
+    if not contenu or not forme:
+        raise HTTPException(415, "Ce fichier n'est pas une photo (JPEG, PNG, WebP ou HEIC).")
+    with base(cfg().data) as cx:
+        s = _soiree(cx, soiree_id)
+    images = cfg().data / "images"
+    images.mkdir(parents=True, exist_ok=True)
+    jeton = secrets.token_hex(4)
+    brut = images / f".apero-{soiree_id}-{jeton}.{forme[0]}"
+    brut.write_bytes(contenu)
+    nom = f"soiree-{soiree_id}-apero-{jeton}.jpg"
+    ok = await asyncio.to_thread(ecran.vignette, brut, images / nom, 2400)
+    if not ok:
+        brut.unlink(missing_ok=True)
+        raise HTTPException(415, "Cette photo ne se lit pas : essaie en JPEG.")
+    envoi = None
+    if immich.regle(cfg()):
+        dossier = cfg().data / "photos" / str(soiree_id)
+        dossier.mkdir(parents=True, exist_ok=True)
+        envoi = f"{uuid.uuid4().hex}.{forme[0]}"
+        brut.replace(dossier / envoi)
+    else:
+        brut.unlink(missing_ok=True)
+    with base(cfg().data) as cx:
+        ancien = _soiree(cx, soiree_id)["apero"]
+        cx.execute("UPDATE soiree SET apero=? WHERE id=?", (nom, soiree_id))
+        if envoi:
+            cx.execute("INSERT INTO photo(soiree_id, participation_id, duo_participation_id, fichier, type, taille, recue_le, apero) "
+                       "VALUES(?,0,NULL,?,?,?,?,1)", (soiree_id, envoi, forme[1], len(contenu), maintenant()))
+        journal(cx, "photo_apero", str(soiree_id))
+    if ancien:
+        (images / ancien).unlink(missing_ok=True)
+    if envoi:
+        asyncio.get_running_loop().run_in_executor(None, _envoyer_photos_sans_erreur)
+    return {"images": {"apero": nom}}
 
 
 @app.get("/api/journal")
@@ -1603,6 +1954,7 @@ def invite_devoilement(jeton: str, request: Request):
         "public": [{"chanson": c, "autres": somme(False, c), "total": somme(False, c, sans_moi=False)} for c in appelees],
     }
     sortie["auto"] = d["auto"]
+    sortie["revelation_ms"] = int(_reglage_auto("duree_revelation")) * 1000      # 1.9 : même plafond que la télé
     if pas >= m["fin"]:
         sortie["classement"] = d["classement"]
     elif pas == m["fin"] - 1 and m["public"]:
@@ -1641,7 +1993,7 @@ def invite_resultats(jeton: str, request: Request):
 PHOTO_MAX = 25 * 1024 * 1024
 PHOTOS_PAR_INVITE = 150                 # plafond par invité et par soirée
 TACHE_IMMICH, PERIODE_IMMICH = "envoi-immich", 600
-TAG_SOIREE, TAG_DUO = "Douze points", "Jumeaux de vote"
+TAG_SOIREE, TAG_DUO, TAG_APERO = "Douze points", "Jumeaux de vote", "Apéro"
 MARQUES_HEIF = (b"heic", b"heix", b"heim", b"heis", b"hevc", b"hevx", b"heif", b"mif1", b"msf1")
 _VERROU_IMMICH = threading.Lock()       # un seul envoi à la fois : jamais deux albums pour une soirée
 
@@ -1681,8 +2033,8 @@ def _jumeaux(cx, s) -> dict:
 
 def _photos_compte(cx, soiree_id: int, participation_id: int | None) -> dict:
     """Ce que voit un téléphone : l'icône est-elle là, combien de photos ce soir, combien des siennes. Jamais d'image."""
-    n = cx.execute("SELECT COUNT(*), SUM(participation_id=?) FROM photo WHERE soiree_id=?",
-                   (participation_id or 0, soiree_id)).fetchone()
+    n = cx.execute("SELECT COUNT(*), SUM(participation_id=?) FROM photo WHERE soiree_id=? AND apero=0",
+                   (participation_id or -1, soiree_id)).fetchone()
     return {"actives": immich.regle(cfg()), "soiree": n[0] or 0, "miennes": int(n[1] or 0), "plafond": PHOTOS_PAR_INVITE}
 
 
@@ -1701,6 +2053,8 @@ def _lien_album(album: str | None) -> str:
 
 
 def _description(cx, s, ph) -> str:
+    if ph["apero"]:                       # 1.9 : la photo apéro de l'hôte
+        return f"Douze points – {s['nom']} – photo apéro"
     prenom = lambda pid: (cx.execute("SELECT i.prenom FROM participation p JOIN invite i ON i.id=p.invite_id "
                                      "WHERE p.id=?", (pid,)).fetchone() or {"prenom": "?"})["prenom"]
     if ph["duo_participation_id"]:
@@ -1842,6 +2196,8 @@ def _envoyer_une(photo_id: int) -> None:
         immich.taguer(c, TAG_SOIREE, [asset])
         if ph["duo_participation_id"]:
             immich.taguer(c, TAG_DUO, [asset])
+        if ph["apero"]:
+            immich.taguer(c, TAG_APERO, [asset])
         with base(c.data) as cx:
             _etape(cx, ph, "taguee")
     with base(c.data) as cx:

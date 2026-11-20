@@ -10,9 +10,10 @@
   import { prefersReducedMotion } from 'svelte/motion'
   import Camera from '@lucide/svelte/icons/camera'
   import { api } from '$lib/api.js'
-  let { soiree, onferme } = $props()
+  // 1.9 : le temps du selfie en grand se règle (Réglages › Dévoilement, « Selfie d'un duo en grand »)
+  let { soiree, onferme, dureeSelfie = 6 } = $props()
 
-  const EN_GRAND = 6000
+  const EN_GRAND = $derived(dureeSelfie * 1000)
   let j = $state(null)
   let erreur = $state('')
   let vues = null                  // photos déjà connues (null : pas encore lu)

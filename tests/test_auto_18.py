@@ -53,25 +53,21 @@ def regarder(client, soiree, temps, jusqua):
 
 
 def test_le_public_passe_seul_toutes_les_5_secondes(client, soiree, temps):
+    """1.8 (gardé en 1.9) : chaque pays du public passe seul au bout de 5 s ; le dernier pays aussi."""
     jury_puis_public(client, soiree)
     assert lu(client, soiree)["pas"] == 0
-    action(client, soiree, "suivant")                       # le top 5 du jury : au toucher
-    regarder(client, soiree, temps, 1030)
-    d = lu(client, soiree)
-    assert d["pas"] == 1 and not d["auto"]["actif"]          # le jury n'avance pas seul
+    action(client, soiree, "suivant")                       # le top 5 du jury (1.9 : il passerait seul après 15 s)
     r = action(client, soiree, "suivant")                    # premier pays du public
-    assert r["pas"] == 2 and r["auto"] == {"actif": True, "pause": False, "prochain_dans": 5000, "duree": 5000}
-    regarder(client, soiree, temps, 1034.9)
+    assert r["pas"] == 2 and r["auto"]["actif"] and not r["auto"]["pause"]
+    assert r["auto"]["prochain_dans"] == 5000 and r["auto"]["duree"] == 5000
+    regarder(client, soiree, temps, 1004.9)
     assert lu(client, soiree)["pas"] == 2
-    regarder(client, soiree, temps, 1035.0)
+    regarder(client, soiree, temps, 1005.0)
     d = lu(client, soiree)
     assert d["pas"] == 3 and d["auto"]["prochain_dans"] == 5000
-    regarder(client, soiree, temps, 1030 + 5 * 11)            # 11 pays plus tard : le dernier pays, lancé seul
+    regarder(client, soiree, temps, 1000 + 5 * 11)            # 11 pays plus tard : le dernier pays, lancé seul
     d = lu(client, soiree)
-    assert d["pas"] == 13 and not d["auto"]["actif"] and d["auto"]["prochain_dans"] is None
-    regarder(client, soiree, temps, 1200)
-    assert lu(client, soiree)["pas"] == 13                    # le podium reste au toucher
-    assert action(client, soiree, "suivant")["pas"] == 14
+    assert d["pas"] == 13 and d["auto"]["actif"] and d["auto"]["duree"] > 60000   # la révélation : plafond
 
 
 def test_pause_reprendre_et_revenir(client, soiree, temps):

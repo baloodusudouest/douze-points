@@ -23,7 +23,32 @@
   function prendre(r) {
     pasNote = r.pas_note
     webhook = r.ha_webhook ?? ''
+    for (const e of ETAPES) temps[e.cle] = r[e.cle] ?? temps[e.cle]
+    auto = r.devoilement_auto ?? true
     charges = true
+  }
+  // 1.9 : le dévoilement, manuel (tout au toucher) ou automatique, et le temps de chaque étape (choix de Julien)
+  const ETAPES = [
+    { cle: 'duree_depart', nom: 'Départ', aide: 'de l\'écran d\'attente au top 5 du jury', min: 2, max: 600 },
+    { cle: 'duree_jury', nom: 'Jury', aide: 'le top 5, tous les points du jury d\'un coup', min: 2, max: 600 },
+    { cle: 'duree_public', nom: 'Public', aide: 'chaque pays, jusqu\'à l\'avant-dernier', min: 2, max: 120 },
+    { cle: 'duree_revelation', nom: 'Révélation', aide: 'durée maximum de la remontée du dernier pays', min: 5, max: 300 },
+    { cle: 'duree_podium', nom: 'Podium', aide: 'puis l\'écran des jumeaux', min: 2, max: 600 },
+    { cle: 'duree_selfie', nom: 'Selfie d\'un duo en grand', aide: 'avant qu\'il se range dans sa carte', min: 2, max: 60 },
+    { cle: 'duree_mode_emploi', nom: 'Mode d\'emploi sur la télé', aide: 'quand tout le monde est là', min: 5, max: 600 },
+  ]
+  let auto = $state(true)
+  let temps = $state({ duree_depart: 10, duree_jury: 15, duree_public: 5, duree_revelation: 60, duree_podium: 15, duree_selfie: 6, duree_mode_emploi: 30 })
+  let tempsMessage = $state('')
+  async function reglerAuto(v) {
+    erreur = ''
+    try { prendre(await api.put('/api/reglages', { devoilement_auto: v })) } catch (x) { erreur = x.message }
+  }
+  async function reglerTemps(cle) {
+    tempsMessage = ''
+    const v = Number(temps[cle])
+    try { prendre(await api.put('/api/reglages', { [cle]: v })); tempsMessage = 'Enregistré.' }
+    catch (x) { tempsMessage = x.message; prendre(await api.get('/api/reglages')) }
   }
   // 1.5 : reprise de toutes les soirées dévoilées vers carnet (fiche et coffre Contacts)
   let carnetMessage = $state('')
@@ -49,7 +74,10 @@
   }
 
   // 1.2 : restaurer les réglages depuis une sauvegarde gardée par l'Anneau (réglages seulement)
-  const NOMS = { pas_note: 'Pas de la note', ha_webhook: 'Webhook de Home Assistant' }
+  const NOMS = { pas_note: 'Pas de la note', ha_webhook: 'Webhook de Home Assistant', devoilement_auto: 'Dévoilement automatique',
+    duree_depart: 'Temps du départ', duree_jury: 'Temps du jury', duree_public: 'Temps par pays du public',
+    duree_revelation: 'Durée maximum de la révélation', duree_podium: 'Temps du podium', duree_selfie: 'Selfie en grand',
+    duree_mode_emploi: 'Mode d\'emploi sur la télé' }
   const PAS = { 1: 'au point', 0.5: 'au demi-point', 0.25: 'au quart de point' }
   const montrer = (cle, v) => (cle === 'pas_note' ? (PAS[v] ?? String(v)) : v === '' || v == null ? '(vide)' : String(v))
   let dates = $state([])
@@ -147,11 +175,31 @@
   </div>
 </section>
 
+<section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Dévoilement">
+  <h2 class="text-lg font-semibold">Dévoilement</h2>
+  <p class="mt-1 text-sm text-muted-foreground">En automatique, chaque étape passe seule ; l'hôte garde Pause, Revenir et Suivant. En manuel, tout se fait au toucher.</p>
+  <div class="mt-3 flex flex-wrap gap-2" role="group" aria-label="Manuel ou automatique">
+    <button class="pastille" aria-pressed={!auto} disabled={!charges} onclick={() => reglerAuto(false)}>Manuel</button>
+    <button class="pastille" aria-pressed={auto} disabled={!charges} onclick={() => reglerAuto(true)}>Automatique</button>
+  </div>
+  <div class="mt-4 grid gap-2 sm:grid-cols-2">
+    {#each ETAPES as e (e.cle)}
+      <label class="flex items-center gap-3 rounded-xl border px-3 py-2">
+        <span class="min-w-0 flex-1"><span class="block text-sm font-medium">{e.nom}</span><span class="block text-xs text-muted-foreground">{e.aide}</span></span>
+        <input type="number" inputmode="numeric" min={e.min} max={e.max} step="1" class="w-20 rounded-lg border bg-background px-2 py-2 text-right"
+               bind:value={temps[e.cle]} onchange={() => reglerTemps(e.cle)} disabled={!charges} aria-label="{e.nom}, en secondes" />
+        <span class="text-sm text-muted-foreground">s</span>
+      </label>
+    {/each}
+  </div>
+  {#if tempsMessage}<p class="mt-2 text-sm text-muted-foreground" role="status">{tempsMessage}</p>{/if}
+</section>
+
 <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Envoi vers carnet">
   <h2 class="text-lg font-semibold">Envoi vers carnet</h2>
-  <p class="mt-1 text-sm text-muted-foreground">À la fin du dévoilement, la soirée part à carnet : note moyenne, classement et podium de chaque invité, rangés sur sa fiche et dans le coffre Contacts. Un envoi raté est réessayé toutes les 10 minutes.</p>
+  <p class="mt-1 text-sm text-muted-foreground">Quand tu clôtures la soirée (À traiter), elle part à carnet : note moyenne, classement et podium de chaque invité, rangés sur sa fiche et dans le coffre Contacts. Un envoi raté est réessayé toutes les 10 minutes. Le bouton renvoie toutes les soirées clôturées.</p>
   <div class="mt-3 flex flex-wrap items-center gap-3">
-    <Button variant="outline" onclick={envoyerCarnet}>Envoyer toutes les soirées à carnet</Button>
+    <Button variant="outline" onclick={envoyerCarnet}>Renvoyer les soirées clôturées à carnet</Button>
     {#if carnetMessage}<span class="text-sm text-muted-foreground" role="status">{carnetMessage}</span>{/if}
   </div>
 </section>

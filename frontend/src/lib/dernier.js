@@ -90,3 +90,24 @@ export function avance(arrivee, tete) {
 export function dureeEntree(nb, pasMs = 120, plafond = 2500) {
   return Math.min(plafond, Math.max(0, nb) * pasMs)
 }
+
+// ---- 1.9.0 : la révélation tient dans le temps réglé (choix de Julien du 20/11/2026) : rythme accéléré à proportion,
+// pause de 2 s à « + 1 point » gardée. Les pauses ne se compriment pas ; une étape garde au moins `minimum` ms.
+export function echelle(lePlan, maxMs, minimum = 30) {
+  if (!maxMs || !lePlan.etapes.length) return lePlan
+  const pauses = lePlan.etapes.reduce((t, e) => t + e.pause, 0)
+  const durees = lePlan.etapes.reduce((t, e) => t + e.duree, 0)
+  if (pauses + durees <= maxMs) return lePlan
+  const f = Math.max(0, maxMs - pauses) / durees
+  return { ...lePlan, etapes: lePlan.etapes.map((e) => ({ ...e, duree: Math.max(minimum, Math.round(e.duree * f)) })) }
+}
+
+export function dureePlan(lePlan) {
+  return lePlan.etapes.reduce((t, e) => t + e.duree + e.pause, 0)
+}
+
+// 1.9.0 : les notes d'un exemple au pas de la soirée (1, 0,5 ou 0,25), pour le mode d'emploi sur la télé
+export function notesExemple(cran) {
+  const brutes = [12.5, 14, 16.25, 17.5, 15.5]
+  return brutes.map((n) => Math.round(n / cran) * cran)
+}

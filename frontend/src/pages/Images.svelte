@@ -7,6 +7,8 @@
     { cle: 'logo', nom: 'Logo', ou: "À la place du « 12 » : écran d'accueil, affiche à partager, écrans d'attente, départ du dévoilement." },
     { cle: 'banniere', nom: 'Bannière', ou: 'En haut du téléphone des invités, sur toute la largeur.' },
     { cle: 'poster', nom: 'Poster', ou: "Sur l'écran d'accueil et l'affiche, à côté du QR code, et sur l'écran « Ça commence bientôt »." },
+    // 1.9 : la photo apéro (prise ou choisie sur le téléphone de l'hôte) : elle remplace le logo, part dans l'album Immich
+    { cle: 'apero', nom: 'Photo apéro', ou: "Remplace le logo : écran d'accueil, liste des soirées, fiche, une du magazine de Gazette. Part aussi dans l'album Immich de la soirée.", photo: true },
   ]
   let erreur = $state('')
   let envoi = $state('')
@@ -26,7 +28,8 @@
     erreur = ''
     envoi = sorte
     try {
-      const r = await fetch(`/api/soirees/${soiree.id}/image/${sorte}`, { method: 'PUT', body: fichier, credentials: 'same-origin' })
+      const adresse = sorte === 'apero' ? `/api/soirees/${soiree.id}/apero` : `/api/soirees/${soiree.id}/image/${sorte}`
+      const r = await fetch(adresse, { method: 'PUT', body: fichier, credentials: 'same-origin' })
       if (!r.ok) throw new Error((await r.json().catch(() => null))?.detail || `Le serveur a répondu ${r.status}.`)
       await onchange()
     } catch (e) { erreur = e.message } finally { envoi = '' }
@@ -43,7 +46,7 @@
   <h2 class="text-lg font-semibold">Images de l'évènement</h2>
   <p class="text-sm text-muted-foreground">Facultatif. Glisse une image sur une case, ou choisis-la. PNG, JPEG ou WebP, 6 Mo au plus. Sans logo, c'est le « 12 » de l'appli.</p>
   {#if erreur}<p class="mt-2 text-sm text-destructive" role="alert">{erreur}</p>{/if}
-  <ul class="mt-4 grid gap-3 sm:grid-cols-3">
+  <ul class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
     {#each sortes as s (s.cle)}
       <li class="case flex flex-col gap-2 rounded-xl border p-3" class:survol={survol === s.cle} aria-label="{s.nom} : déposer une image ici"
         ondragover={(e) => { e.preventDefault(); survol = s.cle }} ondragleave={() => (survol = '')} ondrop={(e) => lacher(e, s.cle)}>
@@ -58,8 +61,8 @@
         <p class="text-xs text-muted-foreground">{s.ou}</p>
         <div class="mt-auto flex flex-wrap gap-2">
           <label class="depot">
-            {envoi === s.cle ? 'Envoi…' : soiree.images[s.cle] ? 'Remplacer' : 'Choisir une image'}
-            <input type="file" accept="image/png,image/jpeg,image/webp" class="sr-only" aria-label="{s.nom} : choisir une image"
+            {envoi === s.cle ? 'Envoi…' : soiree.images[s.cle] ? 'Remplacer' : s.photo ? 'Prendre ou choisir' : 'Choisir une image'}
+            <input type="file" accept={s.photo ? 'image/*' : 'image/png,image/jpeg,image/webp'} class="sr-only" aria-label="{s.nom} : choisir une image"
               onchange={(e) => { deposer(s.cle, e.currentTarget.files[0]); e.currentTarget.value = '' }} />
           </label>
           {#if soiree.images[s.cle]}<Button variant="outline" size="sm" onclick={() => retirer(s.cle)} aria-label="Retirer : {s.nom}">Retirer</Button>{/if}

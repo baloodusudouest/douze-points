@@ -1,6 +1,10 @@
 """La régie et la porte invité : préparer, noter, classer, envoyer, forcer, dévoiler."""
+from app.main import REGLAGES_DEFAUTS as _RD
 from app import main
 from tests.conftest import PRENOMS, Soiree, connecter
+
+# 1.9 : réglages du dévoilement (défauts)
+DEV = {k: v for k, v in _RD.items() if k != "ha_webhook"}
 
 
 def test_sante_publique_sans_aucun_nom(client, soiree):
@@ -258,7 +262,7 @@ def test_pas_de_la_note(client):
     s = Soiree(client, n=3)
     tel = s.entrer("Aglaé")
     noter = lambda v: client.put(s.url("note"), headers=tel, json={"chanson_id": s.chansons[0], "valeur": v})
-    assert client.get("/api/reglages").json() == {"pas_note": 0.5, "ha_webhook": ""}
+    assert client.get("/api/reglages").json() == {"pas_note": 0.5, "ha_webhook": "", **DEV}
     assert s.etat("Aglaé")["pas_note"] == 0.5
     assert noter(12.5).status_code == 200 and noter(12.25).status_code == 422
     assert client.put("/api/reglages", json={"pas_note": 0.3}).status_code == 400

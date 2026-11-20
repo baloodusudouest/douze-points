@@ -52,6 +52,7 @@
   let parRang = $derived(f ? [...f.chansons].sort((a, b) => a.rang - b.rang || a.ordre - b.ordre) : [])
   let aOfficiel = $derived(!!f && f.chansons.some((c) => c.officiel.total !== null))
   const phrase = (k) => k && `${k.meme_gagnant ? 'même gagnant' : 'pas le même gagnant'}, ${k.trois_premieres} chanson${k.trois_premieres > 1 ? 's' : ''} en commun dans les trois premières, ${note(k.ecart_moyen)} place${k.ecart_moyen >= 2 ? 's' : ''} d'écart en moyenne`
+  const places = (e) => (e == null ? '' : e === 0 ? 'pile' : `${note(Math.round(e * 10) / 10)} pl.`)
   const ecart = (nous, eux) => (nous == null || eux == null ? '' : eux === nous ? '=' : (eux - nous > 0 ? '+' : '−') + Math.abs(eux - nous))
 </script>
 
@@ -71,7 +72,9 @@
   {#if f}
     {#if f.soiree.images.banniere}<img class="banniere" src={image('banniere')} alt="Bannière de l'évènement" />{/if}
     <header class="mb-5 flex items-center gap-4">
-      {#if f.soiree.images.logo}<img class="logo" src={image('logo')} alt="Logo de l'évènement" />{/if}
+      <!-- 1.9 : la photo apéro remplace le logo (logo sinon) -->
+      {#if f.soiree.images.apero}<img class="logo apero" src={image('apero')} alt="Photo apéro de la soirée" />
+      {:else if f.soiree.images.logo}<img class="logo" src={image('logo')} alt="Logo de l'évènement" />{/if}
       <div class="min-w-0">
       <h1 class="titre">{f.soiree.nom}</h1>
       <p class="mt-1 text-sm text-muted-foreground">{f.soiree.concours} {f.soiree.annee}, {EMISSIONS[f.soiree.emission].toLowerCase()}{f.soiree.ville ? `, ${f.soiree.ville}` : ''}.
@@ -163,21 +166,34 @@
         <div class="defile mt-3">
           <table>
             <thead><tr><th class="g">Chanson</th>
-              {#if f.a_jury}<th>Notre jury</th>{/if}<th>Vrai jury</th>
-              {#if f.a_jury}<th>Notre public</th>{/if}<th>Vrai public</th><th>Vrai total</th></tr></thead>
+              {#if f.a_jury}<th>Notre jury</th>{/if}<th>Vrai jury</th>{#if f.a_jury}<th>Écart</th>{/if}
+              {#if f.a_jury}<th>Notre public</th>{/if}<th>Vrai public</th>{#if f.a_jury}<th>Écart</th>{/if}<th>Vrai total</th><th>Écart</th></tr></thead>
             <tbody>
               {#each [...f.chansons].sort((a, b) => (a.officiel.rang ?? 99) - (b.officiel.rang ?? 99) || a.ordre - b.ordre) as c (c.id)}
                 <tr><td class="g"><Drapeau pays={c.pays} code={c.code_pays} />{c.pays}</td>
                   {#if f.a_jury}<td>{c.jury.rang}e</td>{/if}<td>{c.officiel.rang_jury ? `${c.officiel.rang_jury}e (${c.officiel.jury})` : ''}</td>
+                  {#if f.a_jury}<td class="ecart">{places(c.ecart.jury)}</td>{/if}
                   {#if f.a_jury}<td>{c.public.rang}e</td>{/if}<td>{c.officiel.rang_public ? `${c.officiel.rang_public}e (${c.officiel.public})` : ''}</td>
-                  <td>{c.officiel.rang ? `${c.officiel.rang}e (${c.officiel.total})` : ''}</td></tr>
+                  {#if f.a_jury}<td class="ecart">{places(c.ecart.public)}</td>{/if}
+                  <td>{c.officiel.rang ? `${c.officiel.rang}e (${c.officiel.total})` : ''}</td><td class="ecart">{places(c.ecart.rang)}</td></tr>
               {/each}
             </tbody>
           </table>
         </div>
       </section>
+      {#if f.palmares.length}
+        <section class="bloc">
+          <h2>Le palmarès des invités</h2>
+          <p class="text-sm text-muted-foreground">Du plus proche au plus loin du vrai classement : l'écart moyen entre son classement et le vrai, chanson par chanson.</p>
+          <ol class="mt-2 grid gap-1 text-sm">
+            {#each f.palmares as p, k (p.invite)}
+              <li><span class="chiffre inline-block w-6 text-right">{k + 1}</span> <strong>{p.prenom}</strong> : à {note(Math.round(p.ecart_moyen * 10) / 10)} place{p.ecart_moyen >= 2 ? 's' : ''} en moyenne{p.podium_trouve ? `, ${p.podium_trouve} du vrai podium dans le sien` : ''}{p.complet ? '' : ' (n\'a pas tout classé)'}</li>
+            {/each}
+          </ol>
+        </section>
+      {/if}
     {:else}
-      <p class="mb-6 text-sm text-muted-foreground print:hidden">Les vrais votes du jury et du public ne sont pas encore saisis : la comparaison apparaîtra ici.</p>
+      <p class="mb-6 text-sm text-muted-foreground print:hidden">Les vrais votes du jury et du public ne sont pas encore saisis (À traiter) : la comparaison et le palmarès apparaîtront ici.</p>
     {/if}
 
     <section class="bloc">
@@ -223,6 +239,8 @@
 
 <style>
   .bloc { margin-bottom: 1.75rem; }
+  .ecart { color: var(--muted-foreground); font-size: 0.85em; white-space: nowrap; }
+  .logo.apero { object-fit: cover; border-radius: 0.75rem; }
   .bloc h2 { margin-bottom: 0.6rem; font-size: 1.125rem; font-weight: 600; }
   .bloc h3 { margin-bottom: 0.25rem; font-weight: 500; }
   .defile { overflow-x: auto; border: 1px solid var(--border); border-radius: 0.9rem; }

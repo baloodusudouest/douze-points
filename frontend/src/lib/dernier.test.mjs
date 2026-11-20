@@ -127,3 +127,24 @@ test('dureeEntree : 120 ms par pays, 2,5 s au plus', () => {
   assert.equal(dureeEntree(40), 2500)
   assert.equal(dureeEntree(0), 0)
 })
+
+// ---- 1.9.0
+import { echelle, dureePlan, notesExemple } from './dernier.js'
+
+test('echelle : la remontée tient dans le temps réglé, pause de 2 s gardée', () => {
+  const autres = Array.from({ length: 25 }, (_, i) => 300 - i * 11)          // beaucoup de pays
+  const p = plan(10, 301, autres)
+  const long = dureePlan(p)
+  assert.ok(long > 5000)
+  const court = echelle(p, 5000)
+  assert.ok(dureePlan(court) <= 5000 + 30 * court.etapes.length)
+  assert.equal(court.etapes.find((e) => e.pause).pause, 2000)                // la pause reste
+  assert.deepEqual(echelle(p, 10 * long), p)                                 // déjà assez court : inchangé
+  assert.deepEqual(echelle(p, 0), p)
+})
+
+test('notesExemple : au pas de la soirée', () => {
+  assert.deepEqual(notesExemple(1), [13, 14, 16, 18, 16])
+  assert.deepEqual(notesExemple(0.5), [12.5, 14, 16.5, 17.5, 15.5])
+  assert.deepEqual(notesExemple(0.25), [12.5, 14, 16.25, 17.5, 15.5])
+})

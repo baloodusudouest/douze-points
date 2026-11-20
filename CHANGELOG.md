@@ -1,5 +1,38 @@
 # Journal des versions
 
+## 1.9.0 — 20 novembre 2026 (dévoilement réglable, À traiter et clôture, résultat officiel pour Gazette, photo apéro, notation)
+Réunit deux conversations de Julien du 20/11/2026 (« Bac à sable » et « Journal Eurovision spécial ») ; dossier
+`docs/ajout-1.9.0.md`, conseil `docs/conseil-1.9.0.md`.
+- **Réglages › Dévoilement** : manuel (tout au toucher, le public aussi) ou automatique, et un temps par étape :
+  départ (10 s), jury (15 s), chaque pays du public (5 s), révélation = durée maximum de la remontée (60 s), podium
+  (15 s), selfie d'un duo en grand (6 s), mode d'emploi sur la télé (30 s). En automatique, tout s'enchaîne jusqu'aux
+  jumeaux ; l'hôte garde Pause, Revenir, Suivant ; changer de mode en plein dévoilement repart de maintenant.
+- **Révélation bornée** : remontée plus longue que le temps réglé → rythme accéléré à proportion, pause de 2 s à
+  « + 1 point » gardée. La télé dit au serveur quand l'animation est jouée (`suivant` avec `depuis`).
+- **La fin du dévoilement n'envoie plus à carnet.** Nouvelle section **À traiter** (nombre sur l'entrée) : vrais votes
+  du jury et du public, rang officiel (ex æquo), qualifiés pour une demi-finale (et date de la finale), puis
+  **Clôturer la soirée** : envoi à carnet et **résultat officiel** figé (version 1, 2… à chaque nouvelle clôture,
+  carnet remplacé). Les soirées déjà dévoilées sont clôturées d'office.
+- **Résultat officiel pour Gazette** (« Good Evening Europe! ») : `GET /externe/soirees`,
+  `/externe/soirees/<id>/journal[/<version>]`, images figées `…/journal/<version>/image/<sorte>`, jeton commun (porte
+  fermée sans lui). Contrat `docs/journal-exemple.json` et `docs/journal-exemple-demi.json` (fabriqués par
+  `tools/journal_exemple.py`). Calculs dans `app/resultat.py` : rang moyen des ex æquo, écarts, 3 mieux devinés et 3
+  plus ratés, palmarès (plus proche = écart de rang moyen, incomplets à part), demi : qualifiés trouvés, « on les
+  pleure », « on les déteste », coup de cœur, nul point, favoris.
+- **Fiche** : écart de rang maison / réel en jury, en public et au total, palmarès des invités ; photo apéro à la
+  place du logo.
+- **Photo apéro** (Images de l'évènement) : prise ou choisie sur le téléphone de l'hôte (HEIC lu), copie réduite qui
+  remplace le logo (écran d'accueil, fiche, journal) ; l'original part dans l'album Immich (tag « Apéro »).
+- **Notation façon 6b** sur les téléphones : la chanson en grande carte rose entre ses voisines déjà notées (pays,
+  titre, note), sa place, combien plus haut et plus bas, « Même note que … ». La notation dit que le mot peut paraître
+  dans le magazine de la soirée.
+- **Mode d'emploi sur la télé** : quand tous les invités attendus ont choisi leur prénom, l'écran d'accueil montre
+  deux téléphones animés (notation, classement) au pas de note de la soirée, 30 s (réglable) ; bouton « Mode d'emploi »
+  pour le remontrer.
+- Tests : `test_resultat_19.py`, `test_cloture_19.py`, `test_auto_19.py`, `echelle` et `notesExemple` (node), tests
+  d'écran (réglages, notation 6b, mode d'emploi, À traiter d'une demi-finale et clôture).
+
+
 ## 1.8.0 — 20 novembre 2026 (public sans cliquer, pays en lice, selfies des duos, saisie directe)
 Choix de Julien du 20/11/2026, visuels validés sur un canevas ; dossier `docs/ajout-1.8.0.md`, conseil `docs/conseil-1.8.0.md`.
 - **Les points du public passent seuls**, toutes les 5 secondes, avec une barre de temps ; le dernier pays aussi.

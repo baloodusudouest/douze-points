@@ -233,6 +233,8 @@ def test_le_jumeau_part_a_carnet(client, soiree, faux, monkeypatch):
     main.envoyer_photos()
     client.post(f"/api/soirees/{soiree.id}/devoiler")
     client.post(f"/api/soirees/{soiree.id}/terminer")
+    assert not envois                                                   # 1.9 : à la clôture seulement
+    client.post(f"/api/soirees/{soiree.id}/cloturer")
     (corps,) = envois
     avec = [p for p in corps["personnes"] if "jumeau" in p["donnees"]]
     assert avec and all(p["donnees"]["jumeau"]["accord"] and "%" not in p["donnees"]["jumeau"]["accord"] for p in avec)

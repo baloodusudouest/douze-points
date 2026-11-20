@@ -6,15 +6,18 @@
   import Mic from '@lucide/svelte/icons/mic-vocal'
   import SlidersHorizontal from '@lucide/svelte/icons/sliders-horizontal'
   import Plug from '@lucide/svelte/icons/plug'
+  import Inbox from '@lucide/svelte/icons/inbox'
   import { api } from '$lib/api.js'
   import Ouverture from '$lib/Ouverture.svelte'
   import Connexion from './pages/Connexion.svelte'
   import Soiree from './pages/Soiree.svelte'
   import Reglages from './pages/Reglages.svelte'
   import Services from './pages/Services.svelte'
+  import ATraiter from './pages/ATraiter.svelte'
 
   const onglets = [
     { page: 'soiree', nom: 'Soirée', icone: Mic },
+    { page: 'a-traiter', nom: 'À traiter', icone: Inbox },          // 1.9 : vrais votes et clôture
     { page: 'connexion', nom: 'Connexion', icone: Plug },
     { page: 'reglages', nom: 'Réglages', icone: SlidersHorizontal },
   ]
@@ -43,7 +46,10 @@
     connecte = false
   }
 
-  onMount(verifier)
+  // 1.9 : le nombre de soirées à clôturer, sur l'entrée « À traiter »
+  let aTraiter = $state(0)
+  async function compter() { try { aTraiter = (await api.get('/api/a-traiter')).nombre } catch { /* plus tard */ } }
+  onMount(async () => { await verifier(); if (connecte) compter() })
 </script>
 
 <Ouverture />
@@ -72,8 +78,9 @@
                  hover:text-foreground aria-[current=page]:bg-foreground aria-[current=page]:text-background
                  md:h-10 md:rounded-lg md:px-3 md:aria-[current=page]:bg-secondary md:aria-[current=page]:text-foreground"
         >
-          <Icone class="size-[1.15rem]" aria-hidden="true" />
-          <span class="sr-only md:not-sr-only">{o.nom}</span>
+          <span class="relative inline-flex"><Icone class="size-[1.15rem]" aria-hidden="true" />
+            {#if o.page === 'a-traiter' && aTraiter}<span class="pastille-nombre" aria-hidden="true">{aTraiter}</span>{/if}</span>
+          <span class="sr-only md:not-sr-only">{o.nom}{#if o.page === 'a-traiter' && aTraiter}<span class="sr-only"> : {aTraiter} soirée{aTraiter > 1 ? 's' : ''} à clôturer</span>{/if}</span>
         </a>
       {/each}
     </nav>
@@ -83,7 +90,9 @@
     >
       {#key page}
         <div in:fly={{ y: 6, duration: 180 }}>
-          {#if page === 'reglages'}
+          {#if page === 'a-traiter'}
+            <ATraiter onnombre={(n) => (aTraiter = n)} />
+          {:else if page === 'reglages'}
             <Reglages {session} {deconnecter} />
           {:else if page === 'connexion'}
             <Services />
@@ -95,3 +104,10 @@
     </main>
   </div>
 {/if}
+
+<style>
+  /* 1.9 : le nombre de soirées à clôturer sur l'entrée « À traiter » */
+  .pastille-nombre { position: absolute; top: -0.45rem; right: -0.65rem; display: grid; min-width: 1.05rem; height: 1.05rem;
+    place-items: center; border-radius: 999px; background: var(--primary); color: var(--primary-foreground);
+    font-size: 0.65rem; font-weight: 700; padding: 0 0.2rem; }
+</style>

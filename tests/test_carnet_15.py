@@ -32,7 +32,8 @@ def relie(client, monkeypatch):
 def _jouer(client, soiree):
     soiree.tout_le_monde()
     assert client.post(f"/api/soirees/{soiree.id}/devoiler").status_code == 200
-    return client.post(f"/api/soirees/{soiree.id}/terminer").json()
+    assert client.post(f"/api/soirees/{soiree.id}/terminer").json() == {"ok": True}      # 1.9 : rien ne part encore
+    return client.post(f"/api/soirees/{soiree.id}/cloturer").json()                     # la clôture envoie
 
 
 def test_15_soiree_envoyee_apres_le_devoilement(client, relie):
@@ -46,8 +47,10 @@ def test_15_soiree_envoyee_apres_le_devoilement(client, relie):
     soiree.noter("Zoé", {i: 10 for i in range(1, 7)})
     soiree.envoyer("Zoé")
     client.post(f"/api/soirees/{soiree.id}/devoiler")
-    r = client.post(f"/api/soirees/{soiree.id}/terminer").json()
-    assert r["carnet"] == "envoyé à carnet"
+    client.post(f"/api/soirees/{soiree.id}/terminer")
+    assert not relie["appels"] or relie["appels"][-1][0] != "PUT"          # 1.9 : la fin du dévoilement n'envoie rien
+    r = client.post(f"/api/soirees/{soiree.id}/cloturer").json()
+    assert r["carnet"] == "envoyé à carnet" and r["version"] == 1
     methode, chemin, corps = relie["appels"][-1]
     assert methode == "PUT" and chemin == f"/evenements/douze-points/soiree-{soiree.id}"
     assert corps["type"] == "douze_points" and corps["titre"] == "Finale de démonstration"

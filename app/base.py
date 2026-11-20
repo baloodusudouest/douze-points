@@ -101,6 +101,23 @@ def preparer(data: Path) -> None:
                    "essais INTEGER NOT NULL DEFAULT 0, erreur TEXT NOT NULL DEFAULT '')")
         if "ecran" not in {r["name"] for r in cx.execute("PRAGMA table_info(photo)")}:      # 1.8 : vignette pour la télé
             cx.execute("ALTER TABLE photo ADD COLUMN ecran TEXT")
+        # 1.9 : clôture (résultat officiel complet), rang officiel et qualifiés d'une demi, photo apéro, journal figé
+        if "apero" not in {r["name"] for r in cx.execute("PRAGMA table_info(photo)")}:
+            cx.execute("ALTER TABLE photo ADD COLUMN apero INTEGER NOT NULL DEFAULT 0")
+        colonnes = {r["name"] for r in cx.execute("PRAGMA table_info(soiree)")}
+        if "apero" not in colonnes:
+            cx.execute("ALTER TABLE soiree ADD COLUMN apero TEXT")
+        if "cloturee_le" not in colonnes:
+            cx.execute("ALTER TABLE soiree ADD COLUMN cloturee_le TEXT")
+            # reprise (conseil 1.9.0) : les soirées déjà dévoilées ont déjà été envoyées à carnet : clôturées d'office,
+            # sans journal (aucune ne revient dans « À traiter »)
+            cx.execute("UPDATE soiree SET cloturee_le=COALESCE(devoilee_le, cree_le) WHERE etat IN ('devoilee','archivee')")
+        colonnes = {r["name"] for r in cx.execute("PRAGMA table_info(chanson)")}
+        for colonne in ("officiel_rang", "officiel_qualifie"):
+            if colonne not in colonnes:
+                cx.execute(f"ALTER TABLE chanson ADD COLUMN {colonne} INTEGER")
+        cx.execute("CREATE TABLE IF NOT EXISTS journal_soiree(soiree_id INTEGER NOT NULL REFERENCES soiree(id) ON DELETE CASCADE, "
+                   "version INTEGER NOT NULL, le TEXT NOT NULL, contenu TEXT NOT NULL, PRIMARY KEY(soiree_id, version))")
         # 0.5 : jury ou public. `invite.jury` se règle dans l'appli ; `participation.jury` est figé au dévoilement.
         for table in ("invite", "participation"):
             if "jury" not in {r["name"] for r in cx.execute(f"PRAGMA table_info({table})")}:

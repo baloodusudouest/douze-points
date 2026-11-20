@@ -141,7 +141,7 @@
       {#key d.pas}
         <div class="min-h-0 flex-1">
           <DernierVote chansons={d.chansons} totaux={totauxDernier} dernier={appelee.chanson} gain={appelee.autres}
-                       ordre={ordreDernier} gagnant={d.gagnant ?? null} anime={animerDernier} compact />
+                       ordre={ordreDernier} gagnant={d.gagnant ?? null} anime={animerDernier} maxMs={d.revelation_ms || 0} compact />
         </div>
       {/key}
     {:else}
@@ -170,7 +170,7 @@
         <button class="commande" onclick={() => agir('revenir')} disabled={d.pas === 0 || occupe}>Revenir</button>
         {#if d.auto?.actif}<button class="commande" onclick={() => agir(enPause ? 'reprendre' : 'pause')} disabled={occupe}>{enPause ? 'Reprendre' : 'Pause'}</button>{/if}
         {#if fini}
-          <button class="commande suivant" onclick={terminer} disabled={d.etat !== 'devoilement'}>{d.etat === 'devoilement' ? 'Terminer la soirée' : 'Soirée terminée'}</button>
+          <button class="commande suivant" onclick={terminer} disabled={d.etat !== 'devoilement'}>{d.etat === 'devoilement' ? 'Fin du dévoilement' : 'Dévoilement terminé'}</button>
         {:else}
           <button class="commande suivant" onclick={() => agir('suivant')} disabled={occupe}>Suivant</button>
         {/if}

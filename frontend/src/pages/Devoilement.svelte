@@ -137,6 +137,8 @@
     try {
       const lu = await api.get(`/api/soirees/${soiree}/devoilement`)
       if (g === gestes && lu.etat === 'devoilement') appliquer(lu)
+      // 1.9 : le podium a eu son temps, le serveur a terminé le dévoilement : place aux jumeaux
+      else if (lu.etat === 'devoilee' && d.etat === 'devoilement') { d.etat = 'devoilee'; jumeaux = true }
     } catch { /* coupure passagère */ }
   }
   async function agir(action, extra = {}) {
@@ -151,8 +153,28 @@
     catch (e) { erreur = e.message }
   }
 
+  // 1.9 : les temps du dévoilement (Réglages) : durée maximum de la remontée, selfie en grand
+  let reglages = $state({ duree_revelation: 60, duree_selfie: 6, devoilement_auto: true })
+  let attenteFin
+  function finRevelation() {
+    // l'animation est jouée : 5 s sur « Vainqueur », puis le podium (le serveur l'ignore s'il est déjà passé)
+    clearTimeout(attenteFin)
+    if (d?.etat !== 'devoilement' || !auto?.actif || auto.pause) return
+    const depuis = pas
+    attenteFin = setTimeout(() => { if (pas === depuis && auto?.actif && !auto.pause) agir('suivant', { depuis }) }, 5000)
+  }
+  let finDemandee = false
+  $effect(() => {
+    // le podium a eu son temps : la télé termine elle-même (le serveur le fait aussi, au prochain « je regarde »)
+    if (d?.etat === 'devoilement' && fini && auto?.actif && !enPause && resteMs === 0 && !finDemandee) {
+      finDemandee = true
+      terminer()
+    }
+  })
+
   onMount(async () => {
     mesurer()
+    api.get('/api/reglages').then((r) => (reglages = { ...reglages, ...r })).catch(() => {})
     try {
       const lu = await api.get(`/api/soirees/${soiree}/devoilement`)
       d = { ...lu, chansons: lu.chansons.map(normaliser) }
@@ -179,7 +201,7 @@
   function visibilite() {
     if (!document.hidden) { garderEcran(); relire(); if (d?.etat === 'devoilement') api.post(`/api/soirees/${soiree}/regard`).catch(() => {}) }
   }
-  onDestroy(() => { clearInterval(suivi); clearInterval(horlogeEcran); clearInterval(regard); clearTimeout(echeance); try { verrou?.release() } catch { /* rien */ } })
+  onDestroy(() => { clearInterval(suivi); clearInterval(horlogeEcran); clearInterval(regard); clearTimeout(echeance); clearTimeout(attenteFin); try { verrou?.release() } catch { /* rien */ } })
 
   // Le temps qui reste avant le pays suivant (barre rose sous l'addition)
   let resteMs = $derived(auto?.actif && !auto.pause && auto.prochain_dans !== null ? Math.max(0, auto.prochain_dans - (maintenantMs - luA)) : null)
@@ -228,7 +250,8 @@
       {#key pas}
         <div class="pointer-events-none relative h-full px-[max(1rem,env(safe-area-inset-left))] pt-12 pb-[max(0.5rem,env(safe-area-inset-bottom))]">
           <DernierVote chansons={d.chansons} totaux={totauxDernier} dernier={courant.chanson} gain={courant.total}
-                       ordre={d.classement.map((l) => l.chanson)} gagnant={d.classement[0]?.chanson} anime={animerDernier} />
+                       ordre={d.classement.map((l) => l.chanson)} gagnant={d.classement[0]?.chanson} anime={animerDernier}
+                       maxMs={reglages.duree_revelation * 1000} onfini={finRevelation} />
         </div>
       {/key}
     {:else}
@@ -363,6 +386,10 @@
     <div class="absolute inset-x-0 top-[max(0.5rem,env(safe-area-inset-top))] flex justify-end gap-2 px-4 text-xs">
       <p class="mr-auto self-center text-muted-foreground landscape:hidden">Tourne le téléphone en paysage.</p>
       <p class="geste mr-auto hidden self-center text-muted-foreground portrait:hidden">Glisse vers la droite pour sortir</p>
+      {#if auto?.actif && courant?.phase !== 'public'}
+        <!-- 1.9 : les autres étapes passent seules aussi : le temps qui reste, discret -->
+        <p class="mr-auto self-center text-muted-foreground" role="timer">{enPause ? 'En pause' : `Suite dans ${Math.max(1, Math.ceil((resteMs ?? 0) / 1000))} s`}</p>
+      {/if}
       {#if pas > 0}<button class="commande" onclick={() => agir('revenir')}>Revenir</button>{/if}
       {#if auto?.actif}<button class="commande" onclick={() => agir(enPause ? 'reprendre' : 'pause')}>{enPause ? 'Reprendre' : 'Pause'}</button>{/if}
       {#if !fini}<button class="commande" onclick={() => agir('aller', { pas: fin })}>Tout afficher</button>{/if}
@@ -370,7 +397,7 @@
     </div>
   {/if}
 </div>
-{#if jumeaux}<EcranJumeaux {soiree} {onferme} />{/if}
+{#if jumeaux}<EcranJumeaux {soiree} {onferme} dureeSelfie={reglages.duree_selfie} />{/if}
 
 <style>
   /* La hauteur d'une ligne (--h) dépend du nombre de chansons et de la hauteur de l'écran ; le texte suit. */

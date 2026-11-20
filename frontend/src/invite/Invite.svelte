@@ -175,6 +175,19 @@
     if (voisine) ouvrir(voisine); else fiche = null
   }
   let rangFiche = $derived(fiche ? chansons.findIndex((x) => x.id === fiche.id) : -1)
+  // 1.9 : les voisines de la note en cours parmi les chansons déjà notées (juste au-dessus, juste en dessous)
+  let voisins = $derived.by(() => {
+    if (!fiche) return { notees: 0, rang: 1 }
+    const autres = chansons.filter((c) => c.id !== fiche.id && notes[c.id]).map((c) => ({ c, note: notes[c.id].valeur }))
+    const haut = autres.filter((x) => x.note > valeur), bas = autres.filter((x) => x.note < valeur)
+    return {
+      notees: autres.length, rang: haut.length + 1,
+      dessus: haut.sort((a, b) => a.note - b.note || a.c.ordre - b.c.ordre)[0] ?? null,
+      dessous: bas.sort((a, b) => b.note - a.note || a.c.ordre - b.c.ordre)[0] ?? null,
+      egale: autres.find((x) => x.note === valeur) ?? null,
+      plusHaut: Math.max(0, haut.length - 1), plusBas: Math.max(0, bas.length - 1),
+    }
+  })
   async function retirer() {
     await ecrire('PUT', 'note', { chanson_id: fiche.id, valeur: null })
     fiche = null
@@ -412,6 +425,15 @@
   {/if}
 </main>
 
+{#snippet voisine(x)}
+  <div class="voisine">
+    <span class="text-2xl leading-none">{drapeau(x.c.pays, x.c.code_pays)}</span>
+    <span class="min-w-0 flex-1"><span class="block truncate font-medium">{x.c.pays}</span>
+      {#if x.c.titre}<span class="block truncate text-xs text-muted-foreground">{x.c.titre}</span>{/if}</span>
+    <span class="chiffre text-xl">{note(x.note)}</span>
+  </div>
+{/snippet}
+
 {#snippet carteDevoiler()}
 {#if regie.etat === 'ouverte'}
   {@const restants = regie.participants.filter((p) => p.etat !== 'envoye').length}
@@ -434,8 +456,19 @@
     <h2 class="text-3xl font-light tracking-tight">{drapeau(fiche.pays, fiche.code_pays)} {fiche.pays}</h2>
     <p class="text-muted-foreground">{fiche.artiste}{fiche.titre ? ', ' + fiche.titre : ''}</p>
 
-    <div class="my-auto text-center">
-      <p class="chiffre text-primary" style="font-size: 7.5rem" aria-live="polite">{note(valeur)}<span class="text-3xl text-muted-foreground"> /20</span></p>
+    <!-- 1.9 (choix de Julien, visuel 6b) : la chanson en grande carte, entre ses voisines déjà notées -->
+    <div class="my-auto">
+      <p class="mb-1 text-center text-xs text-muted-foreground">{voisins.dessus ? (voisins.plusHaut ? `${voisins.plusHaut} autre${voisins.plusHaut > 1 ? 's' : ''} plus haut` : 'Rien plus haut') : (voisins.notees ? 'Ta meilleure note pour l\'instant' : '')}</p>
+      {#if voisins.dessus}{@render voisine(voisins.dessus)}{/if}
+      <div class="carte-note" aria-live="polite">
+        <span class="text-3xl leading-none">{drapeau(fiche.pays, fiche.code_pays)}</span>
+        <span class="min-w-0 flex-1"><span class="block truncate font-semibold">{fiche.pays}</span>
+          <span class="block text-xs opacity-80">{voisins.rang === 1 ? '1re' : voisins.rang + 'e'} de tes {voisins.notees + 1} chansons</span></span>
+        <span class="chiffre" style="font-size: 4.5rem; line-height: 1">{note(valeur)}</span>
+      </div>
+      {#if voisins.egale}<p class="mt-1 text-center text-xs" style="color: #ffd84d">Même note que {drapeau(voisins.egale.c.pays, voisins.egale.c.code_pays)} {voisins.egale.c.pays}{voisins.egale.c.titre ? ', ' + voisins.egale.c.titre : ''}</p>{/if}
+      {#if voisins.dessous}{@render voisine(voisins.dessous)}{/if}
+      <p class="mt-1 text-center text-xs text-muted-foreground">{voisins.dessous ? (voisins.plusBas ? `${voisins.plusBas} autre${voisins.plusBas > 1 ? 's' : ''} plus bas` : 'Rien plus bas') : (voisins.notees ? 'Ta plus petite note pour l\'instant' : '')}</p>
       <div class="mt-4 flex items-center gap-3">
         <button class="demi" aria-label="Un cran de moins" onclick={() => pas(-1)}>−</button>
         <input type="range" min="0" max="20" step={cran} bind:value={valeur} style="--rempli: {valeur * 5}%" oninput={() => (touche = true)} aria-label="Note sur 20" class="curseur flex-1" />
@@ -443,7 +476,7 @@
       </div>
     </div>
 
-    <label class="champ">Un mot sur cette chanson (facultatif, signé de ton prénom au dévoilement)
+    <label class="champ">Un mot sur cette chanson (facultatif, signé de ton prénom au dévoilement et dans le magazine de la soirée)
       <textarea bind:value={commentaire} oninput={() => (touche = true)} rows="2" maxlength="280"></textarea>
     </label>
     {#if erreur}<p class="mt-2 text-sm text-destructive" role="alert">{erreur}</p>{/if}
@@ -472,6 +505,12 @@
 {/if}
 
 <style>
+  /* 1.9 : écran de notation façon 6b */
+  .carte-note { display: flex; align-items: center; gap: 0.8rem; margin: 0.4rem 0; border-radius: 1.1rem; padding: 0.8rem 1rem;
+    background: color-mix(in oklab, var(--primary) 22%, var(--background)); border: 2px solid var(--primary);
+    box-shadow: 0 0 1.8rem color-mix(in oklab, var(--primary) 25%, transparent); }
+  .voisine { display: flex; align-items: center; gap: 0.7rem; min-height: 3.4rem; margin: 0.3rem 0; border-radius: 0.9rem; padding: 0 0.9rem;
+    background: var(--card); border: 1px solid var(--border); }
   .prenom { width: 100%; min-height: 4rem; border-radius: 1rem; border: 1px solid var(--border); background: var(--card); font-size: 1.15rem; font-weight: 500; }
   .prenom:disabled { opacity: 0.4; cursor: default; }
   .chanson { display: flex; width: 100%; min-height: 3.75rem; align-items: center; gap: 0.75rem; border-radius: 0.9rem; border: 1px solid var(--border); background: var(--card); padding: 0.4rem 0.9rem; }

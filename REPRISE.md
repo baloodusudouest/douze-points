@@ -1,9 +1,28 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 20/11/2026, version 1.8.0.
+À lire en premier. Mis à jour le 20/11/2026, version 1.9.0.
 
 ## Où on en est
 
+- **1.9.0 (20/11/2026)** : `docs/ajout-1.9.0.md`, `docs/conseil-1.9.0.md`.
+  - Réglages (`REGLAGES_DEFAUTS`, `DUREES`, `reglages.json`) : `devoilement_auto`, `duree_*`. Changer de mode remet
+    `pas_le` des dévoilements en cours.
+  - `_duree_pas`, `duree_revelation(nb)`, `_pas_auto` (toutes les étapes, `auto.terminer` après le podium, `auto.mode`),
+    `/regard` termine le dévoilement quand le podium a eu son temps, `POST /pas` `suivant` + `depuis`, `devoiler` lance
+    l'horloge. `terminer` idempotent, sans carnet.
+  - Clôture : `soiree.cloturee_le`, `chanson.officiel_rang`, `chanson.officiel_qualifie`, `journal_soiree`, `GET
+    /api/a-traiter`, `POST /api/soirees/<id>/cloturer`, `_resultat()` (contrat `resultat.VERSION_CONTRAT` = 1),
+    `_figer_images` (`/data/journaux/<soirée>/<version>/`), routes `/externe/soirees…` (`_porte_externe`). Contrat :
+    `docs/journal-exemple*.json`, refaits par `python tools/journal_exemple.py` (un test compare les clés).
+  - Photo apéro : `PUT /api/soirees/<id>/apero`, sorte d'image `apero`, ligne `photo` (participation 0, `apero=1`),
+    tag « Apéro ». `ecran.vignette(…, cote)`.
+  - Interface : `pages/ATraiter.svelte` (entrée « À traiter » dans `App.svelte`, pastille), `Reglages.svelte` (section
+    Dévoilement), `Images.svelte` (photo apéro), `Fiche.svelte` (écarts, palmarès), `lib/dernier.js` (`echelle`,
+    `dureePlan`, `notesExemple`), `DernierVote` (`maxMs`, `onfini`), `Devoilement` (réglages, `finRevelation`, fin
+    auto du podium, « Suite dans N s »), `Spectacle` (`revelation_ms`), `EcranJumeaux` (`dureeSelfie`),
+    `invite/Invite.svelte` (notation 6b : `voisins`, snippet `voisine`), `lib/ModeEmploi.svelte` + `Accueil.svelte`.
+  - **Jamais essayé sur la vraie installation** : tout. Bac à sable pas mis à jour (choix de Julien ; il a la 1.7.1).
+    Gazette 0.28.0 (le magazine) se construit sur le contrat `docs/journal-exemple.json`.
 - **1.8.0 (20/11/2026)** : `docs/ajout-1.8.0.md`, `docs/conseil-1.8.0.md`.
   - Serveur (`main.py`, section « 1.8 ») : `horloge()` (remplacée en test), `_pas_auto(s, marche, t)` → pas effectif +
     `auto {actif, pause, prochain_dans, duree}` (dans `_devoilement`), `POST /pas` par actions, `POST /regard`

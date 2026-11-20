@@ -16,13 +16,16 @@
   import { prefersReducedMotion } from 'svelte/motion'
   import { drapeau } from '$lib/pays.js'
   import Compteur from '$lib/Compteur.svelte'
-  import { avance, caseDe, colonnes, dureeEntree, place, placesAutres, plan, pourGagner, premier, RYTHME } from '$lib/dernier.js'
+  import { avance, caseDe, colonnes, dureeEntree, echelle, place, placesAutres, plan, pourGagner, premier, RYTHME } from '$lib/dernier.js'
 
   // chansons : [{ id, pays, code_pays, ordre }] ; totaux : { id: total après ce pas } ; dernier : l'id du dernier pays ;
   // gain : ses points à ce pas ; ordre : ids pour départager une égalité ; gagnant : le vainqueur du classement de la
   // soirée (facultatif) ; anime : false = état final direct (rechargement, téléphone arrivé en retard, Revenir) ;
   // compact : téléphone en portrait ; rythme : accéléré par les tests (window.__DOUZE_POINTS_RYTHME, jamais en soirée).
-  let { chansons, totaux, dernier, gain, ordre, gagnant = null, anime = true, compact = false,
+  // 1.9.0 : maxMs = la durée maximum de la remontée (Réglages › Dévoilement, « Révélation ») : rythme accéléré à
+  // proportion, pause de 2 s gardée ; onfini() est appelé une fois l'animation jouée (la télé enchaîne sur le podium).
+  let { chansons, totaux, dernier, gain, ordre, gagnant = null, anime = true, compact = false, maxMs = 0,
+        onfini = () => {},
         rythme = (typeof window !== 'undefined' && window.__DOUZE_POINTS_RYTHME) || RYTHME } = $props()
 
   const parId = $derived(Object.fromEntries(chansons.map((c) => [c.id, c])))
@@ -30,7 +33,7 @@
   const tete = $derived(premier(totaux, dernier, ordre))
   const depart = $derived(totaux[dernier] - gain)
   const arrivee = $derived(totaux[dernier])
-  const le_plan = $derived(plan(depart, arrivee, autres, rythme))
+  const le_plan = $derived(echelle(plan(depart, arrivee, autres, rythme), maxMs))
   const nb = $derived(chansons.length)
   // Les autres pays, du premier au dernier (à égalité, l'ordre du classement)
   const rangs = $derived.by(() => {
@@ -51,7 +54,7 @@
   const pasEntree = $derived(nb > 1 ? Math.round(dureeEntree(nb - 1, 120 * vite, 2500 * vite) / (nb - 1)) : 0)
 
   function jouer(i) {
-    if (i >= le_plan.etapes.length) { phase = 'fin'; return }
+    if (i >= le_plan.etapes.length) { phase = 'fin'; onfini(); return }
     const e = le_plan.etapes[i]
     duree = e.duree
     affiche = e.total
@@ -62,13 +65,14 @@
     lance = true
     if (!anime || prefersReducedMotion.current) {
       duree = 0; affiche = arrivee; phase = 'fin'
+      if (anime) onfini()
       return
     }
     affiche = depart; duree = 0; phase = 'entree'
     const entree = dureeEntree(nb - 1, 120 * vite, 2500 * vite) + Math.round(500 * vite)
     minuteur = setTimeout(() => {
       phase = 'montee'
-      if (!le_plan.etapes.length) { minuteur = setTimeout(() => (phase = 'fin'), Math.round(900 * vite)); return }
+      if (!le_plan.etapes.length) { minuteur = setTimeout(() => { phase = 'fin'; onfini() }, Math.round(900 * vite)); return }
       minuteur = setTimeout(() => jouer(0), Math.round(900 * vite))     // le temps de voir le point de départ
     }, entree)
   })
