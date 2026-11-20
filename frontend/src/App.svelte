@@ -12,7 +12,7 @@
   import Connexion from './pages/Connexion.svelte'
   import Soiree from './pages/Soiree.svelte'
   import Reglages from './pages/Reglages.svelte'
-  import Services from './pages/Services.svelte'
+  import Services from '$lib/services/Services.svelte'   // 1.10.0 : écran commun (contrat 3, socle 0.10.0)
   import ATraiter from './pages/ATraiter.svelte'
 
   const onglets = [
@@ -95,7 +95,7 @@
           {:else if page === 'reglages'}
             <Reglages {session} {deconnecter} />
           {:else if page === 'connexion'}
-            <Services />
+            <Services ondeconnecte={() => (connecte = false)} />
           {:else}
             <Soiree ondeconnecte={() => (connecte = false)} />
           {/if}

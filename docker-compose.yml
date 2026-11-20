@@ -12,6 +12,7 @@ services:
       # Variables communes de la maison (module app/maison.py)
       - MAISON_PASSWORD=${MAISON_PASSWORD}                       # mot de passe commun des applis, obligatoire (12 caractères au moins)
       - MAISON_JETON=${MAISON_JETON:-}                           # jeton commun : demandes à carnet, annuaire et sauvegardes de l'Anneau ; vide : rien de tout cela
+      - ANNEAU_CLE=${ANNEAU_CLE:-}                         # contrat 3 : l'Anneau lit les fiches « Connexion » ; vide = porte fermée
       - DOUZE_POINTS_CARNET_URL=http://carnet:8096               # carnet vu depuis le conteneur (même stack)
       # 1.6 : photos de la soirée vers Immich (album « AAAA-MM-JJ titre ») ; clé vide : pas d'icône photo
       - DOUZE_POINTS_IMMICH_URL=http://immich_server:2283        # Immich vu depuis le conteneur (même stack)

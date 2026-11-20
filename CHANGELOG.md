@@ -1,5 +1,13 @@
 # Journal des versions
 
+## 1.10.0 — 20 novembre 2026 (fiches « Connexion » communes, contrat 3)
+- L'écran « Connexion » passe à l'écran commun des applis maison (socle 0.10.0, `$lib/services/`) : deux fiches dépliées (carnet, Immich), « Vérifier » ne teste que son service, l'âge du dernier essai est affiché.
+- Serveur : registre `SERVICES` (`maison.Services`) et `GET /api/maison/services`, `POST /api/maison/services/{id}/verifier` (session ou `ANNEAU_CLE`, au plus un essai toutes les 30 s, rien d'écrit). La fiche « État » de l'Anneau les lit.
+- `maison.py` du socle 0.10.0 (contrat 3). Nouvelle variable facultative `ANNEAU_CLE`.
+- L'ancienne route `/api/services` reste en 1.10.0 (plus lue par l'interface) : retirée en 1.11.0. `pages/Services.svelte` est retiré.
+- Tests : `tests/test_fiches_connexion.py`.
+- **Jamais essayé sur la vraie installation.**
+
 ## 1.9.0 — 20 novembre 2026 (dévoilement réglable, À traiter et clôture, résultat officiel pour Gazette, photo apéro, notation)
 Réunit deux conversations de Julien du 20/11/2026 (« Bac à sable » et « Journal Eurovision spécial ») ; dossier
 `docs/ajout-1.9.0.md`, conseil `docs/conseil-1.9.0.md`.

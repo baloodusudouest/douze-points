@@ -173,6 +173,38 @@ async def garde(request: Request, appel):
     return reponse
 
 
+# ================================================================ fiches « Connexion » (1.10.0, contrat 3, socle 0.10.0)
+# GET /api/maison/services et POST /api/maison/services/{id}/verifier (session ou ANNEAU_CLE) : écran commun
+# $lib/services/Services.svelte, et fiche « État » de l'Anneau. Essais légers : carnet relit la liste des fiches
+# (lecture), Immich lit sa version et les permissions de la clé. Rien n'est écrit.
+
+def _essai_carnet():
+    return True, f"{len(carnet.personnes(cfg(), frais=True))} personnes lues."
+
+
+def _essai_immich():
+    v = immich.verifier(cfg())
+    detail = (f"Immich {v['version']}. " if v.get("version") else "") + (v.get("message") or "Clé et permissions en ordre.")
+    return bool(v.get("ok")), detail
+
+
+SERVICES = maison.Services(APPLI)
+SERVICES.ajouter(
+    "carnet", "carnet", genre="maison", cible="carnet",
+    lit="Le prénom et le nom des fiches, pour choisir les invités en tapant leur nom. Rien d'autre.",
+    ecrit="Rien.", regle=lambda: carnet.regle(cfg()), reglage="DOUZE_POINTS_CARNET_URL et MAISON_JETON",
+    essai=_essai_carnet)
+SERVICES.ajouter(
+    "immich", "Immich",
+    lit="La version d'Immich et les permissions de la clé.",
+    ecrit="Les photos de la soirée, dans un album « AAAA-MM-JJ titre de la soirée », avec une description et les "
+          "tags « Douze points » (et « Jumeaux de vote » pour les duos).",
+    regle=lambda: immich.regle(cfg()), reglage="DOUZE_POINTS_IMMICH_URL et DOUZE_POINTS_IMMICH_CLE",
+    essai=_essai_immich)
+# Monté APRÈS la garde : le dernier middleware ajouté passe en premier.
+maison.monter_services(app, SERVICES, lambda r: "sessions" in ETAT and ETAT["sessions"].connecte(r.cookies))
+
+
 def journal(cx, action: str, cible: str = "", detail: dict | None = None) -> None:
     """Jamais de prénom ni de note dans le journal : des numéros seulement."""
     cx.execute("INSERT INTO journal(date, action, cible, detail) VALUES(?,?,?,?)",
@@ -373,7 +405,8 @@ def carnet_personnes(q: str = ""):
 
 @app.get("/api/services")
 def services(verifier: bool = False):
-    """Écran Connexion : une tuile par service extérieur. « Vérifier » relit carnet pour de bon, sans rien écrire."""
+    """ANCIENNE forme de l'écran Connexion (jusqu'à 1.9.0), gardée en 1.10.0 seulement : à retirer en 1.11.0.
+    L'écran lit maintenant /api/maison/services (contrat 3)."""
     c = {"id": "carnet", "nom": "carnet", "regle": carnet.regle(cfg()), "ok": None, "detail": "",
          "lit": "Le prénom et le nom des fiches, pour choisir les invités en tapant leur nom. Rien d'autre.",
          "ecrit": "Rien.", "reglage": "DOUZE_POINTS_CARNET_URL, et le jeton commun MAISON_JETON"}

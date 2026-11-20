@@ -1,9 +1,10 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 20/11/2026, version 1.9.0.
+À lire en premier. Mis à jour le 20/11/2026, version 1.10.0.
 
 ## Où on en est
 
+- **1.10.0 (20/11/2026)** : fiches « Connexion » communes (contrat 3, socle 0.10.0) : `SERVICES` dans `main.py` (section « fiches Connexion »), `maison.monter_services` après la garde, écran `$lib/services/Services.svelte` (commun, signé : ne pas le retoucher ici). Ancienne `/api/services` à retirer en 1.11.0. **Jamais essayé sur la vraie installation.**
 - **1.9.0 (20/11/2026)** : `docs/ajout-1.9.0.md`, `docs/conseil-1.9.0.md`.
   - Réglages (`REGLAGES_DEFAUTS`, `DUREES`, `reglages.json`) : `devoilement_auto`, `duree_*`. Changer de mode remet
     `pas_le` des dévoilements en cours.
