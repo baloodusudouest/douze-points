@@ -210,6 +210,15 @@ def test_une_soiree_entiere(serveur, navigateur):
     titre.fill("Finale de démonstration")                        # l'hôte peut écrire le sien
     regie.verifier("pc-1-nouvelle-soiree")
     p.get_by_role("button", name="Créer la soirée").click()
+    # 1.13 : le « ? » du collage propose un prompt pour obtenir la liste avec une IA (titre de la soirée dedans)
+    p.get_by_role("button", name="Un prompt pour obtenir la liste des chansons").click()
+    bulle = p.get_by_role("dialog", name="Prompt pour obtenir la liste")
+    texte = bulle.get_by_label("Texte du prompt").input_value()
+    assert "Finale de démonstration" in texte and "Pays;Artiste;Titre;Jury;Public;Rang" in texte
+    bulle.get_by_role("button", name="Copier").click()
+    bulle.get_by_role("status").wait_for()
+    regie.verifier("pc-1-prompt-liste")
+    bulle.get_by_role("button", name="Fermer").click()
     p.get_by_label("Coller la liste").fill("\n".join(f"{pays} ; Artiste {i} ; Titre {i}" for i, pays in enumerate(PAYS, 1))
                                           + "\nPays de démonstration ; Artiste 15 ; Titre 15")
     p.get_by_role("button", name="Enregistrer la liste").click()

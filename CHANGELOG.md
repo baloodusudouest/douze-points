@@ -1,5 +1,22 @@
 # Journal des versions
 
+## 1.13.0 — 22 novembre 2026 (un prompt pour obtenir la liste, vrais votes collés avec elle)
+Demande de Julien du 22/11/2026 ; choix en boîtes à choix (vrais votes remplis, bulle avec « Copier », Bac à sable
+plus tard). Petite évolution, sans Conseil.
+- **« ? » à côté de « Coller la liste »** (`pages/PromptListe.svelte`) : une bulle avec un prompt prêt à coller dans
+  une IA, au nom de la soirée : liste dans l'ordre de passage, `Pays;Artiste;Titre;Jury;Public;Rang`, pays en
+  français, vrais votes seulement si le concours a déjà eu lieu (colonnes vides sinon), sans en-tête ni autre texte.
+  « Copier » : presse-papiers moderne en page sûre, sinon le texte est sélectionné et copié à l'ancienne (http du
+  Wi-Fi) ; Échap ou « Fermer » referme.
+- **Vrais votes collés avec la liste** (`lire_collage`, `_nombre_colle`) : 4e, 5e et 6e colonnes = points du jury, du
+  public, rang final ; vide ou tiret = rien ; espace des milliers accepté (« 1 040 ») ; un nombre faux : 422 avec le
+  numéro de ligne. Enregistrés tout de suite dans `officiel_jury`, `officiel_public`, `officiel_rang` (la fiche les
+  compare dès le dévoilement, « À traiter » les trouve déjà saisis). Ligne d'en-tête « Pays;… » et lignes « ``` »
+  (bloc de code d'une IA) ignorées.
+- Tests : `tests/test_collage_113.py` (7), `test_soiree.py` adapté, `test_ecrans.py` (bulle, prompt, Copier).
+- **Jamais essayé sur la vraie installation** (ni le prompt dans une vraie IA, ni « Copier » en http sur l'iPhone).
+  Bac à sable pas mis à jour (choix de Julien : plus tard).
+
 ## 1.12.0 — 22 novembre 2026 (notre pays, sans points)
 Demande de Julien du 21/11/2026 : comme au concours, on ne vote pas pour son propre pays. Choix pris au cadrage (boîtes
 à choix), code lancé directement par Julien (« code direct », pas de Conseil) ; dossier `docs/ajout-1.12.0.md`.

@@ -898,17 +898,33 @@ def cle_pays(nom: str) -> str:
 DRAPEAU_EN_TETE = re.compile("^\\s*([\U0001F1E6-\U0001F1FF]{2})\\s*")
 
 
+def _nombre_colle(v: str, ligne: int, nom: str, bas: int, haut: int) -> int | None:
+    """1.13 : une colonne de vrais votes dans la liste collée : vide (ou un tiret) = rien ; sinon un entier borné."""
+    v = v.replace("\u202f", "").replace("\xa0", "").replace(" ", "").strip()
+    if v in ("", "-", "—", "–"):
+        return None
+    if not v.isdigit() or not bas <= int(v) <= haut:
+        raise HTTPException(422, f"Ligne {ligne} : {nom} est un nombre de {bas} à {haut}, ou rien.")
+    return int(v)
+
+
 def lire_collage(texte: str) -> list[dict]:
     """Une chanson par ligne ; champs séparés par une tabulation ou un point-virgule : pays, artiste, titre.
+    1.13 : puis, si le concours a déjà eu lieu, les vrais votes : points du jury, points du public, rang final
+    (colonnes vides sinon). Une ligne d'en-tête « Pays;Artiste;… » est ignorée.
     Un numéro de passage en tête de ligne est accepté et ignoré : c'est l'ordre des lignes qui compte.
     0.8 : une ligne copiée d'un site de fans, « 🇧🇹 Bhutan: Artiste - Titre », est aussi comprise : le drapeau
     donne le code du pays, puis le pays avant « : », l'artiste et le titre de part et d'autre de « - »."""
     chansons = []
-    for ligne in texte.splitlines():
+    for numero, ligne in enumerate(texte.splitlines(), start=1):
         champs = [c.strip() for c in (ligne.split("\t") if "\t" in ligne else ligne.split(";"))]
         if champs and champs[0].rstrip(".").isdigit():
             champs = champs[1:]
-        champs = [c for c in champs] + ["", "", ""]
+        if champs and cle_pays(champs[0]) in ("pays", "country"):         # 1.13 : la ligne d'en-tête
+            continue
+        if ligne.strip().startswith("```"):                              # 1.13 : le bloc de code d'une IA
+            continue
+        champs = [c for c in champs] + ["", "", "", "", "", ""]
         pays, artiste, titre, code = champs[0], champs[1], champs[2], ""
         m = DRAPEAU_EN_TETE.match(pays)
         if m:
@@ -918,8 +934,15 @@ def lire_collage(texte: str) -> list[dict]:
             pays, suite = pays.split(": ", 1)
             artiste, _, titre = suite.partition(" - ")
         if pays.strip():
-            chansons.append({"pays": pays.strip(), "artiste": artiste.strip(), "titre": titre.strip(), "code_pays": code})
+            chansons.append({"pays": pays.strip(), "artiste": artiste.strip(), "titre": titre.strip(), "code_pays": code,
+                             "jury": _nombre_colle(champs[3], numero, "le jury", 0, 9999),
+                             "public": _nombre_colle(champs[4], numero, "le public", 0, 9999),
+                             "rang": _nombre_colle(champs[5], numero, "le rang", 1, 99)})
     return chansons
+
+
+def _entier_ou_rien(v) -> int | None:
+    return v if isinstance(v, int) and not isinstance(v, bool) else None
 
 
 @app.put("/api/soirees/{soiree_id}/chansons")
@@ -941,9 +964,12 @@ def chansons_remplacer(soiree_id: int, corps: dict = Body(...)):
             pays = " ".join(str(c.get("pays", "")).split())[:60]
             if not pays:
                 raise HTTPException(422, f"Ligne {i + 1} : il manque le pays.")
-            cx.execute("INSERT INTO chanson(soiree_id, ordre, pays, code_pays, artiste, titre) VALUES(?,?,?,?,?,?)",
+            # 1.13 : les vrais votes collés avec la liste (concours déjà passé) sont enregistrés tout de suite
+            cx.execute("INSERT INTO chanson(soiree_id, ordre, pays, code_pays, artiste, titre, officiel_jury, "
+                       "officiel_public, officiel_rang) VALUES(?,?,?,?,?,?,?,?,?)",
                        (soiree_id, i + 1, pays, str(c.get("code_pays") or "")[:2].upper() or None,
-                        str(c.get("artiste") or "").strip()[:120], str(c.get("titre") or "").strip()[:120]))
+                        str(c.get("artiste") or "").strip()[:120], str(c.get("titre") or "").strip()[:120],
+                        _entier_ou_rien(c.get("jury")), _entier_ou_rien(c.get("public")), _entier_ou_rien(c.get("rang"))))
         return {"chansons": _chansons(cx, soiree_id)}
 
 

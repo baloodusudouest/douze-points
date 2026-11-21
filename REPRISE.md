@@ -1,9 +1,13 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 22/11/2026, version 1.12.0.
+À lire en premier. Mis à jour le 22/11/2026, version 1.13.0.
 
 ## Où on en est
 
+- **1.13.0 (22/11/2026)** : « ? » du collage (`pages/PromptListe.svelte`, monté dans `Soiree.svelte` avec
+  l'intitulé en `children`) ; `lire_collage` lit jury, public, rang (`_nombre_colle`), saute l'en-tête et les « ``` » ;
+  `chansons_remplacer` les écrit dans `officiel_*`. Tests : `tests/test_collage_113.py`. **Jamais essayé sur la vraie
+  installation.** Bac à sable pas mis à jour.
 - **1.12.0 (22/11/2026)** : notre pays, sans points (`docs/ajout-1.12.0.md`).
   - Réglage `notre_pays` (FR par défaut, vide = aucun). `main.py`, section « 1.12 » : `CODES_PAYS`
     (`app/pays_codes.json`, refait par `python tools/pays_codes.py` après toute modification de `lib/pays.js`),

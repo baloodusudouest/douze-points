@@ -11,6 +11,7 @@
   import Fiche from './Fiche.svelte'
   import Grille from './Grille.svelte'
   import Pencil from '@lucide/svelte/icons/pencil'
+  import PromptListe from './PromptListe.svelte'
   import Lancement from './Lancement.svelte'
   import AlerteDrapeaux from './AlerteDrapeaux.svelte'
   import Ouverture from '$lib/Ouverture.svelte'
@@ -262,10 +263,12 @@
             {/each}
           </ol>
         {/if}
-        <label class="champ mt-4">{s.chansons.length ? 'Remplacer la liste' : 'Coller la liste, dans l\'ordre de passage'}
-          <textarea bind:value={collage} rows="5" placeholder={'Une chanson par ligne :\nFrance ; Artiste ; Titre\nSuède ; Artiste ; Titre'}></textarea>
-        </label>
-        <p class="mt-1 text-xs text-muted-foreground">Pays, artiste et titre séparés par un point-virgule ou une tabulation.</p>
+        <!-- 1.13 : le « ? » propose un prompt pour obtenir la liste avec une IA (vrais votes compris si le concours est passé) -->
+        <div class="mt-4">
+          <PromptListe titre={s.nom}><span class="text-sm font-medium" id="intitule-collage">{s.chansons.length ? 'Remplacer la liste' : 'Coller la liste, dans l\'ordre de passage'}</span></PromptListe>
+        </div>
+        <textarea class="saisie mt-1 w-full" bind:value={collage} rows="5" aria-labelledby="intitule-collage" placeholder={'Une chanson par ligne :\nFrance;Artiste;Titre;Jury;Public;Rang\nSuède;Artiste;Titre;;;'}></textarea>
+        <p class="mt-1 text-xs text-muted-foreground">Pays, artiste et titre séparés par un point-virgule ou une tabulation ; puis, si le concours a déjà eu lieu, points du jury, du public et rang final.</p>
         <Button class="mt-3" variant="outline" onclick={coller} disabled={!collage.trim()}>Enregistrer la liste</Button>
       </section>
 
