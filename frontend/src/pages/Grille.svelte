@@ -10,6 +10,7 @@
 
   const BAREME = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1]
   let chansons = $derived(soiree.chansons.map(normaliser))
+  let notres = $derived(chansons.filter((c) => c.hors_points))        // 1.12 : notre pays, sans points
   let pages = $derived([...soiree.participants.map((p) => p.prenom), ''])
 </script>
 
@@ -46,7 +47,7 @@
       </table>
 
       <h2>Mon classement</h2>
-      <p class="aide">Range tes dix chansons préférées : c'est ce classement qui donne les points.</p>
+      <p class="aide">Range tes dix chansons préférées : c'est ce classement qui donne les points.{#if notres.length} Comme au concours, {notres.map((c) => c.pays).join(', ')} ne reçoit pas de points : ne l'écris pas ici.{/if}</p>
       <table class="classement">
         <tbody>
           {#each BAREME as pts}

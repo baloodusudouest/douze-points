@@ -6,9 +6,10 @@
   import ChevronUp from '@lucide/svelte/icons/chevron-up'
   import ChevronDown from '@lucide/svelte/icons/chevron-down'
   import Grip from '@lucide/svelte/icons/grip-vertical'
-  import { drapeau, EMISSIONS, BAREME, note, normaliser } from '$lib/pays.js'
+  import { drapeau, EMISSIONS, BAREME, note, normaliser, pointsDuClassement } from '$lib/pays.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import Embleme from '$lib/Embleme.svelte'
+  import NotrePays from '$lib/NotrePays.svelte'
   import Ouverture from '$lib/Ouverture.svelte'
   import Spectacle from './Spectacle.svelte'
   import Podium from './Podium.svelte'
@@ -148,6 +149,10 @@
   let parId = $derived(Object.fromEntries(chansons.map((c) => [c.id, c])))
   let notes = $derived(e?.moi?.notes || {})
   let ordre = $derived(e?.moi?.classement || [])
+  // 1.12 : notre pays se note et se classe, sans points ; les points du classement sautent par-dessus
+  let hors = $derived(new Set(chansons.filter((c) => c.hors_points).map((c) => c.id)))
+  let pointsMiens = $derived(pointsDuClassement(ordre, hors))
+  let dixieme = $derived(ordre.filter((id) => pointsMiens[id] === BAREME[BAREME.length - 1])[0])
   let nbNotees = $derived(Object.keys(notes).length)
   let envoye = $derived(e?.moi?.etat === 'envoye')
   let ouverte = $derived(e?.etat === 'ouverte')
@@ -284,6 +289,10 @@
         {/if}
         <h2 class="text-lg font-semibold">Le podium de la soirée</h2>
         <Podium places={resultats.classement.slice(0, 3).map((l) => ({ c: parId[l.chanson], points: l.total }))} />
+        {#each resultats.notre_pays || [] as b (b.chanson)}
+          <!-- 1.12 : notre pays, après le podium -->
+          <div class="mt-4"><NotrePays bilan={b} chanson={parId[b.chanson]} /></div>
+        {/each}
         {#if monPodium.length}
           <p class="mt-4 text-center text-sm text-muted-foreground">Ton podium</p>
           <Podium petit places={monPodium.map((p) => ({ c: parId[p.chanson], points: p.points }))} />
@@ -329,7 +338,7 @@
 
     {:else}
       {#if nbNotees === 0 && !saisie}
-        <p class="mb-4 rounded-2xl border bg-card p-4 text-sm">Note chaque chanson sur 20. À la fin, range tes chansons : tes dix premières reçoivent 12, 10, 8, 7… 1 point. C'est ce classement qui compte.
+        <p class="mb-4 rounded-2xl border bg-card p-4 text-sm">Note chaque chanson sur 20. À la fin, range tes chansons : tes dix premières reçoivent 12, 10, 8, 7… 1 point. C'est ce classement qui compte.{#if hors.size} Comme au concours, notre pays se note et se classe, mais ne reçoit pas de points : ils passent à la chanson suivante.{/if}
           <button class="mt-1 block text-muted-foreground underline" onclick={() => { e.moi = null; tel = ''; try { saisie ? sessionStorage.removeItem(CLE_SAISIE) : localStorage.removeItem(CLE) } catch { /* rien */ } }}>Ce n'est pas mon prénom</button></p>
       {/if}
 
@@ -354,21 +363,21 @@
           <p class="rounded-2xl border bg-card p-4 text-sm text-muted-foreground">Ton classement apparaîtra ici dès ta première note.</p>
         {:else}
           <p class="mb-3 text-sm text-muted-foreground">Rangé d'après tes notes. Glisse une ligne par sa poignée, ou utilise les flèches : tes notes ne changent pas.</p>
-          <ol class="grid" style="touch-action: pan-y">
+          <ol class="grid" style="touch-action: pan-y; grid-template-columns: minmax(0, 1fr)">
             {#each ordre as id, i (id)}
               {@const c = parId[id]}
-              <li animate:flip={{ duration: 180 }} class="rang" class:tenu={glisse?.id === id} class:dixieme={i === 9 && ordre.length > 10} style="height: {HAUTEUR}px">
-                <span class="chiffre w-8 shrink-0 text-right text-xl {i < 10 ? 'text-primary' : 'text-muted-foreground'}" title={i < 10 ? `${BAREME[i]} points` : 'aucun point'}>{i < 10 ? BAREME[i] : '·'}</span>
+              <li animate:flip={{ duration: 180 }} class="rang" class:tenu={glisse?.id === id} class:dixieme={id === dixieme && i < ordre.length - 1} class:notre={hors.has(id)} style="height: {HAUTEUR}px">
+                <span class="chiffre w-8 shrink-0 text-right text-xl {pointsMiens[id] ? 'text-primary' : 'text-muted-foreground'}" title={hors.has(id) ? 'notre pays : aucun point' : pointsMiens[id] ? `${pointsMiens[id]} points` : 'aucun point'}>{hors.has(id) ? '0' : pointsMiens[id] || '·'}</span>
                 {#if notes[id]?.commentaire}
                   <!-- 1.11 : le début de son commentaire ; un toucher montre tout -->
                   <button class="ligne-avis min-w-0 flex-1 text-left" aria-label="Voir le commentaire sur {c.pays}" aria-haspopup="dialog" onclick={() => (feuille = id)}>
                     <span class="block truncate">{drapeau(c.pays, c.code_pays)} {c.pays}</span>
-                    <span class="block text-xs text-muted-foreground">{i + 1}{i ? 'e' : 'er'} · noté {note(notes[id]?.valeur)}</span>
+                    <span class="block truncate text-xs text-muted-foreground">{i + 1}{i ? 'e' : 'er'} · noté {note(notes[id]?.valeur)}{#if hors.has(id)} · <span class="notre-marque">Notre pays · 0 pt</span>{/if}</span>
                     <span class="avis block truncate text-xs">« {notes[id].commentaire} »</span>
                   </button>
                 {:else}
                   <span class="min-w-0 flex-1"><span class="block truncate">{drapeau(c.pays, c.code_pays)} {c.pays}</span>
-                    <span class="block text-xs text-muted-foreground">{i + 1}{i ? 'e' : 'er'} · noté {note(notes[id]?.valeur)}</span></span>
+                    <span class="block truncate text-xs text-muted-foreground">{i + 1}{i ? 'e' : 'er'} · noté {note(notes[id]?.valeur)}{#if hors.has(id)} · <span class="notre-marque">Notre pays · 0 pt</span>{/if}</span></span>
                 {/if}
                 {#if ouverte}
                   <button class="fleche" aria-label="Monter {c.pays}" disabled={i === 0} onclick={() => fleche(id, -1)}><ChevronUp class="size-5" /></button>
@@ -552,6 +561,8 @@
   .chanson.en-cours { border-color: var(--primary); box-shadow: inset 3px 0 0 var(--primary); }
   .rang { display: flex; align-items: center; gap: 0.6rem; border-bottom: 1px solid var(--border); background: var(--background); }
   .rang.dixieme { border-bottom: 2px solid var(--primary); }
+  /* 1.12 : notre pays, classé sans points */
+  .notre-marque { color: var(--foreground); }
   .rang.tenu { position: relative; z-index: 1; background: var(--card); box-shadow: 0 6px 18px rgb(0 0 0 / 0.45); }
   .fleche { display: grid; width: 2.75rem; height: 2.75rem; place-items: center; border-radius: 0.6rem; color: var(--muted-foreground); }
   .fleche:disabled { opacity: 0.25; cursor: default; }

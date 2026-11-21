@@ -257,7 +257,8 @@
             {#each s.chansons as c (c.id)}
               <li class="flex gap-2"><span class="w-6 text-right text-muted-foreground">{c.ordre}</span>
                 <span>{drapeau(c.pays, c.code_pays)} {c.pays}</span>
-                <span class="truncate text-muted-foreground">{c.artiste}{c.titre ? ', ' + c.titre : ''}</span></li>
+                <span class="truncate text-muted-foreground">{c.artiste}{c.titre ? ', ' + c.titre : ''}</span>
+                {#if c.hors_points}<span class="ml-auto shrink-0 text-xs text-muted-foreground" title="Réglages › Notre pays">Notre pays, sans points</span>{/if}</li>
             {/each}
           </ol>
         {/if}

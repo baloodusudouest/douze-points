@@ -12,6 +12,7 @@
   import Compteur from '$lib/Compteur.svelte'
   import Podium from './Podium.svelte'
   import DernierVote from '$lib/DernierVote.svelte'
+  import NotrePays from '$lib/NotrePays.svelte'
   let { appel, regie = null } = $props()      // regie : la soirée vue par l'hôte connecté (lui seul fait avancer)
 
   let d = $state(null)
@@ -31,7 +32,9 @@
     if (document.hidden) return
     try {
       const n = await appel('GET', 'devoilement')
-      n.chansons = n.chansons.map(normaliser)
+      // 1.12 : notre pays n'est pas dans le tableau (aucun point) ; il revient après le podium (« Et notre pays ? »)
+      n.notres = n.chansons.filter((c) => c.hors_points).map(normaliser)
+      n.chansons = n.chansons.filter((c) => !c.hors_points).map(normaliser)
       const premier = !d
       d = n
       if (n.pas !== vu) {
@@ -143,6 +146,9 @@
     {#if fini}
       <div class="min-h-0 flex-1 overflow-y-auto pb-2">
         <Podium places={podium} />
+        {#each d.notre_pays || [] as b (b.chanson)}
+          <div class="mt-5"><NotrePays bilan={b} chanson={d.notres.find((c) => c.id === b.chanson)} /></div>
+        {/each}
         {#if monPodium.length}
           <p class="mt-5 text-center text-sm text-muted-foreground">Ton podium</p>
           <Podium places={monPodium} petit />

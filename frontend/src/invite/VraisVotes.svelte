@@ -49,7 +49,8 @@
             <span class="w-6 text-right text-muted-foreground">{v.rang}</span>
             <span class="min-w-0 flex-1 truncate">{drapeau(c.pays, c.code_pays)} {c.pays}</span>
             <span class="chiffre w-12 text-right text-base">{v.total}</span>
-            <span class="w-12 text-right text-muted-foreground">{v.notre_rang}e</span>
+            <!-- 1.12 : notre pays n'a pas de rang chez nous (aucun point) -->
+            <span class="w-12 text-right text-muted-foreground">{v.notre_rang == null ? '—' : `${v.notre_rang}e`}</span>
           </li>
         {/each}
       </ol>

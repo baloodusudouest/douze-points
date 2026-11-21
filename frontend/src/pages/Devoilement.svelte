@@ -13,6 +13,7 @@
   import DernierVote from '$lib/DernierVote.svelte'
   import CompteRebours from '$lib/CompteRebours.svelte'
   import BoutonSon from '$lib/BoutonSon.svelte'
+  import NotrePays from '$lib/NotrePays.svelte'
   import { prefersReducedMotion } from 'svelte/motion'
   import * as sons from '$lib/sons.js'
   let { soiree, onferme } = $props()
@@ -192,7 +193,9 @@
     api.get('/api/reglages').then((r) => { reglages = { ...reglages, ...r }; sons.regler(r) }).catch(() => {})
     try {
       const lu = await api.get(`/api/soirees/${soiree}/devoilement`)
-      d = { ...lu, chansons: lu.chansons.map(normaliser) }
+      // 1.12 : notre pays n'est ni dans le tableau, ni appelé, ni au podium ; « Et notre pays ? » suit le podium
+      d = { ...lu, chansons: lu.chansons.filter((c) => !c.hors_points).map(normaliser),
+            notres: lu.chansons.filter((c) => c.hors_points).map(normaliser), nbChansons: lu.chansons.length }
       pas = pasTri = Math.min(d.pas, fin)
       auto = lu.auto || null
       luA = Date.now()
@@ -271,6 +274,20 @@
     attenteVoile = setTimeout(() => (voile = false), 700)
   }
 
+  // 1.12 : « Et notre pays ? » après le podium, seul au bout du temps du podium (Réglages), en manuel comme en
+  // automatique (jamais au toucher : un toucher de trop sauterait le podium). Le serveur allonge d'autant le temps du
+  // podium en automatique (NOTRE_PAYS_S).
+  let vueNotre = $state(false)
+  let attenteNotre
+  const aNotre = () => !!d?.notre_pays?.length
+  function voirNotre() { if (aNotre()) vueNotre = true }
+  $effect(() => {
+    clearTimeout(attenteNotre)
+    if (!fini) { vueNotre = false; return }
+    if (aNotre() && !vueNotre) attenteNotre = setTimeout(voirNotre, (reglages.duree_podium ?? 15) * 1000)
+  })
+  onDestroy(() => clearTimeout(attenteNotre))
+
   function touche(e) {
     if (e.key === 'ArrowRight' || e.key === ' ') agir('suivant')
     if (e.key === 'ArrowLeft') agir('revenir')
@@ -332,6 +349,15 @@
           <p style="font-size: 30vh; line-height: 1"><Embleme src={d.images.logo ? `/api/soirees/${soiree}/image/logo?v=${d.images.logo}` : null} /></p>
           <p class="mt-2 text-2xl font-light">Le classement de la soirée</p>
           <p class="mt-3 text-muted-foreground">{d.invites.length} classements. Touche l'écran pour commencer.</p>
+        {:else if fini && vueNotre}
+          <!-- 1.12 : après le podium, « Et notre pays ? » (moyenne du groupe, place aux notes) -->
+          <div class="w-full min-w-0" in:fade={{ duration: 400 }}>
+            {#each d.notre_pays as b (b.chanson)}
+              <NotrePays bilan={b} chanson={d.notres.find((c) => c.id === b.chanson)} grand />
+            {/each}
+          </div>
+          <button class="bouton-jumeaux pointer-events-auto mt-4" onclick={terminer}>Voir les jumeaux de vote</button>
+          <p class="mt-1.5 text-xs text-muted-foreground">Termine la soirée et ouvre les résultats sur les téléphones.</p>
         {:else if fini}
           {@const podium = tableau.slice(0, 3)}
           <p class="text-xl font-light text-muted-foreground">Le podium de la soirée</p>
@@ -402,8 +428,8 @@
             {:else}
             <div in:fade={{ duration: 200 }}>
               <p class="text-3xl font-light">{courant.invite.prenom}</p>
-              {#if !courant.invite.envoye || courant.invite.notees < d.chansons.length}
-                <p class="text-sm text-muted-foreground">{courant.invite.notees} chansons sur {d.chansons.length}</p>
+              {#if !courant.invite.envoye || courant.invite.notees < d.nbChansons}
+                <p class="text-sm text-muted-foreground">{courant.invite.notees} chansons sur {d.nbChansons}</p>
               {/if}
               {#if courant.annonce}
                 {@const c = chansons[courant.annonce.chanson]}

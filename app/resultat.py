@@ -34,6 +34,15 @@ def rangs_moyens(points: dict[int, int | None], saisis: dict[int, int | None] | 
     return sortie
 
 
+def sans_exclues(officiel: dict[int, float | None], exclues) -> dict[int, float | None]:
+    """1.12 : le classement officiel sans notre pays (qui ne reçoit pas nos points, donc hors de toute comparaison) :
+    chaque rang perd une place par pays exclu classé devant lui. Les pays exclus disparaissent du résultat."""
+    exclues = set(exclues)
+    devant = [officiel[c] for c in exclues if officiel.get(c) is not None]
+    return {c: (None if r is None else r - sum(1 for x in devant if x < r))
+            for c, r in officiel.items() if c not in exclues}
+
+
 def ecarts(maison: dict[int, int | None], officiel: dict[int, float | None]) -> dict[int, float]:
     """Écart de rang (valeur absolue) chanson par chanson, sur les chansons classées des deux côtés."""
     return {c: abs(maison[c] - officiel[c]) for c in maison

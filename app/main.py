@@ -25,6 +25,7 @@ import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 from datetime import datetime
+from pathlib import Path
 import urllib.error
 
 import httpx
@@ -37,7 +38,7 @@ from . import __version__, carnet, ecran, immich, maison, resultat
 from .auth import COMMUN, DUREE, Sessions, en_https
 from .base import base, fichier, lecture, preparer, sauvegarder
 from .config import APPLI, Config, charger
-from .points import (ECHELLE, affinites, classement_groupe, classement_par_notes, duos, inserer, jumeaux,
+from .points import (ECHELLE, affinites, classement_groupe, classement_par_notes, duos, inserer, jumeaux, place_aux_notes, rerang,
                      points_du_classement)
 
 ETAT: dict = {}
@@ -92,7 +93,10 @@ REGLAGES_DEFAUTS = {"ha_webhook": "",
                     "devoilement_auto": True, "duree_depart": 10, "duree_jury": 15, "duree_public": 5,
                     "duree_revelation": 60, "duree_podium": 15, "duree_selfie": 6, "duree_mode_emploi": 30,
                     # 1.11 : les sons sur la télé (choix de Julien, 20/11/2026), oui par défaut, volume de 0 à 100
-                    "sons": True, "volume_sons": 70}
+                    "sons": True, "volume_sons": 70,
+                    # 1.12 : notre pays (code à deux lettres) : noté, commenté, classé, mais sans points (choix de Julien,
+                    # 21/11/2026) ; vide : aucun pays exclu
+                    "notre_pays": "FR"}
 DUREES = {"duree_depart": (2, 600), "duree_jury": (2, 600), "duree_public": (2, 120), "duree_revelation": (5, 300),
           "duree_podium": (2, 600), "duree_selfie": (2, 60), "duree_mode_emploi": (5, 600)}
 REGLAGES_VARIABLES = {"ha_webhook": "DOUZE_POINTS_HA_WEBHOOK"}
@@ -277,8 +281,53 @@ def _soiree(cx, soiree_id: int):
 
 def _chansons(cx, soiree_id: int) -> list[dict]:
     return [dict(r) for r in cx.execute(
-        "SELECT id, ordre, pays, code_pays, artiste, titre, officiel_jury, officiel_public, officiel_rang, officiel_qualifie FROM chanson "
-        "WHERE soiree_id=? ORDER BY ordre", (soiree_id,))]
+        "SELECT id, ordre, pays, code_pays, artiste, titre, officiel_jury, officiel_public, officiel_rang, officiel_qualifie, "
+        "hors_points FROM chanson WHERE soiree_id=? ORDER BY ordre", (soiree_id,))]
+
+
+# ================================================================ 1.12 : notre pays, sans points
+# Choix de Julien (21/11/2026) : comme au concours, on ne vote pas pour son propre pays. Les invités notent, commentent
+# et classent notre pays comme les autres ; ses points glissent à la chanson suivante de leur classement. Il sort du
+# tableau des points, du dernier vote du public et du podium ; un écran « Et notre pays ? » suit le podium (moyenne
+# du groupe, place aux notes). Notre pays est lu dans les réglages tant que la soirée est ouverte, puis figé au
+# dévoilement (colonne chanson.hors_points) : les soirées déjà dévoilées ne bougent pas.
+CODES_PAYS: dict[str, str] = json.loads((Path(__file__).parent / "pays_codes.json").read_text(encoding="utf-8"))
+
+
+def notre_pays() -> str:
+    return str(_reglage_auto("notre_pays") or "").upper()
+
+
+def code_de(c: dict) -> str:
+    """Le code à deux lettres d'une chanson : son drapeau, sinon son nom (même table que l'interface)."""
+    code = (c.get("code_pays") or CODES_PAYS.get(cle_pays(str(c.get("pays") or "")), "")).upper()
+    return code if re.fullmatch(r"[A-Z]{2}", code) else ""
+
+
+def exclues(s, chansons: list[dict]) -> set[int]:
+    """Les chansons de notre pays : d'après le réglage avant le dévoilement, d'après la base ensuite."""
+    if s["etat"] in ("brouillon", "ouverte"):
+        code = notre_pays()
+        return {c["id"] for c in chansons if code and code_de(c) == code}
+    return {c["id"] for c in chansons if c.get("hors_points")}
+
+
+def _avec_marque(chansons: list[dict], hors: set[int]) -> list[dict]:
+    return [{**c, "hors_points": c["id"] in hors} for c in chansons]
+
+
+def _notre_pays_bilan(chansons: list[dict], hors: set[int], notes: dict[int, dict[int, int]]) -> list[dict]:
+    """« Et notre pays ? » : pour chaque chanson exclue, la moyenne des notes du groupe (sur 20), la place qu'elle
+    aurait eue d'après les moyennes, et le nombre de chansons notées."""
+    sommes: dict[int, list[int]] = defaultdict(list)
+    for n in notes.values():
+        for c, v in n.items():
+            sommes[c].append(v)
+    moyennes = {c["id"]: (sum(sommes[c["id"]]) / len(sommes[c["id"]]) / ECHELLE if sommes[c["id"]] else None)
+                for c in chansons}
+    return [{"chanson": c, "moyenne": None if moyennes.get(c) is None else round(moyennes[c], 2),
+             "place_notes": place_aux_notes(moyennes, c), "sur": sum(1 for v in moyennes.values() if v is not None),
+             "notes": len(sommes[c])} for c in sorted(hors, key=lambda x: next(ch["ordre"] for ch in chansons if ch["id"] == x))]
 
 
 def _notes(cx, participation_id: int) -> dict[int, int]:
@@ -504,6 +553,13 @@ def changer_reglages(cx, corps: dict) -> dict:
         if isinstance(v, bool) or not isinstance(v, (int, float)) or v != int(v) or not 0 <= v <= 100:
             raise HTTPException(400, "Le volume des sons va de 0 à 100.")
         propres["volume_sons"] = int(v)
+    if "notre_pays" in corps:                             # 1.12 : notre pays, sans points
+        v = corps["notre_pays"]
+        if v is None:
+            v = ""
+        if not isinstance(v, str) or not re.fullmatch(r"[A-Za-z]{2}|", v.strip()):
+            raise HTTPException(400, "Notre pays est un code à deux lettres (FR), ou vide.")
+        propres["notre_pays"] = v.strip().upper()
     for cle, (bas, haut) in DUREES.items():
         if cle in corps:
             v = corps[cle]
@@ -768,7 +824,9 @@ def soiree_lire(soiree_id: int):
         attendus = [g for g in gens if g["etat"] != "ecarte"]
         return {**_resume(s), "jeton_invite": s["jeton_invite"], "chanson_en_cours": s["chanson_en_cours"],
                 "mode_devoilement": s["mode_devoilement"], "pas_devoilement": s["pas_devoilement"],
-                "forcee": bool(s["forcee"]), "chansons": _chansons(cx, soiree_id), "participants": gens,
+                # 1.12 : `hors_points` dit quelle chanson est notre pays (réglage avant le dévoilement, figé ensuite)
+                "forcee": bool(s["forcee"]), "chansons": _avec_marque(ch := _chansons(cx, soiree_id), exclues(s, ch)),
+                "participants": gens,
                 "tous_envoye": bool(attendus) and all(g["etat"] == "envoye" for g in attendus),
                 "lien": f"{lien}/invite/{s['jeton_invite']}" if (lien := adresse()) else ""}
 
@@ -1058,12 +1116,15 @@ def devoiler(soiree_id: int, corps: dict = Body(default={})):
     sauvegarder(cfg().data, f"soiree-{soiree_id}-avant-devoilement.db")
     with base(cfg().data) as cx:
         chansons = _chansons(cx, soiree_id)
+        hors = exclues(s, chansons)           # 1.12 : notre pays, figé ici pour toujours
+        cx.execute("UPDATE chanson SET hors_points=0 WHERE soiree_id=?", (soiree_id,))
+        cx.executemany("UPDATE chanson SET hors_points=1 WHERE id=?", [(c,) for c in hors])
         cx.execute("DELETE FROM points WHERE soiree_id=?", (soiree_id,))
         for p in retenus:
             ordre = _ordre(cx, p, chansons)
             cx.executemany("INSERT INTO points(soiree_id, participation_id, chanson_id, rang, points) VALUES(?,?,?,?,?)",
                            [(soiree_id, p["id"], c, ordre.index(c) + 1, pts)
-                            for c, pts in points_du_classement(ordre).items()])
+                            for c, pts in points_du_classement(ordre, hors).items()])
             _ecrire_ordre(cx, p["id"], ordre)           # le classement retenu est figé lui aussi
             cx.execute("UPDATE participation SET jury=? WHERE id=?", (1 if p["invite_id"] in jures else 0, p["id"]))
         for p in ecartes:
@@ -1081,8 +1142,12 @@ def devoiler(soiree_id: int, corps: dict = Body(default={})):
 
 
 def _devoilement(cx, s) -> dict:
-    """Tout ce qu'il faut pour jouer le dévoilement, à partir des points gelés."""
+    """Tout ce qu'il faut pour jouer le dévoilement, à partir des points gelés.
+    1.12 : `chansons` porte `hors_points` ; notre pays n'est pas dans `classement` (ni donc au podium) et passe dans
+    `notre_pays` (moyenne du groupe, place aux notes)."""
     chansons = _chansons(cx, s["id"])
+    hors = exclues(s, chansons)
+    chansons = _avec_marque(chansons, hors)
     passage = {c["id"]: c["ordre"] for c in chansons}
     points: dict[int, dict[int, int]] = defaultdict(dict)
     for r in cx.execute("SELECT participation_id, chanson_id, points FROM points WHERE soiree_id=?", (s["id"],)):
@@ -1101,7 +1166,8 @@ def _devoilement(cx, s) -> dict:
                                     "commentaire": commentaires.get(c, "")} for c, pts in donnes]})
     d = {"mode": s["mode_devoilement"], "pas": s["pas_devoilement"], "forcee": bool(s["forcee"]), "images": _images(s),
          "chansons": chansons, "invites": invites, "etat": s["etat"],
-         "classement": classement_groupe([c["id"] for c in chansons], points, notes, passage)}
+         "classement": classement_groupe([c["id"] for c in chansons if c["id"] not in hors], points, notes, passage),
+         "notre_pays": _notre_pays_bilan(chansons, hors, notes)}
     d["marche"] = _marche(d)
     d["pas"], d["auto"] = _pas_auto(s, d["marche"], horloge())
     return d
@@ -1116,6 +1182,7 @@ def _devoilement(cx, s) -> dict:
 DUREE_AUTO = 5.0          # secondes par pays du public
 COMPTE_REBOURS = 6.0      # 1.11 : le compte à rebours 5 → 0 avant la remontée du dernier pays (visuel 8b)
 GARDE_REGIE = 4.0         # sans régie depuis ce temps, l'horloge s'arrête
+NOTRE_PAYS_S = 10.0       # 1.12 : le temps de « Et notre pays ? » après le podium (en automatique)
 
 
 def _bornes_auto(m: dict) -> tuple[int, int]:
@@ -1148,8 +1215,8 @@ def _duree_pas(pas: int, m: dict) -> float | None:
         return float(_reglage_auto("duree_public"))
     if pas == dernier and m["public"]:
         return duree_revelation(len(m["public"]))
-    if pas == m["fin"]:
-        return float(_reglage_auto("duree_podium"))
+    if pas == m["fin"]:      # 1.12 : « Et notre pays ? » suit le podium sur la télé : son temps s'ajoute
+        return float(_reglage_auto("duree_podium")) + (NOTRE_PAYS_S if m.get("notre_pays") else 0.0)
     return None
 
 
@@ -1202,15 +1269,18 @@ def _marche(d: dict) -> dict:
     jures = [i["id"] for i in d["invites"] if i["jury"]]
     if len(jures) == len(d["invites"]):
         jures = []
-    jury = {c["id"]: 0 for c in d["chansons"]}
-    total = {c["id"]: 0 for c in d["chansons"]}
+    en_lice = [c for c in d["chansons"] if not c.get("hors_points")]      # 1.12 : notre pays n'est jamais appelé
+    jury = {c["id"]: 0 for c in en_lice}
+    total = {c["id"]: 0 for c in en_lice}
     for i in d["invites"]:
         for p in i["points"]:
-            (jury if i["id"] in jures else total)[p["chanson"]] += p["points"]
-    passage = {c["id"]: c["ordre"] for c in d["chansons"]}
+            if p["chanson"] in total:
+                (jury if i["id"] in jures else total)[p["chanson"]] += p["points"]
+    passage = {c["id"]: c["ordre"] for c in en_lice}
     base_ordre = jury if jures else total
     public = sorted(base_ordre, key=lambda c: (base_ordre[c], -passage[c]))
-    return {"jures": jures, "public": public, "fin": (1 if jures else 0) + len(public) + 1}
+    return {"jures": jures, "public": public, "fin": (1 if jures else 0) + len(public) + 1,
+            "notre_pays": any(c.get("hors_points") for c in d["chansons"])}
 
 
 @app.get("/api/soirees/{soiree_id}/devoilement")
@@ -1352,7 +1422,9 @@ def _corps_soiree(cx, s) -> dict:
                             and c["invites"][str(i["id"])]["commentaire"].strip()),
                            key=lambda r: (r["points"], r["note"]))[:5]
         x = {"nom": i["prenom"], "role": "jury" if i["jury"] else "public",
-             "donnees": {"moyenne": i["moyenne"], "classement": rang_groupe.get(mes[0][1]) if mes else None,
+             "donnees": {"moyenne": i["moyenne"],
+                         # 1.12 : la première chanson de son classement qui a un rang au groupe (notre pays n'en a pas)
+                         "classement": next((rang_groupe[c] for _, c in mes if rang_groupe.get(c) is not None), None),
                          "top3": [pays[c] for _, c in mes[:3]], "remarques": remarques}}
         jumeau = j["par_invite"].get(i["id"])
         if jumeau:
@@ -1475,6 +1547,10 @@ def _fiche(cx, s) -> dict:
     d = _devoilement(cx, s)
     chansons, passage = d["chansons"], {c["id"]: c["ordre"] for c in d["chansons"]}
     ids = [c["id"] for c in chansons]
+    # 1.12 : notre pays garde ses notes, ses commentaires et sa place dans chaque classement, mais il n'a ni points,
+    # ni rang dans nos classements, ni place dans les comparaisons avec le vrai résultat (écarts, palmarès)
+    hors = {c["id"] for c in chansons if c["hors_points"]}
+    en_lice = [c for c in ids if c not in hors]
     points = {i["id"]: {p["chanson"]: p["points"] for p in i["points"]} for i in d["invites"]}
     notes = {i["id"]: _notes(cx, i["id"]) for i in d["invites"]}
     rangs = {i["id"]: {r["chanson_id"]: r["rang"] for r in cx.execute(
@@ -1483,20 +1559,27 @@ def _fiche(cx, s) -> dict:
         "SELECT chanson_id, commentaire FROM note WHERE participation_id=?", (i["id"],))} for i in d["invites"]}
 
     def partie(membres):        # classement d'une partie des invités (jury, ou public)
-        lignes = classement_groupe(ids, {m: points[m] for m in membres}, {m: notes[m] for m in membres}, passage)
-        return {l["chanson"]: {"points": l["total"], "rang": l["rang"] if membres else None} for l in lignes}
+        lignes = classement_groupe(en_lice, {m: points[m] for m in membres}, {m: notes[m] for m in membres}, passage)
+        sortie = {l["chanson"]: {"points": l["total"], "rang": l["rang"] if membres else None} for l in lignes}
+        return {**sortie, **{c: {"points": 0, "rang": None} for c in hors}}
 
     jury = partie([i["id"] for i in d["invites"] if i["jury"]])
     public = partie([i["id"] for i in d["invites"] if not i["jury"]])
     groupe = {l["chanson"]: l for l in d["classement"]}
+    bilan = {b["chanson"]: b for b in d["notre_pays"]}
+    for c in hors:
+        groupe[c] = {"chanson": c, "total": 0, "votants": 0, "moyenne": bilan[c]["moyenne"], "rang": None}
     off_jury = {c["id"]: c["officiel_jury"] for c in chansons}
     off_public = {c["id"]: c["officiel_public"] for c in chansons}
     off_total = {c: (None if off_jury[c] is None and off_public[c] is None else (off_jury[c] or 0) + (off_public[c] or 0)) for c in ids}
     rj, rp, rt = _rangs(off_jury), _rangs(off_public), _rangs(off_total)
+    # 1.12 : pour comparer, les vrais rangs sans notre pays (rangs affichés : les vrais, notre pays compris)
+    sans = lambda points: _rangs({c: points[c] for c in en_lice})
+    rj_c, rp_c, rt_c = sans(off_jury), sans(off_public), sans(off_total)
 
     def comparer(nous: dict[int, int | None], eux: dict[int, int | None]):
         """Notre classement face au vrai : même gagnant, chansons communes dans les trois premières, écart moyen de rang."""
-        communs = [c for c in ids if nous.get(c) is not None and eux.get(c) is not None]
+        communs = [c for c in en_lice if nous.get(c) is not None and eux.get(c) is not None]
         if not communs:
             return None
         premier = lambda r: {c for c in communs if r[c] == 1}
@@ -1507,13 +1590,16 @@ def _fiche(cx, s) -> dict:
     a_jury = any(i["jury"] for i in d["invites"])
     # 1.3 : écarts et affinités, sur les classements figés au dévoilement (rendus par identifiants)
     ordres = {i: sorted(r, key=r.get) for i, r in rangs.items()}
+    rangs_c = {i: rerang(r, hors) for i, r in rangs.items()}         # 1.12 : classements sans notre pays
     # 1.9 : palmarès des invités (plus proche du vrai classement = écart de rang moyen) et écarts jury / public,
     # mêmes calculs que le journal (app/resultat.py) ; ex æquo officiels au rang moyen, rang officiel saisi prioritaire
     saisis = {c["id"]: c["officiel_rang"] for c in chansons}
-    off_moyen = resultat.rangs_moyens(off_total, saisis)
-    off_moyen_j, off_moyen_p = resultat.rangs_moyens(off_jury), resultat.rangs_moyens(off_public)
+    off_moyen = resultat.sans_exclues(resultat.rangs_moyens(off_total, saisis), hors)
+    off_moyen_j = resultat.sans_exclues(resultat.rangs_moyens(off_jury), hors)
+    off_moyen_p = resultat.sans_exclues(resultat.rangs_moyens(off_public), hors)
     prenoms_f = {i["id"]: i["prenom"] for i in d["invites"]}
-    palm = resultat.palmares(rangs, off_moyen, len(ids), prenoms_f) if any(v is not None for v in off_moyen.values()) else []
+    palm = (resultat.palmares(rangs_c, off_moyen, len(en_lice), prenoms_f)
+            if any(v is not None for v in off_moyen.values()) else [])
     def ecart_de(nous, eux):
         return abs(nous - eux) if nous is not None and eux is not None else None
     return {
@@ -1528,19 +1614,21 @@ def _fiche(cx, s) -> dict:
             "rang": groupe[c["id"]]["rang"], "jury": jury[c["id"]], "public": public[c["id"]],
             "officiel": {"jury": off_jury[c["id"]], "public": off_public[c["id"]], "total": off_total[c["id"]],
                          "rang_jury": rj[c["id"]], "rang_public": rp[c["id"]], "rang": rt[c["id"]]},
-            "ecart": {"rang": ecart_de(groupe[c["id"]]["rang"], off_moyen[c["id"]]),
-                      "jury": ecart_de(jury[c["id"]]["rang"], off_moyen_j[c["id"]]) if a_jury else None,
-                      "public": ecart_de(public[c["id"]]["rang"], off_moyen_p[c["id"]]) if a_jury else None},
+            "hors_points": c["hors_points"],
+            "ecart": {"rang": ecart_de(groupe[c["id"]]["rang"], off_moyen.get(c["id"])),
+                      "jury": ecart_de(jury[c["id"]]["rang"], off_moyen_j.get(c["id"])) if a_jury else None,
+                      "public": ecart_de(public[c["id"]]["rang"], off_moyen_p.get(c["id"])) if a_jury else None},
             "invites": {str(i["id"]): {"note": notes[i["id"]][c["id"]] / ECHELLE, "rang": rangs[i["id"]].get(c["id"]),
                                        "points": points[i["id"]].get(c["id"], 0),
                                        "commentaire": commentaires[i["id"]].get(c["id"], "")}
                         for i in d["invites"] if c["id"] in notes[i["id"]]},
         } for c in chansons],
         "comparaison": {
-            "ensemble": comparer({c: groupe[c]["rang"] for c in ids}, rt),
-            "jury": comparer({c: jury[c]["rang"] for c in ids}, rj) if a_jury else None,
-            "public": comparer({c: public[c]["rang"] for c in ids}, rp) if a_jury else None,
+            "ensemble": comparer({c: groupe[c]["rang"] for c in ids}, rt_c),
+            "jury": comparer({c: jury[c]["rang"] for c in ids}, rj_c) if a_jury else None,
+            "public": comparer({c: public[c]["rang"] for c in ids}, rp_c) if a_jury else None,
         },
+        "notre_pays": d["notre_pays"],
     }
 
 
@@ -1687,13 +1775,19 @@ def _resultat(cx, s, version: int, le: str, images: dict, date_finale: str = "")
     officiel = resultat.rangs_moyens(off_total, {c: brut[c]["officiel_rang"] for c in ids})
     off_jury = resultat.rangs_moyens({c["id"]: c["officiel"]["jury"] for c in f["chansons"]})
     off_public = resultat.rangs_moyens({c["id"]: c["officiel"]["public"] for c in f["chansons"]})
-    ecart = resultat.ecarts(maison, officiel)
+    # 1.12 : notre pays garde son vrai rang (affiché) mais sort des comparaisons : vrais rangs et classements des
+    # invités renumérotés sans lui
+    hors = {c["id"] for c in f["chansons"] if c["hors_points"]}
+    en_lice = [c for c in ids if c not in hors]
+    officiel_c = resultat.sans_exclues(officiel, hors)
+    ecart = resultat.ecarts(maison, officiel_c)
     mieux, rates = resultat.mieux_et_moins_bien(ecart, ordre)
     classements = {i["id"]: {int(c): v["rang"] for c, v in ((c["id"], c["invites"].get(str(i["id"]))) for c in f["chansons"])
                              if v and v["rang"] is not None} for i in f["invites"]}
+    classements_c = {i: rerang(r, hors) for i, r in classements.items()}
     demi = s["emission"] in ("demi1", "demi2")
     qualifies = {c for c in ids if brut[c]["officiel_qualifie"]}
-    palm = resultat.palmares(classements, officiel, len(ids), prenoms) if not demi else []
+    palm = resultat.palmares(classements_c, officiel_c, len(en_lice), prenoms) if not demi else []
     plus_proche = next((x["invite"] for x in palm if x["complet"]), None)
     j = _jumeaux(cx, s)
     photos_duo: dict[str, list] = defaultdict(list)
@@ -1703,6 +1797,7 @@ def _resultat(cx, s, version: int, le: str, images: dict, date_finale: str = "")
         photos_duo[f"{a}-{b}"].append({"photo": r["id"], "immich_id": r["immich_id"]})
     apero = cx.execute("SELECT immich_id FROM photo WHERE soiree_id=? AND apero=1 ORDER BY id DESC LIMIT 1", (s["id"],)).fetchone()
     a_jury_off = any(c["officiel"]["jury"] is not None for c in f["chansons"])
+    off_jury_c, off_public_c = resultat.sans_exclues(off_jury, hors), resultat.sans_exclues(off_public, hors)
     type_soiree = TYPES_SOIREE.get(s["emission"], "Finale")
     sortie = {
         "format": resultat.VERSION_CONTRAT, "version": version, "le": le, "appli": "douze-points", "version_appli": __version__,
@@ -1715,18 +1810,18 @@ def _resultat(cx, s, version: int, le: str, images: dict, date_finale: str = "")
         "apero_immich_id": apero["immich_id"] if apero else None,
         "invites": [{"id": i["id"], "prenom": i["prenom"], "carnet_id": ident[i["id"]]["carnet_id"],
                      "personne_id": ident[i["id"]]["personne_id"], "jury": i["jury"], "moyenne": i["moyenne"],
-                     "complet": len(classements.get(i["id"], {})) >= len(ids)} for i in f["invites"]],
+                     "complet": len(classements_c.get(i["id"], {})) >= len(en_lice)} for i in f["invites"]],
         "chansons": [{
             "id": c["id"], "ordre": c["ordre"], "pays": c["pays"], "code_pays": c["code_pays"], "artiste": c["artiste"],
-            "titre": c["titre"],
+            "titre": c["titre"], "hors_points": c["hors_points"],
             "maison": {"points": c["points"], "rang": c["rang"], "moyenne": c["moyenne"],
                        "jury": c["jury"], "public": c["public"]},
             "officiel": {**c["officiel"], "rang": officiel[c["id"]], "rang_jury": off_jury[c["id"]],
                          "rang_public": off_public[c["id"]], "rang_saisi": brut[c["id"]]["officiel_rang"],
                          "qualifie": None if brut[c["id"]]["officiel_qualifie"] is None else bool(brut[c["id"]]["officiel_qualifie"])},
             "ecart": {"rang": ecart.get(c["id"]),
-                      "jury": abs(c["jury"]["rang"] - off_jury[c["id"]]) if c["jury"]["rang"] and off_jury[c["id"]] else None,
-                      "public": abs(c["public"]["rang"] - off_public[c["id"]]) if c["public"]["rang"] and off_public[c["id"]] else None},
+                      "jury": abs(c["jury"]["rang"] - off_jury_c[c["id"]]) if c["jury"]["rang"] and off_jury_c.get(c["id"]) else None,
+                      "public": abs(c["public"]["rang"] - off_public_c[c["id"]]) if c["public"]["rang"] and off_public_c.get(c["id"]) else None},
             "notes": [{"invite": int(k), **v} for k, v in c["invites"].items()],
         } for c in f["chansons"]],
         "podium_maison": [l["chanson"] for l in d["classement"][:3]],
@@ -1738,10 +1833,11 @@ def _resultat(cx, s, version: int, le: str, images: dict, date_finale: str = "")
         "duos": [{"cle": x["cle"], "invites": [y["id"] for y in x["invites"]], "reciproques": x["reciproques"],
                   "tranche": x["tranche"], "photos": photos_duo.get(x["cle"], [])} for x in j["duos"]],
         "demi": None,
+        "notre_pays": f["notre_pays"],
     }
     if demi:
         moyennes = {c["id"]: c["moyenne"] for c in f["chansons"]}
-        sortie["demi"] = {**resultat.demi_finale(maison, qualifies, classements, moyennes, prenoms),
+        sortie["demi"] = {**resultat.demi_finale(maison, qualifies, classements_c, moyennes, prenoms),
                           "qualifies": sorted(qualifies, key=lambda c: brut[c]["pays"]), "date_finale": date_finale}
     return sortie
 
@@ -1923,8 +2019,10 @@ def invite_etat(jeton: str, request: Request):
                 "etat": s["etat"], "pas_note": float(_reglage(cx, "pas_note")), "bareme": [12, 10, 8, 7, 6, 5, 4, 3, 2, 1], "images": _images(s)}
         if s["etat"] == "brouillon":
             return etat
-        chansons = [{k: c[k] for k in ("id", "ordre", "pays", "code_pays", "artiste", "titre")}
-                    for c in _chansons(cx, s["id"])]
+        brutes = _chansons(cx, s["id"])
+        hors = exclues(s, brutes)           # 1.12 : notre pays, noté et classé, sans points (marque sur le téléphone)
+        chansons = [{**{k: c[k] for k in ("id", "ordre", "pays", "code_pays", "artiste", "titre")},
+                     "hors_points": c["id"] in hors} for c in brutes]
         p = _moi(cx, s, request, exiger=False)
         return {**etat, "chansons": chansons, "chanson_en_cours": s["chanson_en_cours"],
                 "invites": [{"id": g["id"], "prenom": g["prenom"], "pris": g["pris"], "envoye": g["etat"] == "envoye"}
@@ -2090,7 +2188,8 @@ def invite_devoilement(jeton: str, request: Request):
     appelees = m["public"][:max(0, min(len(m["public"]), pas - debut))]
     sortie = {
         "etat": s["etat"], "pas": pas, "fin": m["fin"], "avec_jury": bool(m["jures"]), "nb_public": len(m["public"]),
-        "chansons": [{k: c[k] for k in ("id", "ordre", "pays", "code_pays", "artiste", "titre")} for c in d["chansons"]],
+        "chansons": [{k: c[k] for k in ("id", "ordre", "pays", "code_pays", "artiste", "titre", "hors_points")}
+                     for c in d["chansons"]],
         "moi": {"prenom": moi["prenom"], "jury": moi["id"] in m["jures"],
                 "points": {str(x["chanson"]): x["points"] for x in moi["points"]}} if moi else None,
         "jury": {str(c): somme(True, c) for c in ids} if m["jures"] and pas >= 1 else None,
@@ -2103,6 +2202,7 @@ def invite_devoilement(jeton: str, request: Request):
     sortie["revelation_ms"] = int(_reglage_auto("duree_revelation")) * 1000 + sortie["compte_ms"]
     if pas >= m["fin"]:
         sortie["classement"] = d["classement"]
+        sortie["notre_pays"] = d["notre_pays"]          # 1.12 : « Et notre pays ? », après le podium
     elif pas == m["fin"] - 1 and m["public"]:
         # 1.8 : au dernier vote, le vainqueur du classement (départage d'une égalité au sommet), pour l'animation
         sortie["gagnant"] = d["classement"][0]["chanson"]

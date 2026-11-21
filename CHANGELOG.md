@@ -1,5 +1,37 @@
 # Journal des versions
 
+## 1.12.0 — 22 novembre 2026 (notre pays, sans points)
+Demande de Julien du 21/11/2026 : comme au concours, on ne vote pas pour son propre pays. Choix pris au cadrage (boîtes
+à choix), code lancé directement par Julien (« code direct », pas de Conseil) ; dossier `docs/ajout-1.12.0.md`.
+- **Réglages › Notre pays** (`notre_pays`, la France par défaut, `""` = aucun) : un code à deux lettres, dans la
+  sauvegarde des réglages. Une chanson est « notre pays » par son drapeau, sinon par son nom (`app/pays_codes.json`,
+  recopie de la table de `frontend/src/lib/pays.js` par `python tools/pays_codes.py` ; un test compare les deux).
+- **Noté, commenté, classé, sans points.** `points.points_du_classement(ordre, exclues)` : notre pays garde sa place
+  dans le classement de l'invité, ses points glissent à la suivante (le 12 va à la première chanson qui n'est pas
+  notre pays, la 11e prend le dernier point). Même règle sur le téléphone (`pointsDuClassement`, `lib/pays.js`) : la
+  ligne montre « 0 » et « Notre pays · 0 pt », le trait des dix premières suit le dernier point ; grille papier saisie
+  par l'hôte : « Notre pays : pas de points » ; grille à imprimer : « ne l'écris pas ici ».
+- **Figé au dévoilement** : colonne `chanson.hors_points` (posée par `devoiler`, à 0 pour les soirées déjà dévoilées,
+  qui ne bougent pas). Avant le dévoilement, le réglage fait foi (`exclues()`).
+- **Hors du tableau** : `_devoilement` ne met pas notre pays dans `classement` (ni au podium) ; `_marche` ne l'appelle
+  jamais (ni au public, ni au dernier vote). La télé et les téléphones le retirent du tableau.
+- **« Et notre pays ? »** (`lib/NotrePays.svelte`) : moyenne des notes du groupe, place qu'il aurait eue d'après les
+  moyennes (`points.place_aux_notes`), nombre de chansons notées. Télé : après le temps du podium (Réglages), jamais au
+  toucher ; en automatique, le podium dure `NOTRE_PAYS_S` (10 s) de plus. Téléphones : sous le podium de la soirée,
+  pendant le dévoilement et dans les résultats. Fiche : sous le classement.
+- **Fiche, journal de Gazette, carnet** : notre pays a ses notes, ses commentaires, son rang dans chaque classement
+  d'invité et ses vrais votes (vrai rang affiché), mais ni points, ni rang maison (`rang` : null), ni place dans les
+  comparaisons : vrais rangs renumérotés sans lui (`resultat.sans_exclues`), classements des invités aussi
+  (`points.rerang`) pour les écarts, le palmarès, « mieux devinées / plus ratées » et la demi-finale. Ses notes
+  comptent dans les affinités et les jumeaux de vote. Journal (contrat 1, clés ajoutées) : `chansons[].hors_points`,
+  `notre_pays` ; `docs/journal-exemple.json` refait avec la France (Gazette affiche déjà « — » pour un rang absent).
+  carnet : « classement » = rang du groupe de la première chanson classée de l'invité qui a un rang.
+- Régie : « Notre pays, sans points » à côté de la chanson dans la liste de la soirée.
+- Tests : `tests/test_notre_pays_112.py` (11) ; `test_ecrans.py` (marque sur le téléphone, 12 à l'Italie, « Et notre
+  pays ? » sur la télé et le téléphone, tableau sans la France).
+- **Jamais essayé sur la vraie installation.** Bac à sable pas mis à jour (choix de Julien : plus tard).
+
+
 ## 1.11.0 — 20 novembre 2026 (sons sur la télé, compte à rebours avant la révélation, commentaires dans le classement)
 Trois demandes de Julien du 20/11/2026 ; dossier `docs/ajout-1.11.0.md`, conseil `docs/conseil-1.11.0.md` (le
 conseil prime là où ils diffèrent).

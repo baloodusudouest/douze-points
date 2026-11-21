@@ -1,8 +1,22 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 20/11/2026, version 1.11.0.
+À lire en premier. Mis à jour le 22/11/2026, version 1.12.0.
 
 ## Où on en est
+
+- **1.12.0 (22/11/2026)** : notre pays, sans points (`docs/ajout-1.12.0.md`).
+  - Réglage `notre_pays` (FR par défaut, vide = aucun). `main.py`, section « 1.12 » : `CODES_PAYS`
+    (`app/pays_codes.json`, refait par `python tools/pays_codes.py` après toute modification de `lib/pays.js`),
+    `code_de`, `exclues(s, chansons)` (réglage avant le dévoilement, colonne `chanson.hors_points` ensuite),
+    `_avec_marque`, `_notre_pays_bilan`. `devoiler` pose `hors_points` et appelle `points_du_classement(ordre, hors)`.
+    `_devoilement` : `classement` sans notre pays, `notre_pays` ; `_marche` ne l'appelle pas et dit `notre_pays` ;
+    `_duree_pas` : podium + `NOTRE_PAYS_S`. `_fiche` / `_resultat` : comparaisons avec `resultat.sans_exclues` et
+    `points.rerang`. Contrat du journal : `chansons[].hors_points`, `notre_pays` (exemples refaits).
+  - Interface : `lib/NotrePays.svelte` ; `pointsDuClassement` (`lib/pays.js`) dans `invite/Invite.svelte` et
+    `invite/SaisieGrille.svelte` ; `Devoilement.svelte` (`d.notres`, `vueNotre` au bout de `duree_podium`) ;
+    `Spectacle.svelte` (`n.notres`) ; `Fiche.svelte` (`rangSansNous`) ; `Reglages.svelte` (section Notre pays) ;
+    `Grille.svelte`, `Soiree.svelte`, `VraisVotes.svelte`.
+  - **Jamais essayé sur la vraie installation.** Bac à sable pas mis à jour (choix de Julien : plus tard).
 
 - **1.11.0 (20/11/2026)** : `docs/ajout-1.11.0.md`, `docs/conseil-1.11.0.md`.
   - Sons de la télé : `lib/sons.js` (seul module audio ; `installer()` dans `App.svelte`, `regler()` sur chaque écran

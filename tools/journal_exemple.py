@@ -26,6 +26,8 @@ def jouer(client, demi: bool) -> dict:
         if demi:
             cx.execute("UPDATE soiree SET emission='demi1', nom='Première demi-finale de démonstration' WHERE id=?", (s.id,))
         cx.execute("UPDATE soiree SET ville='Villeneuve', date='2027-05-15' WHERE id=?", (s.id,))
+        if not demi:      # 1.12 : notre pays (France), noté et classé mais sans points : « hors_points », « notre_pays »
+            cx.execute("UPDATE chanson SET pays='France', code_pays='FR' WHERE id=?", (s.chansons[3],))
     client.post(f"/api/soirees/{s.id}/ouvrir")
     if not demi:
         for i in client.get("/api/invites").json():

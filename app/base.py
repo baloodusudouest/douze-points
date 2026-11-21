@@ -116,6 +116,9 @@ def preparer(data: Path) -> None:
         for colonne in ("officiel_rang", "officiel_qualifie"):
             if colonne not in colonnes:
                 cx.execute(f"ALTER TABLE chanson ADD COLUMN {colonne} INTEGER")
+        # 1.12 : « notre pays », sans points (figé au dévoilement ; les soirées déjà dévoilées restent à 0)
+        if "hors_points" not in colonnes:
+            cx.execute("ALTER TABLE chanson ADD COLUMN hors_points INTEGER NOT NULL DEFAULT 0")
         cx.execute("CREATE TABLE IF NOT EXISTS journal_soiree(soiree_id INTEGER NOT NULL REFERENCES soiree(id) ON DELETE CASCADE, "
                    "version INTEGER NOT NULL, le TEXT NOT NULL, contenu TEXT NOT NULL, PRIMARY KEY(soiree_id, version))")
         # 0.5 : jury ou public. `invite.jury` se règle dans l'appli ; `participation.jury` est figé au dévoilement.

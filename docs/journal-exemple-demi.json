@@ -3,7 +3,7 @@
   "version": 1,
   "le": "2027-05-16T10:00:00+02:00",
   "appli": "douze-points",
-  "version_appli": "1.8.0",
+  "version_appli": "1.11.0",
   "soiree": {
     "id": 1,
     "nom": "Première demi-finale de démonstration",
@@ -27,6 +27,24 @@
   "apero_immich_id": null,
   "invites": [
     {
+      "id": 3,
+      "prenom": "Célestine",
+      "carnet_id": null,
+      "personne_id": null,
+      "jury": false,
+      "moyenne": 9.42,
+      "complet": true
+    },
+    {
+      "id": 4,
+      "prenom": "Désiré",
+      "carnet_id": null,
+      "personne_id": null,
+      "jury": false,
+      "moyenne": 9.25,
+      "complet": true
+    },
+    {
       "id": 2,
       "prenom": "Barnabé",
       "carnet_id": null,
@@ -43,24 +61,6 @@
       "jury": false,
       "moyenne": 9.75,
       "complet": true
-    },
-    {
-      "id": 4,
-      "prenom": "Désiré",
-      "carnet_id": null,
-      "personne_id": null,
-      "jury": false,
-      "moyenne": 9.25,
-      "complet": true
-    },
-    {
-      "id": 3,
-      "prenom": "Célestine",
-      "carnet_id": null,
-      "personne_id": null,
-      "jury": false,
-      "moyenne": 9.42,
-      "complet": true
     }
   ],
   "chansons": [
@@ -71,6 +71,7 @@
       "code_pays": null,
       "artiste": "Artiste 1",
       "titre": "Titre 1",
+      "hors_points": false,
       "maison": {
         "points": 0,
         "rang": 12,
@@ -101,6 +102,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 2.5,
+          "rang": 11,
+          "points": 0,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 3.0,
+          "rang": 11,
+          "points": 0,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 2.0,
           "rang": 11,
@@ -113,20 +128,6 @@
           "rang": 12,
           "points": 0,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 3.0,
-          "rang": 11,
-          "points": 0,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 2.5,
-          "rang": 11,
-          "points": 0,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -137,6 +138,7 @@
       "code_pays": null,
       "artiste": "Artiste 2",
       "titre": "Titre 2",
+      "hors_points": false,
       "maison": {
         "points": 6,
         "rang": 11,
@@ -167,6 +169,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 5.0,
+          "rang": 9,
+          "points": 2,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 6.0,
+          "rang": 9,
+          "points": 2,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 4.0,
           "rang": 9,
@@ -179,20 +195,6 @@
           "rang": 11,
           "points": 0,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 6.0,
-          "rang": 9,
-          "points": 2,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 5.0,
-          "rang": 9,
-          "points": 2,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -203,6 +205,7 @@
       "code_pays": null,
       "artiste": "Artiste 3",
       "titre": "Titre 3",
+      "hors_points": false,
       "maison": {
         "points": 12,
         "rang": 10,
@@ -233,6 +236,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 7.5,
+          "rang": 7,
+          "points": 4,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 9.0,
+          "rang": 7,
+          "points": 4,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 6.0,
           "rang": 8,
@@ -245,20 +262,6 @@
           "rang": 10,
           "points": 1,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 9.0,
-          "rang": 7,
-          "points": 4,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 7.5,
-          "rang": 7,
-          "points": 4,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -269,6 +272,7 @@
       "code_pays": null,
       "artiste": "Artiste 4",
       "titre": "Titre 4",
+      "hors_points": false,
       "maison": {
         "points": 18,
         "rang": 9,
@@ -299,6 +303,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 10.0,
+          "rang": 5,
+          "points": 6,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 12.0,
+          "rang": 5,
+          "points": 6,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 8.0,
           "rang": 7,
@@ -311,20 +329,6 @@
           "rang": 9,
           "points": 2,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 12.0,
-          "rang": 5,
-          "points": 6,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 10.0,
-          "rang": 5,
-          "points": 6,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -335,6 +339,7 @@
       "code_pays": null,
       "artiste": "Artiste 5",
       "titre": "Titre 5",
+      "hors_points": false,
       "maison": {
         "points": 23,
         "rang": 5,
@@ -365,6 +370,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 12.5,
+          "rang": 4,
+          "points": 7,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 15.0,
+          "rang": 3,
+          "points": 8,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 10.0,
           "rang": 6,
@@ -377,20 +396,6 @@
           "rang": 8,
           "points": 3,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 15.0,
-          "rang": 3,
-          "points": 8,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 12.5,
-          "rang": 4,
-          "points": 7,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -401,6 +406,7 @@
       "code_pays": null,
       "artiste": "Artiste 6",
       "titre": "Titre 6",
+      "hors_points": false,
       "maison": {
         "points": 30,
         "rang": 1,
@@ -431,6 +437,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 15.0,
+          "rang": 3,
+          "points": 8,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 18.0,
+          "rang": 1,
+          "points": 12,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 12.0,
           "rang": 5,
@@ -443,20 +463,6 @@
           "rang": 7,
           "points": 4,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 18.0,
-          "rang": 1,
-          "points": 12,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 15.0,
-          "rang": 3,
-          "points": 8,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -467,6 +473,7 @@
       "code_pays": null,
       "artiste": "Artiste 7",
       "titre": "Titre 7",
+      "hors_points": false,
       "maison": {
         "points": 22,
         "rang": 6,
@@ -497,6 +504,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 17.5,
+          "rang": 2,
+          "points": 10,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 0.5,
+          "rang": 12,
+          "points": 0,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 14.0,
           "rang": 4,
@@ -509,20 +530,6 @@
           "rang": 6,
           "points": 5,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 0.5,
-          "rang": 12,
-          "points": 0,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 17.5,
-          "rang": 2,
-          "points": 10,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -533,6 +540,7 @@
       "code_pays": null,
       "artiste": "Artiste 8",
       "titre": "Titre 8",
+      "hors_points": false,
       "maison": {
         "points": 27,
         "rang": 3,
@@ -563,6 +571,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 20.0,
+          "rang": 1,
+          "points": 12,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 3.5,
+          "rang": 10,
+          "points": 1,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 16.0,
           "rang": 3,
@@ -575,20 +597,6 @@
           "rang": 5,
           "points": 6,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 3.5,
-          "rang": 10,
-          "points": 1,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 20.0,
-          "rang": 1,
-          "points": 12,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -599,6 +607,7 @@
       "code_pays": null,
       "artiste": "Artiste 9",
       "titre": "Titre 9",
+      "hors_points": false,
       "maison": {
         "points": 20,
         "rang": 7,
@@ -629,6 +638,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 2.0,
+          "rang": 12,
+          "points": 0,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 6.5,
+          "rang": 8,
+          "points": 3,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 18.0,
           "rang": 2,
@@ -641,20 +664,6 @@
           "rang": 4,
           "points": 7,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 6.5,
-          "rang": 8,
-          "points": 3,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 2.0,
-          "rang": 12,
-          "points": 0,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -665,6 +674,7 @@
       "code_pays": null,
       "artiste": "Artiste 10",
       "titre": "Titre 10",
+      "hors_points": false,
       "maison": {
         "points": 26,
         "rang": 4,
@@ -695,6 +705,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 4.5,
+          "rang": 10,
+          "points": 1,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 9.5,
+          "rang": 6,
+          "points": 5,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 20.0,
           "rang": 1,
@@ -707,20 +731,6 @@
           "rang": 3,
           "points": 8,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 9.5,
-          "rang": 6,
-          "points": 5,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 4.5,
-          "rang": 10,
-          "points": 1,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -731,6 +741,7 @@
       "code_pays": null,
       "artiste": "Artiste 11",
       "titre": "Titre 11",
+      "hors_points": false,
       "maison": {
         "points": 20,
         "rang": 8,
@@ -761,6 +772,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 7.0,
+          "rang": 8,
+          "points": 3,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 12.5,
+          "rang": 4,
+          "points": 7,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 1.5,
           "rang": 12,
@@ -773,20 +798,6 @@
           "rang": 2,
           "points": 10,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 12.5,
-          "rang": 4,
-          "points": 7,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 7.0,
-          "rang": 8,
-          "points": 3,
-          "commentaire": "Avis de Célestine"
         }
       ]
     },
@@ -797,6 +808,7 @@
       "code_pays": null,
       "artiste": "Artiste 12",
       "titre": "Titre 12",
+      "hors_points": false,
       "maison": {
         "points": 28,
         "rang": 2,
@@ -827,6 +839,20 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 9.5,
+          "rang": 6,
+          "points": 5,
+          "commentaire": "Avis de Célestine"
+        },
+        {
+          "invite": 4,
+          "note": 15.5,
+          "rang": 2,
+          "points": 10,
+          "commentaire": "Avis de Désiré"
+        },
+        {
           "invite": 2,
           "note": 3.5,
           "rang": 10,
@@ -839,20 +865,6 @@
           "rang": 1,
           "points": 12,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 15.5,
-          "rang": 2,
-          "points": 10,
-          "commentaire": "Avis de Désiré"
-        },
-        {
-          "invite": 3,
-          "note": 9.5,
-          "rang": 6,
-          "points": 5,
-          "commentaire": "Avis de Célestine"
         }
       ]
     }
@@ -869,6 +881,20 @@
   "plus_proche": null,
   "commentaires": [
     {
+      "invite": 3,
+      "chanson": 1,
+      "texte": "Avis de Célestine",
+      "note": 2.5,
+      "points": 0
+    },
+    {
+      "invite": 4,
+      "chanson": 1,
+      "texte": "Avis de Désiré",
+      "note": 3.0,
+      "points": 0
+    },
+    {
       "invite": 2,
       "chanson": 1,
       "texte": "Avis de Barnabé",
@@ -883,18 +909,18 @@
       "points": 0
     },
     {
-      "invite": 4,
-      "chanson": 1,
-      "texte": "Avis de Désiré",
-      "note": 3.0,
-      "points": 0
+      "invite": 3,
+      "chanson": 2,
+      "texte": "Avis de Célestine",
+      "note": 5.0,
+      "points": 2
     },
     {
-      "invite": 3,
-      "chanson": 1,
-      "texte": "Avis de Célestine",
-      "note": 2.5,
-      "points": 0
+      "invite": 4,
+      "chanson": 2,
+      "texte": "Avis de Désiré",
+      "note": 6.0,
+      "points": 2
     },
     {
       "invite": 2,
@@ -911,18 +937,18 @@
       "points": 0
     },
     {
-      "invite": 4,
-      "chanson": 2,
-      "texte": "Avis de Désiré",
-      "note": 6.0,
-      "points": 2
+      "invite": 3,
+      "chanson": 3,
+      "texte": "Avis de Célestine",
+      "note": 7.5,
+      "points": 4
     },
     {
-      "invite": 3,
-      "chanson": 2,
-      "texte": "Avis de Célestine",
-      "note": 5.0,
-      "points": 2
+      "invite": 4,
+      "chanson": 3,
+      "texte": "Avis de Désiré",
+      "note": 9.0,
+      "points": 4
     },
     {
       "invite": 2,
@@ -939,18 +965,18 @@
       "points": 1
     },
     {
-      "invite": 4,
-      "chanson": 3,
-      "texte": "Avis de Désiré",
-      "note": 9.0,
-      "points": 4
+      "invite": 3,
+      "chanson": 4,
+      "texte": "Avis de Célestine",
+      "note": 10.0,
+      "points": 6
     },
     {
-      "invite": 3,
-      "chanson": 3,
-      "texte": "Avis de Célestine",
-      "note": 7.5,
-      "points": 4
+      "invite": 4,
+      "chanson": 4,
+      "texte": "Avis de Désiré",
+      "note": 12.0,
+      "points": 6
     },
     {
       "invite": 2,
@@ -967,18 +993,18 @@
       "points": 2
     },
     {
-      "invite": 4,
-      "chanson": 4,
-      "texte": "Avis de Désiré",
-      "note": 12.0,
-      "points": 6
+      "invite": 3,
+      "chanson": 5,
+      "texte": "Avis de Célestine",
+      "note": 12.5,
+      "points": 7
     },
     {
-      "invite": 3,
-      "chanson": 4,
-      "texte": "Avis de Célestine",
-      "note": 10.0,
-      "points": 6
+      "invite": 4,
+      "chanson": 5,
+      "texte": "Avis de Désiré",
+      "note": 15.0,
+      "points": 8
     },
     {
       "invite": 2,
@@ -995,18 +1021,18 @@
       "points": 3
     },
     {
-      "invite": 4,
-      "chanson": 5,
-      "texte": "Avis de Désiré",
+      "invite": 3,
+      "chanson": 6,
+      "texte": "Avis de Célestine",
       "note": 15.0,
       "points": 8
     },
     {
-      "invite": 3,
-      "chanson": 5,
-      "texte": "Avis de Célestine",
-      "note": 12.5,
-      "points": 7
+      "invite": 4,
+      "chanson": 6,
+      "texte": "Avis de Désiré",
+      "note": 18.0,
+      "points": 12
     },
     {
       "invite": 2,
@@ -1023,18 +1049,18 @@
       "points": 4
     },
     {
-      "invite": 4,
-      "chanson": 6,
-      "texte": "Avis de Désiré",
-      "note": 18.0,
-      "points": 12
+      "invite": 3,
+      "chanson": 7,
+      "texte": "Avis de Célestine",
+      "note": 17.5,
+      "points": 10
     },
     {
-      "invite": 3,
-      "chanson": 6,
-      "texte": "Avis de Célestine",
-      "note": 15.0,
-      "points": 8
+      "invite": 4,
+      "chanson": 7,
+      "texte": "Avis de Désiré",
+      "note": 0.5,
+      "points": 0
     },
     {
       "invite": 2,
@@ -1051,18 +1077,18 @@
       "points": 5
     },
     {
-      "invite": 4,
-      "chanson": 7,
-      "texte": "Avis de Désiré",
-      "note": 0.5,
-      "points": 0
+      "invite": 3,
+      "chanson": 8,
+      "texte": "Avis de Célestine",
+      "note": 20.0,
+      "points": 12
     },
     {
-      "invite": 3,
-      "chanson": 7,
-      "texte": "Avis de Célestine",
-      "note": 17.5,
-      "points": 10
+      "invite": 4,
+      "chanson": 8,
+      "texte": "Avis de Désiré",
+      "note": 3.5,
+      "points": 1
     },
     {
       "invite": 2,
@@ -1079,18 +1105,18 @@
       "points": 6
     },
     {
-      "invite": 4,
-      "chanson": 8,
-      "texte": "Avis de Désiré",
-      "note": 3.5,
-      "points": 1
+      "invite": 3,
+      "chanson": 9,
+      "texte": "Avis de Célestine",
+      "note": 2.0,
+      "points": 0
     },
     {
-      "invite": 3,
-      "chanson": 8,
-      "texte": "Avis de Célestine",
-      "note": 20.0,
-      "points": 12
+      "invite": 4,
+      "chanson": 9,
+      "texte": "Avis de Désiré",
+      "note": 6.5,
+      "points": 3
     },
     {
       "invite": 2,
@@ -1107,18 +1133,18 @@
       "points": 7
     },
     {
-      "invite": 4,
-      "chanson": 9,
-      "texte": "Avis de Désiré",
-      "note": 6.5,
-      "points": 3
+      "invite": 3,
+      "chanson": 10,
+      "texte": "Avis de Célestine",
+      "note": 4.5,
+      "points": 1
     },
     {
-      "invite": 3,
-      "chanson": 9,
-      "texte": "Avis de Célestine",
-      "note": 2.0,
-      "points": 0
+      "invite": 4,
+      "chanson": 10,
+      "texte": "Avis de Désiré",
+      "note": 9.5,
+      "points": 5
     },
     {
       "invite": 2,
@@ -1135,18 +1161,18 @@
       "points": 8
     },
     {
-      "invite": 4,
-      "chanson": 10,
-      "texte": "Avis de Désiré",
-      "note": 9.5,
-      "points": 5
+      "invite": 3,
+      "chanson": 11,
+      "texte": "Avis de Célestine",
+      "note": 7.0,
+      "points": 3
     },
     {
-      "invite": 3,
-      "chanson": 10,
-      "texte": "Avis de Célestine",
-      "note": 4.5,
-      "points": 1
+      "invite": 4,
+      "chanson": 11,
+      "texte": "Avis de Désiré",
+      "note": 12.5,
+      "points": 7
     },
     {
       "invite": 2,
@@ -1163,18 +1189,18 @@
       "points": 10
     },
     {
-      "invite": 4,
-      "chanson": 11,
-      "texte": "Avis de Désiré",
-      "note": 12.5,
-      "points": 7
+      "invite": 3,
+      "chanson": 12,
+      "texte": "Avis de Célestine",
+      "note": 9.5,
+      "points": 5
     },
     {
-      "invite": 3,
-      "chanson": 11,
-      "texte": "Avis de Célestine",
-      "note": 7.0,
-      "points": 3
+      "invite": 4,
+      "chanson": 12,
+      "texte": "Avis de Désiré",
+      "note": 15.5,
+      "points": 10
     },
     {
       "invite": 2,
@@ -1189,20 +1215,6 @@
       "texte": "Avis de Aglaé",
       "note": 18.0,
       "points": 12
-    },
-    {
-      "invite": 4,
-      "chanson": 12,
-      "texte": "Avis de Désiré",
-      "note": 15.5,
-      "points": 10
-    },
-    {
-      "invite": 3,
-      "chanson": 12,
-      "texte": "Avis de Célestine",
-      "note": 9.5,
-      "points": 5
     }
   ],
   "duos": [
@@ -1330,5 +1342,6 @@
       9
     ],
     "date_finale": "2027-05-15"
-  }
+  },
+  "notre_pays": []
 }

@@ -25,9 +25,28 @@ def inserer(ordre: list[int], chanson: int, notes: dict[int, int]) -> list[int]:
     return list(ordre) + [chanson]
 
 
-def points_du_classement(ordre: list[int]) -> dict[int, int]:
-    """12, 10, 8… 1 pour les dix premières. Un classement plus court donne les points des rangs qu'il a."""
-    return {chanson: BAREME[rang] for rang, chanson in enumerate(ordre[:len(BAREME)])}
+def points_du_classement(ordre: list[int], exclues=()) -> dict[int, int]:
+    """12, 10, 8… 1 pour les dix premières. Un classement plus court donne les points des rangs qu'il a.
+    1.12 : `exclues` (notre pays) gardent leur place dans le classement mais ne reçoivent rien ; leurs points glissent
+    à la suivante, comme au concours (le 12 va à la première chanson qui n'est pas exclue)."""
+    retenues = [c for c in ordre if c not in set(exclues)]
+    return {chanson: BAREME[rang] for rang, chanson in enumerate(retenues[:len(BAREME)])}
+
+
+def place_aux_notes(moyennes: dict[int, float | None], chanson: int) -> int | None:
+    """1.12 : la place qu'une chanson aurait eue d'après la moyenne des notes du groupe (1 = la mieux notée ; à
+    moyenne égale, la même place). Sans moyenne : None."""
+    m = moyennes.get(chanson)
+    if m is None:
+        return None
+    return 1 + sum(1 for c, v in moyennes.items() if c != chanson and v is not None and v > m)
+
+
+def rerang(rangs: dict[int, int], exclues) -> dict[int, int]:
+    """1.12 : un classement d'invité sans les chansons exclues, renuméroté de 1 à n (pour les comparaisons avec le
+    vrai classement, où notre pays n'entre pas)."""
+    garde = sorted((r, c) for c, r in rangs.items() if c not in set(exclues) and r is not None)
+    return {c: i + 1 for i, (_, c) in enumerate(garde)}
 
 
 def classement_groupe(chansons: list[int], points: dict[int, dict[int, int]],

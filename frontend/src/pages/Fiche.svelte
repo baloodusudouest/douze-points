@@ -8,6 +8,7 @@
   import { Button } from '$lib/components/ui/button/index.js'
   import Drapeau from '$lib/Drapeau.svelte'
   import Affinites from '$lib/Affinites.svelte'
+  import NotrePays from '$lib/NotrePays.svelte'
   let { soiree, onferme } = $props()
 
   let f = $state(null)
@@ -49,7 +50,17 @@
   }
 
   const image = (sorte) => `/api/soirees/${soiree}/image/${sorte}?v=${f.soiree.images[sorte]}`
-  let parRang = $derived(f ? [...f.chansons].sort((a, b) => a.rang - b.rang || a.ordre - b.ordre) : [])
+  // 1.12 : notre pays n'a pas de rang : en bas du classement
+  let parRang = $derived(f ? [...f.chansons].sort((a, b) => (a.rang ?? 999) - (b.rang ?? 999) || a.ordre - b.ordre) : [])
+  // 1.12 : l'écart se mesure sans notre pays : les vrais rangs des autres chansons, renumérotés sans lui
+  let rangSansNous = $derived.by(() => {
+    if (!f) return {}
+    const tries = f.chansons.filter((c) => !c.hors_points && c.officiel.rang != null).sort((a, b) => a.officiel.rang - b.officiel.rang)
+    const sortie = {}
+    for (const c of tries) sortie[c.id] = 1 + tries.filter((x) => x.officiel.rang < c.officiel.rang).length
+    return sortie
+  })
+  const rangDe = (r) => (r == null ? '' : `${r}e`)
   let aOfficiel = $derived(!!f && f.chansons.some((c) => c.officiel.total !== null))
   const phrase = (k) => k && `${k.meme_gagnant ? 'même gagnant' : 'pas le même gagnant'}, ${k.trois_premieres} chanson${k.trois_premieres > 1 ? 's' : ''} en commun dans les trois premières, ${note(k.ecart_moyen)} place${k.ecart_moyen >= 2 ? 's' : ''} d'écart en moyenne`
   const places = (e) => (e == null ? '' : e === 0 ? 'pile' : `${note(Math.round(e * 10) / 10)} pl.`)
@@ -112,16 +123,28 @@
           <tbody>
             {#each parRang as c (c.id)}
               <tr>
+                {#if c.hors_points}
+                  <!-- 1.12 : notre pays, noté et classé, sans points -->
+                  <td class="chiffre">—</td>
+                  <td class="g"><Drapeau pays={c.pays} code={c.code_pays} />{c.pays}<span class="sous">Notre pays, sans points</span></td>
+                  <td class="chiffre">—</td><td>{note(c.moyenne)}</td>
+                  {#if f.a_jury}<td>—</td><td>—</td>{/if}
+                  {#if aOfficiel}<td>{c.officiel.rang ?? ''}</td><td></td>{/if}
+                {:else}
                 <td class="chiffre">{c.rang}</td>
                 <td class="g"><Drapeau pays={c.pays} code={c.code_pays} />{c.pays}<span class="sous">{c.artiste}{c.titre ? ', ' + c.titre : ''}</span></td>
                 <td class="chiffre fort">{c.points}</td><td>{note(c.moyenne)}</td>
                 {#if f.a_jury}<td>{c.jury.points} <span class="sous-ligne">({c.jury.rang}e)</span></td><td>{c.public.points} <span class="sous-ligne">({c.public.rang}e)</span></td>{/if}
-                {#if aOfficiel}<td>{c.officiel.rang ?? ''}</td><td>{ecart(c.rang, c.officiel.rang)}</td>{/if}
+                {#if aOfficiel}<td>{c.officiel.rang ?? ''}</td><td>{ecart(c.rang, rangSansNous[c.id])}</td>{/if}
+                {/if}
               </tr>
             {/each}
           </tbody>
         </table>
       </div>
+      {#each f.notre_pays || [] as b (b.chanson)}
+        <div class="mt-4"><NotrePays bilan={b} chanson={f.chansons.find((c) => c.id === b.chanson)} /></div>
+      {/each}
     </section>
 
     {#if f.affinites}
@@ -171,9 +194,9 @@
             <tbody>
               {#each [...f.chansons].sort((a, b) => (a.officiel.rang ?? 99) - (b.officiel.rang ?? 99) || a.ordre - b.ordre) as c (c.id)}
                 <tr><td class="g"><Drapeau pays={c.pays} code={c.code_pays} />{c.pays}</td>
-                  {#if f.a_jury}<td>{c.jury.rang}e</td>{/if}<td>{c.officiel.rang_jury ? `${c.officiel.rang_jury}e (${c.officiel.jury})` : ''}</td>
+                  {#if f.a_jury}<td>{rangDe(c.jury.rang)}</td>{/if}<td>{c.officiel.rang_jury ? `${c.officiel.rang_jury}e (${c.officiel.jury})` : ''}</td>
                   {#if f.a_jury}<td class="ecart">{places(c.ecart.jury)}</td>{/if}
-                  {#if f.a_jury}<td>{c.public.rang}e</td>{/if}<td>{c.officiel.rang_public ? `${c.officiel.rang_public}e (${c.officiel.public})` : ''}</td>
+                  {#if f.a_jury}<td>{rangDe(c.public.rang)}</td>{/if}<td>{c.officiel.rang_public ? `${c.officiel.rang_public}e (${c.officiel.public})` : ''}</td>
                   {#if f.a_jury}<td class="ecart">{places(c.ecart.public)}</td>{/if}
                   <td>{c.officiel.rang ? `${c.officiel.rang}e (${c.officiel.total})` : ''}</td><td class="ecart">{places(c.ecart.rang)}</td></tr>
               {/each}

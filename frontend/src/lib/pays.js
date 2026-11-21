@@ -27,6 +27,18 @@ export function drapeau(pays, code) {
 
 export const EMISSIONS = { demi1: 'Première demi-finale', demi2: 'Seconde demi-finale', finale: 'Finale', unique: 'Soirée unique' }
 export const BAREME = [12, 10, 8, 7, 6, 5, 4, 3, 2, 1]
+// 1.12 : les points d'un classement, notre pays exclu (il garde sa place, ses points glissent à la suivante).
+// Même règle que points_du_classement (app/points.py). `hors` : un Set d'identifiants. Rend { id: points }.
+export function pointsDuClassement(ordre, hors = new Set()) {
+  const sortie = {}
+  let k = 0
+  for (const id of ordre) {
+    if (hors.has(id)) continue
+    if (k < BAREME.length) sortie[id] = BAREME[k]
+    k++
+  }
+  return sortie
+}
 // 13.5 → « 13,5 » ; 12 → « 12 »
 export const note = (v) => (v == null ? '' : String(v).replace('.', ','))
 

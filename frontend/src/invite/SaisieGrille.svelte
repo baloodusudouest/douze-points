@@ -3,7 +3,7 @@
   // Toute la liste d'un coup : une case pour la note, une pour son mot ; enregistré à la sortie de la case (PUT note,
   // comme sur un téléphone). Puis « Passer au classement » : l'étape existante, où l'on range à la main comme sur la
   // grille papier. Le passage attend la fin des enregistrements en cours ; une note refusée le bloque (conseil 1.8.0).
-  import { drapeau, BAREME, note } from '$lib/pays.js'
+  import { drapeau, note, pointsDuClassement } from '$lib/pays.js'
   let { chansons, notes, cran = 0.5, ecrire, onclassement } = $props()
 
   // ce qui est écrit dans les cases (texte), chanson par chanson
@@ -57,7 +57,8 @@
     const notees = chansons.map((c) => ({ c, v: lire(cases[c.id]?.note ?? '') }))
       .filter((x) => x.v !== null && !Number.isNaN(x.v) && !erreurs[x.c.id])
       .sort((a, b) => b.v - a.v || a.c.ordre - b.c.ordre)
-    return Object.fromEntries(notees.slice(0, 10).map((x, k) => [x.c.id, BAREME[k]]))
+    // 1.12 : notre pays garde sa place, sans points
+    return pointsDuClassement(notees.map((x) => x.c.id), new Set(chansons.filter((c) => c.hors_points).map((c) => c.id)))
   })
   let nbNotees = $derived(Object.keys(notes).length)
   let bloque = $derived(Object.values(erreurs).some(Boolean))
@@ -87,7 +88,7 @@
           <span class="shrink-0 text-2xl leading-none">{drapeau(c.pays, c.code_pays)}</span>
           <span class="min-w-0">
             <span class="block truncate font-medium">{c.pays}</span>
-            <span class="block text-xs {points[c.id] ? 'text-primary' : 'text-muted-foreground'}">{erreurs[c.id] || (lire(cases[c.id].note) === null ? 'Pas encore notée' : points[c.id] ? (points[c.id] === 12 ? 'Douze points' : `${points[c.id]} points`) : 'Pas de points')}</span>
+            <span class="block text-xs {points[c.id] ? 'text-primary' : 'text-muted-foreground'}">{erreurs[c.id] || (lire(cases[c.id].note) === null ? 'Pas encore notée' : points[c.id] ? (points[c.id] === 12 ? 'Douze points' : `${points[c.id]} points`) : c.hors_points ? 'Notre pays : pas de points' : 'Pas de points')}</span>
           </span>
         </div>
         <label class="block">

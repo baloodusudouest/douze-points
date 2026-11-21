@@ -4,6 +4,7 @@
   import { api } from '$lib/api.js'
   import { Button } from '$lib/components/ui/button/index.js'
   import * as sons from '$lib/sons.js'
+  import { PAYS, drapeau } from '$lib/pays.js'
   let { session, deconnecter } = $props()
 
   let concours = $state([])
@@ -28,8 +29,16 @@
     auto = r.devoilement_auto ?? true
     sonsActifs = r.sons ?? true
     volumeSons = r.volume_sons ?? 70
+    notrePays = r.notre_pays ?? 'FR'
     sons.regler(r)
     charges = true
+  }
+  // 1.12 : notre pays, noté et classé mais sans points (vide : aucun)
+  let notrePays = $state('FR')
+  let paysErreur = $state('')
+  async function reglerPays(v) {
+    paysErreur = ''
+    try { prendre(await api.put('/api/reglages', { notre_pays: v })) } catch (x) { paysErreur = x.message; prendre(await api.get('/api/reglages')) }
   }
   // 1.11.0 : les sons sur la télé : oui / non, un volume, et chaque son remplaçable par un fichier
   let sonsActifs = $state(true)
@@ -123,7 +132,8 @@
   const NOMS = { pas_note: 'Pas de la note', ha_webhook: 'Webhook de Home Assistant', devoilement_auto: 'Dévoilement automatique',
     duree_depart: 'Temps du départ', duree_jury: 'Temps du jury', duree_public: 'Temps par pays du public',
     duree_revelation: 'Durée maximum de la révélation', duree_podium: 'Temps du podium', duree_selfie: 'Selfie en grand',
-    duree_mode_emploi: 'Mode d\'emploi sur la télé', sons: 'Sons sur la télé', volume_sons: 'Volume des sons' }
+    duree_mode_emploi: 'Mode d\'emploi sur la télé', sons: 'Sons sur la télé', volume_sons: 'Volume des sons',
+    notre_pays: 'Notre pays' }
   const PAS = { 1: 'au point', 0.5: 'au demi-point', 0.25: 'au quart de point' }
   const montrer = (cle, v) => (cle === 'pas_note' ? (PAS[v] ?? String(v)) : v === '' || v == null ? '(vide)' : String(v))
   let dates = $state([])
@@ -219,6 +229,19 @@
       <button class="pastille" aria-pressed={pasNote === v} onclick={() => reglerPas(v)}>{nom}</button>
     {/each}
   </div>
+</section>
+
+<section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Notre pays">
+  <h2 class="text-lg font-semibold">Notre pays</h2>
+  <p class="text-sm text-muted-foreground">Comme au concours, on ne vote pas pour son propre pays. Les invités le notent, le commentent et le classent, mais il ne reçoit aucun point : ses points vont à la chanson suivante de leur classement. Le réglage compte pour les soirées pas encore dévoilées.</p>
+  <label class="mt-3 block text-sm">
+    <span class="sr-only">Notre pays</span>
+    <select class="champ-select" value={notrePays} disabled={!charges} onchange={(ev) => reglerPays(ev.currentTarget.value)}>
+      <option value="">Aucun : tous les pays reçoivent des points</option>
+      {#each PAYS as p (p.code)}<option value={p.code}>{drapeau('', p.code)} {p.nom}</option>{/each}
+    </select>
+  </label>
+  {#if paysErreur}<p class="mt-2 text-sm text-destructive" role="alert">{paysErreur}</p>{/if}
 </section>
 
 <section class="mt-4 rounded-2xl border bg-card p-5" aria-label="Dévoilement">
@@ -374,4 +397,5 @@
   .remplacer { display: inline-flex; min-height: 2rem; align-items: center; border-radius: 0.5rem; border: 1px solid var(--border);
     padding: 0 0.75rem; font-size: 0.875rem; cursor: pointer; }
   @media (prefers-reduced-motion: reduce) { .interrupteur, .interrupteur i { transition: none; } }
+  .champ-select { width: 100%; max-width: 22rem; min-height: 2.75rem; border-radius: 0.6rem; border: 1px solid var(--border); background: var(--background); padding: 0 0.75rem; color: var(--foreground); }
 </style>

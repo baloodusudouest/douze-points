@@ -414,7 +414,11 @@ def test_une_soiree_entiere(serveur, navigateur):
     t.get_by_role("button", name="Descendre Italie").click()                   # contre ses notes : France devant
     t.get_by_role("button", name="Reclasser d'après mes notes").wait_for()
     assert "France" in lignes.nth(0).text_content()
+    # 1.12 : la France (notre pays) est classée 1re mais ne prend aucun point : le 12 va à l'Italie, 2e
+    assert "Notre pays · 0 pt" in lignes.nth(0).text_content() and lignes.nth(0).locator("span.chiffre").first.text_content() == "0"
+    assert lignes.nth(1).locator("span.chiffre").first.text_content() == "12"
     assert t.get_by_role("dialog").count() == 0                              # les flèches n'ouvrent pas la feuille
+    t.wait_for_timeout(1200)
     invite.verifier("tel-5-classement")
     # 1.11.0 : sous chaque chanson, le début de son commentaire ; un toucher le montre en entier (feuille du bas)
     ligne = t.get_by_role("button", name="Voir le commentaire sur France")
@@ -536,12 +540,20 @@ def test_une_soiree_entiere(serveur, navigateur):
     # sur le téléphone : le podium de la soirée, et sous lui celui de l'invité
     t.get_by_role("list", name="Podium de la soirée").wait_for(timeout=10000)
     t.get_by_role("list", name="Ton podium").wait_for()
+    t.get_by_role("region", name="Et notre pays ?").wait_for()                # 1.12 : notre pays, après le podium
+    assert "France" not in t.get_by_role("list", name="Podium de la soirée").text_content()
     t.wait_for_timeout(1300)
     invite.verifier("tel-8-podium")
     # 1.8 : le bouton des jumeaux est sous le podium ; en haut ne reste que « Revenir »
     bouton = p.get_by_role("button", name="Voir les jumeaux de vote").bounding_box()
     assert bouton["y"] > p.get_by_role("list", name="Podium").bounding_box()["y"]
     assert p.get_by_role("button", name="Fermer").count() == 0
+    # 1.12 : après le temps du podium, la télé passe à « Et notre pays ? » (moyenne du groupe, place aux notes)
+    notre = p.get_by_role("region", name="Et notre pays ?")
+    notre.wait_for(timeout=25000)
+    assert "France" in notre.text_content() and "/20" in notre.text_content()
+    p.wait_for_timeout(600)
+    regie.verifier("paysage-8-notre-pays")
     p.get_by_role("button", name="Voir les jumeaux de vote").click()
     # 1.6 : la télé passe aux jumeaux de vote, tous les duos d'un coup (tranches, jamais de pourcentage)
     p.get_by_role("heading", name="Les jumeaux de vote").wait_for()
@@ -711,7 +723,8 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
             p.wait_for_timeout(2600)
             regie.verifier("paysage-12-top5-jury")
             # toutes les chansons sont dans le classement, et aucune ligne ne sort de l'écran
-            assert p.get_by_role("list", name="Classement du groupe").locator("li").count() == len(PAYS)
+            # 1.12 : sauf notre pays (la France, réglage par défaut), qui ne reçoit pas de points
+            assert p.get_by_role("list", name="Classement du groupe").locator("li").count() == len(PAYS) - 1
             bas = p.get_by_role("list", name="Classement du groupe").locator("li").last.bounding_box()
             assert bas["y"] + bas["height"] <= p.viewport_size["height"]
     assert vus == {"top", "Les points du public", "compte"}
