@@ -39,3 +39,11 @@ def test_les_vrais_votes_sont_enregistres(client):
     assert [(c["officiel_jury"], c["officiel_public"], c["officiel_rang"]) for c in ch] == [
         (180, 95, 3), (250, 1040, 1), (None, None, None)]
     assert client.put(f"/api/soirees/{s.id}/chansons", json={"texte": "France;A;T;x;;"}).status_code == 422
+
+
+def test_ordre_de_passage_en_tete():
+    """1.13.1 : « Ordre;Pays;… » : la liste est rangée d'après l'ordre de passage donné."""
+    l = main.lire_collage("Ordre;Pays;Artiste;Titre;Jury;Public;Rang\n2;Suède;B;T;;;\n1;France;A;T;10;20;3\n3;Italie;C;T;;;")
+    assert [x["pays"] for x in l] == ["France", "Suède", "Italie"] and l[0]["jury"] == 10
+    # un numéro manquant ou en double : l'ordre des lignes, comme avant
+    assert [x["pays"] for x in main.lire_collage("2;Suède\n2;France\nItalie")] == ["Suède", "France", "Italie"]

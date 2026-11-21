@@ -214,7 +214,7 @@ def test_une_soiree_entiere(serveur, navigateur):
     p.get_by_role("button", name="Un prompt pour obtenir la liste des chansons").click()
     bulle = p.get_by_role("dialog", name="Prompt pour obtenir la liste")
     texte = bulle.get_by_label("Texte du prompt").input_value()
-    assert "Finale de démonstration" in texte and "Pays;Artiste;Titre;Jury;Public;Rang" in texte
+    assert "Finale de démonstration" in texte and "Ordre;Pays;Artiste;Titre;Jury;Public;Rang" in texte
     bulle.get_by_role("button", name="Copier").click()
     bulle.get_by_role("status").wait_for()
     regie.verifier("pc-1-prompt-liste")

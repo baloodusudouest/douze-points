@@ -18,7 +18,8 @@
   function lacher(e, sorte) {
     e.preventDefault()
     survol = ''
-    const fichier = [...(e.dataTransfer?.files || [])].find((f) => f.type.startsWith('image/'))
+    // 1.13.1 : un HEIC venu d'un PC arrive souvent sans type (« ») : reconnu à son extension
+    const fichier = [...(e.dataTransfer?.files || [])].find((f) => f.type.startsWith('image/') || /\.(heic|heif)$/i.test(f.name))
     if (fichier) deposer(sorte, fichier)
     else erreur = "Ce qui a été déposé n'est pas une image."
   }
@@ -44,7 +45,7 @@
 
 <section class="mt-4 rounded-2xl border bg-card p-5">
   <h2 class="text-lg font-semibold">Images de l'évènement</h2>
-  <p class="text-sm text-muted-foreground">Facultatif. Glisse une image sur une case, ou choisis-la. PNG, JPEG ou WebP, 6 Mo au plus. Sans logo, c'est le « 12 » de l'appli.</p>
+  <p class="text-sm text-muted-foreground">Facultatif. Glisse une image sur une case, ou choisis-la. PNG, JPEG ou WebP (6 Mo au plus), ou une photo HEIC d'iPhone (25 Mo, rangée en JPEG). Sans logo, c'est le « 12 » de l'appli.</p>
   {#if erreur}<p class="mt-2 text-sm text-destructive" role="alert">{erreur}</p>{/if}
   <ul class="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
     {#each sortes as s (s.cle)}
@@ -62,7 +63,7 @@
         <div class="mt-auto flex flex-wrap gap-2">
           <label class="depot">
             {envoi === s.cle ? 'Envoi…' : soiree.images[s.cle] ? 'Remplacer' : s.photo ? 'Prendre ou choisir' : 'Choisir une image'}
-            <input type="file" accept={s.photo ? 'image/*' : 'image/png,image/jpeg,image/webp'} class="sr-only" aria-label="{s.nom} : choisir une image"
+            <input type="file" accept={s.photo ? 'image/*' : 'image/png,image/jpeg,image/webp,image/heic,image/heif,.heic,.heif'} class="sr-only" aria-label="{s.nom} : choisir une image"
               onchange={(e) => { deposer(s.cle, e.currentTarget.files[0]); e.currentTarget.value = '' }} />
           </label>
           {#if soiree.images[s.cle]}<Button variant="outline" size="sm" onclick={() => retirer(s.cle)} aria-label="Retirer : {s.nom}">Retirer</Button>{/if}

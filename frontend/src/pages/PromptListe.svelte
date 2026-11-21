@@ -12,11 +12,12 @@
   let prompt = $derived(`Donne-moi la liste des chansons de « ${titre || 'nom du concours, ville, année, finale ou demi-finale'} », dans l'ordre de passage.
 
 Une ligne par chanson, colonnes séparées par un point-virgule, dans cet ordre :
-Pays;Artiste;Titre;Jury;Public;Rang
+Ordre;Pays;Artiste;Titre;Jury;Public;Rang
 
+- Ordre = numéro de passage sur scène (1, 2, 3…).
 - Pays en français (France, Suède, Royaume-Uni…).
 - Si le concours a déjà eu lieu : Jury = points du jury, Public = points du télévote, Rang = place au classement final.
-- S'il n'a pas encore eu lieu : laisse ces trois colonnes vides (France;Artiste;Titre;;;).
+- S'il n'a pas encore eu lieu : laisse ces trois colonnes vides (1;France;Artiste;Titre;;;).
 - Pas de numéro, pas de ligne d'en-tête, aucun autre texte : seulement les lignes, dans un bloc de code.`)
 
   async function copier() {

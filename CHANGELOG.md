@@ -1,5 +1,21 @@
 # Journal des versions
 
+## 1.13.1 — 22 novembre 2026 (HEIC, invités attendus rapides, ordre de passage)
+Trois retours de Julien du 22/11/2026.
+- **HEIC refusé pour le logo, la bannière et le poster** (« Format non reconnu ») : accepté maintenant (25 Mo, comme
+  les photos) et rangé en JPEG 2400 px (`ecran.COTE_IMAGE`), lisible par la télé ; un HEIC illisible : 415 clair.
+  Glisser-déposer : un fichier `.heic` sans type (PC) est reconnu à son extension ; le sélecteur propose le HEIC.
+  Tests : `tests/test_heic_1131.py`.
+- **Invités attendus très lents à sélectionner** : chaque toucher envoyait la liste puis relisait la liste des
+  soirées, la soirée et les invités. La pastille change maintenant tout de suite ; les envois partent dans l'ordre,
+  la réponse du serveur remplace la liste ; « Démarrer la soirée » attend le dernier envoi. Côté serveur,
+  `GET /api/soirees`, `/api/soirees/<id>` et `/api/invites` passent en lecture seule (sans verrou d'écriture).
+  La cause exacte de la lenteur sur le NAS n'a pas été mesurée sur place.
+- **Ordre de passage dans le prompt et la liste collée** : le prompt demande `Ordre;Pays;Artiste;Titre;Jury;Public;Rang` ;
+  un numéro en tête de chaque ligne, sans doublon, range la liste d'après lui (sinon l'ordre des lignes, comme avant).
+  En-têtes « Ordre », « N° », « # » ignorés.
+- **Jamais essayé sur la vraie installation.** Bac à sable pas mis à jour (choix de Julien : plus tard).
+
 ## 1.13.0 — 22 novembre 2026 (un prompt pour obtenir la liste, vrais votes collés avec elle)
 Demande de Julien du 22/11/2026 ; choix en boîtes à choix (vrais votes remplis, bulle avec « Copier », Bac à sable
 plus tard). Petite évolution, sans Conseil.

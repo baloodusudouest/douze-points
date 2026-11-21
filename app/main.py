@@ -399,7 +399,7 @@ def _servir_image(s, sorte: str):
 
 @app.get("/api/invites")
 def invites():
-    with base(cfg().data) as cx:
+    with lecture(cfg().data) as cx:        # 1.13.1 : lecture seule
         return [{"id": r["id"], "prenom": r["prenom"], "actif": r["actif"], "jury": bool(r["jury"])}
                 for r in cx.execute("SELECT id, prenom, actif, jury FROM invite ORDER BY prenom COLLATE NOCASE")]
 
@@ -786,7 +786,7 @@ def concours_retirer(concours_id: int):
 
 @app.get("/api/soirees")
 def soirees():
-    with base(cfg().data) as cx:
+    with lecture(cfg().data) as cx:        # 1.13.1 : lecture seule (aucun verrou d'écriture)
         return [_resume(s) for s in cx.execute("SELECT * FROM soiree ORDER BY id DESC")]
 
 
@@ -818,7 +818,7 @@ def soiree_creer(corps: dict = Body(...)):
 @app.get("/api/soirees/{soiree_id}")
 def soiree_lire(soiree_id: int):
     """La régie ne voit aucune note ni aucun classement avant le dévoilement : l'hôte note lui aussi."""
-    with base(cfg().data) as cx:
+    with lecture(cfg().data) as cx:        # 1.13.1 : lecture seule
         s = _soiree(cx, soiree_id)
         gens = _participants(cx, soiree_id)
         attendus = [g for g in gens if g["etat"] != "ecarte"]
@@ -838,17 +838,30 @@ async def image_deposer(soiree_id: int, sorte: str, request: Request):
     if sorte not in IMAGES or sorte == "apero":
         raise HTTPException(404, "Image inconnue.")
     contenu = await request.body()
-    if len(contenu) > IMAGE_MAX:
-        raise HTTPException(413, "Image trop lourde : 6 Mo au plus.")
-    trouve = _format_image(contenu)
+    trouve = _format_photo(contenu[:16])
+    # 1.13.1 : une photo d'iPhone en HEIC est acceptée (25 Mo, comme les photos) et rangée en JPEG : ni la télé ni
+    # Safari ailleurs que sur Apple ne lisent le HEIC. Les autres formats restent à 6 Mo, gardés tels quels.
+    heic = bool(trouve) and trouve[0] == "heic"
+    if len(contenu) > (PHOTO_MAX if heic else IMAGE_MAX):
+        raise HTTPException(413, f"Image trop lourde : {'25' if heic else '6'} Mo au plus.")
     if not trouve:
-        raise HTTPException(415, "Format non reconnu : il faut une image PNG, JPEG ou WebP.")
+        raise HTTPException(415, "Format non reconnu : il faut une image PNG, JPEG, WebP ou HEIC.")
     dossier = cfg().data / "images"
     dossier.mkdir(parents=True, exist_ok=True)
-    nom = f"soiree-{soiree_id}-{sorte}-{secrets.token_hex(4)}.{trouve[0]}"
+    nom = f"soiree-{soiree_id}-{sorte}-{secrets.token_hex(4)}.{'jpg' if heic else trouve[0]}"
+    if heic:
+        brut = dossier / ("." + nom + ".heic")
+        brut.write_bytes(contenu)
+        try:
+            lu = ecran.vignette(brut, dossier / nom, ecran.COTE_IMAGE)
+        finally:
+            brut.unlink(missing_ok=True)
+        if not lu:
+            raise HTTPException(415, "Cette photo HEIC ne se lit pas : enregistre-la en JPEG et réessaie.")
     with base(cfg().data) as cx:
         ancien = _soiree(cx, soiree_id)[sorte]
-        (dossier / nom).write_bytes(contenu)
+        if not heic:
+            (dossier / nom).write_bytes(contenu)
         cx.execute(f"UPDATE soiree SET {sorte}=? WHERE id=?", (nom, soiree_id))
     if ancien:
         (dossier / ancien).unlink(missing_ok=True)
@@ -915,12 +928,14 @@ def lire_collage(texte: str) -> list[dict]:
     Un numéro de passage en tête de ligne est accepté et ignoré : c'est l'ordre des lignes qui compte.
     0.8 : une ligne copiée d'un site de fans, « 🇧🇹 Bhutan: Artiste - Titre », est aussi comprise : le drapeau
     donne le code du pays, puis le pays avant « : », l'artiste et le titre de part et d'autre de « - »."""
-    chansons = []
+    chansons, passages = [], []
     for numero, ligne in enumerate(texte.splitlines(), start=1):
         champs = [c.strip() for c in (ligne.split("\t") if "\t" in ligne else ligne.split(";"))]
+        passage = None
         if champs and champs[0].rstrip(".").isdigit():
+            passage = int(champs[0].rstrip("."))
             champs = champs[1:]
-        if champs and cle_pays(champs[0]) in ("pays", "country"):         # 1.13 : la ligne d'en-tête
+        if champs and cle_pays(champs[0]) in ("pays", "country", "ordre", "passage", "n", "no", "n°", "#"):   # 1.13 : l'en-tête
             continue
         if ligne.strip().startswith("```"):                              # 1.13 : le bloc de code d'une IA
             continue
@@ -938,6 +953,11 @@ def lire_collage(texte: str) -> list[dict]:
                              "jury": _nombre_colle(champs[3], numero, "le jury", 0, 9999),
                              "public": _nombre_colle(champs[4], numero, "le public", 0, 9999),
                              "rang": _nombre_colle(champs[5], numero, "le rang", 1, 99)})
+            passages.append(passage)
+    # 1.13.1 : l'ordre de passage en tête de ligne. Donné pour toutes les chansons, sans doublon : la liste est
+    # rangée d'après lui ; sinon c'est l'ordre des lignes qui compte (comme avant).
+    if chansons and None not in passages and len(set(passages)) == len(passages):
+        chansons = [c for _, c in sorted(zip(passages, chansons), key=lambda x: x[0])]
     return chansons
 
 

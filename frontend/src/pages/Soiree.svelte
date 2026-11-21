@@ -115,9 +115,26 @@
   const toutes = () => { choisie = null; s = null; forcer = null; aSupprimer = null; lire() }
   const coller = () => essayer(async () => { await api.put(`/api/soirees/${s.id}/chansons`, { texte: collage }); collage = ''; await lire() })
   const attendus = () => new Set(s.participants.map((p) => p.prenom))
-  async function basculer(invite) {
-    const voulus = invites.filter((i) => i.actif && (attendus().has(i.prenom) !== (i.id === invite.id))).map((i) => i.id)
-    await essayer(async () => { await api.put(`/api/soirees/${s.id}/attendus`, { invites: voulus }); await lire() })
+  // 1.13.1 : la pastille change tout de suite (avant : un aller-retour puis la relecture complète de la soirée, des
+  // invités et de la liste des soirées à chaque toucher, très lent sur le NAS). Les envois partent l'un après l'autre,
+  // dans l'ordre des touchers ; la réponse du serveur remplace la liste. En cas d'erreur, on relit tout.
+  let fileAttendus = Promise.resolve()
+  function basculer(invite) {
+    const present = attendus().has(invite.prenom)
+    s.participants = present
+      ? s.participants.filter((p) => p.prenom !== invite.prenom)
+      : [...s.participants, { id: -invite.id, prenom: invite.prenom, jury: invite.jury, etat: 'attendu', pris: false, notees: 0 }]
+    const voulus = invites.filter((i) => i.actif && attendus().has(i.prenom)).map((i) => i.id)
+    const soiree = s.id
+    fileAttendus = fileAttendus.then(async () => {
+      try {
+        const r = await api.put(`/api/soirees/${soiree}/attendus`, { invites: voulus })
+        if (s?.id === soiree && r?.participants) s.participants = r.participants
+      } catch (e) {
+        if (e.statut === 401) ondeconnecte()
+        else { erreur = e.message; await lire() }
+      }
+    })
   }
   async function ajouter(e) {
     e.preventDefault()
@@ -132,6 +149,7 @@
   // Démarrer la soirée : elle s'ouvre aux invités, les projecteurs s'allument, puis vient l'écran d'accueil.
   const demarrer = () => essayer(async () => {
     // rejoué depuis l'écran d'accueil d'une soirée déjà démarrée : seulement l'animation
+    await fileAttendus          // 1.13.1 : les invités touchés juste avant sont bien enregistrés
     if (s.etat === 'brouillon') await api.post(`/api/soirees/${s.id}/ouvrir`)
     lancement = 'projecteurs'
     await lire()
@@ -267,8 +285,8 @@
         <div class="mt-4">
           <PromptListe titre={s.nom}><span class="text-sm font-medium" id="intitule-collage">{s.chansons.length ? 'Remplacer la liste' : 'Coller la liste, dans l\'ordre de passage'}</span></PromptListe>
         </div>
-        <textarea class="saisie mt-1 w-full" bind:value={collage} rows="5" aria-labelledby="intitule-collage" placeholder={'Une chanson par ligne :\nFrance;Artiste;Titre;Jury;Public;Rang\nSuède;Artiste;Titre;;;'}></textarea>
-        <p class="mt-1 text-xs text-muted-foreground">Pays, artiste et titre séparés par un point-virgule ou une tabulation ; puis, si le concours a déjà eu lieu, points du jury, du public et rang final.</p>
+        <textarea class="saisie mt-1 w-full" bind:value={collage} rows="5" aria-labelledby="intitule-collage" placeholder={'Une chanson par ligne :\n1;France;Artiste;Titre;Jury;Public;Rang\n2;Suède;Artiste;Titre;;;'}></textarea>
+        <p class="mt-1 text-xs text-muted-foreground">Ordre de passage (facultatif : sinon l'ordre des lignes), pays, artiste et titre, séparés par un point-virgule ou une tabulation ; puis, si le concours a déjà eu lieu, points du jury, du public et rang final.</p>
         <Button class="mt-3" variant="outline" onclick={coller} disabled={!collage.trim()}>Enregistrer la liste</Button>
       </section>
 

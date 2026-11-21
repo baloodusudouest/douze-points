@@ -9,6 +9,7 @@ import logging
 from pathlib import Path
 
 COTE = 1600          # plus grand côté, en pixels
+COTE_IMAGE = 2400    # 1.13.1 : logo, bannière ou poster déposés en HEIC
 QUALITE = 82
 
 try:

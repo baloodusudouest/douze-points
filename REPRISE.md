@@ -1,9 +1,14 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 22/11/2026, version 1.13.0.
+À lire en premier. Mis à jour le 22/11/2026, version 1.13.1.
 
 ## Où on en est
 
+- **1.13.1 (22/11/2026)** : `image_deposer` accepte le HEIC (`_format_photo`, conversion `ecran.vignette` en JPEG,
+  `ecran.COTE_IMAGE`) ; `Images.svelte` (accept, extension .heic au glisser-déposer). `Soiree.svelte` : `basculer`
+  optimiste, `fileAttendus` (envois en file, `demarrer` l'attend). GET soirées, soirée, invités en `lecture()`.
+  `lire_collage` : ordre de passage en tête de ligne (rangement si complet et sans doublon). **Jamais essayé sur la
+  vraie installation.**
 - **1.13.0 (22/11/2026)** : « ? » du collage (`pages/PromptListe.svelte`, monté dans `Soiree.svelte` avec
   l'intitulé en `children`) ; `lire_collage` lit jury, public, rang (`_nombre_colle`), saute l'en-tête et les « ``` » ;
   `chansons_remplacer` les écrit dans `officiel_*`. Tests : `tests/test_collage_113.py`. **Jamais essayé sur la vraie
