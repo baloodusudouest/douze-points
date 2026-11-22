@@ -1,5 +1,9 @@
 # Journal des versions
 
+## 1.14.1 — 22 novembre 2026 (barre d'onglets collée en bas)
+- **iPhone : barre d'onglets collée au bord bas**, sur toute la largeur, au lieu de la pilule flottante (demande de Julien, 22/11/2026, pour toutes les applis maison ; socle 0.12.1). Le rail des PC ne change pas.
+- **Jamais essayé sur la vraie installation.**
+
 ## 1.14.0 — 22 novembre 2026 (ronds des pays passés, jumeaux en liens de parenté)
 Deux demandes de Julien du 22/11/2026 (choix en boîtes à choix : télé et téléphones, rond plein rose ; Bac à sable
 plus tard).
