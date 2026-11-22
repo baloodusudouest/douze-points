@@ -3,7 +3,7 @@
   "version": 1,
   "le": "2027-05-16T10:00:00+02:00",
   "appli": "douze-points",
-  "version_appli": "1.11.0",
+  "version_appli": "1.14.0",
   "soiree": {
     "id": 1,
     "nom": "Finale de démonstration",
@@ -27,21 +27,21 @@
   "apero_immich_id": null,
   "invites": [
     {
+      "id": 3,
+      "prenom": "Célestine",
+      "carnet_id": null,
+      "personne_id": null,
+      "jury": false,
+      "moyenne": 9.42,
+      "complet": true
+    },
+    {
       "id": 1,
       "prenom": "Aglaé",
       "carnet_id": null,
       "personne_id": null,
       "jury": true,
       "moyenne": 9.75,
-      "complet": true
-    },
-    {
-      "id": 4,
-      "prenom": "Désiré",
-      "carnet_id": null,
-      "personne_id": null,
-      "jury": false,
-      "moyenne": 9.25,
       "complet": true
     },
     {
@@ -54,12 +54,12 @@
       "complet": true
     },
     {
-      "id": 3,
-      "prenom": "Célestine",
+      "id": 4,
+      "prenom": "Désiré",
       "carnet_id": null,
       "personne_id": null,
       "jury": false,
-      "moyenne": 9.42,
+      "moyenne": 9.25,
       "complet": true
     }
   ],
@@ -102,18 +102,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 2.5,
+          "rang": 11,
+          "points": 1,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 1.5,
           "rang": 12,
           "points": 0,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 3.0,
-          "rang": 11,
-          "points": 1,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -123,11 +123,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 2.5,
+          "invite": 4,
+          "note": 3.0,
           "rang": 11,
           "points": 1,
-          "commentaire": "Avis de Célestine"
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -169,18 +169,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 5.0,
+          "rang": 9,
+          "points": 3,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 3.0,
           "rang": 11,
           "points": 1,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 6.0,
-          "rang": 9,
-          "points": 3,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -190,11 +190,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 5.0,
+          "invite": 4,
+          "note": 6.0,
           "rang": 9,
           "points": 3,
-          "commentaire": "Avis de Célestine"
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -236,18 +236,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 7.5,
+          "rang": 7,
+          "points": 5,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 4.5,
           "rang": 10,
           "points": 2,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 9.0,
-          "rang": 7,
-          "points": 5,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -257,11 +257,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 7.5,
+          "invite": 4,
+          "note": 9.0,
           "rang": 7,
           "points": 5,
-          "commentaire": "Avis de Célestine"
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -303,18 +303,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 10.0,
+          "rang": 5,
+          "points": 0,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 6.0,
           "rang": 9,
           "points": 0,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 12.0,
-          "rang": 5,
-          "points": 0,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -324,11 +324,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 10.0,
+          "invite": 4,
+          "note": 12.0,
           "rang": 5,
           "points": 0,
-          "commentaire": "Avis de Célestine"
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -370,18 +370,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 12.5,
+          "rang": 4,
+          "points": 7,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 7.5,
           "rang": 8,
           "points": 3,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 15.0,
-          "rang": 3,
-          "points": 8,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -391,11 +391,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 12.5,
-          "rang": 4,
-          "points": 7,
-          "commentaire": "Avis de Célestine"
+          "invite": 4,
+          "note": 15.0,
+          "rang": 3,
+          "points": 8,
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -437,18 +437,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 15.0,
+          "rang": 3,
+          "points": 8,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 9.0,
           "rang": 7,
           "points": 4,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 18.0,
-          "rang": 1,
-          "points": 12,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -458,11 +458,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 15.0,
-          "rang": 3,
-          "points": 8,
-          "commentaire": "Avis de Célestine"
+          "invite": 4,
+          "note": 18.0,
+          "rang": 1,
+          "points": 12,
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -504,18 +504,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 17.5,
+          "rang": 2,
+          "points": 10,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 10.5,
           "rang": 6,
           "points": 5,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 0.5,
-          "rang": 12,
-          "points": 0,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -525,11 +525,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 17.5,
-          "rang": 2,
-          "points": 10,
-          "commentaire": "Avis de Célestine"
+          "invite": 4,
+          "note": 0.5,
+          "rang": 12,
+          "points": 0,
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -571,18 +571,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 20.0,
+          "rang": 1,
+          "points": 12,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 12.0,
           "rang": 5,
           "points": 6,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 3.5,
-          "rang": 10,
-          "points": 2,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -592,11 +592,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 20.0,
-          "rang": 1,
-          "points": 12,
-          "commentaire": "Avis de Célestine"
+          "invite": 4,
+          "note": 3.5,
+          "rang": 10,
+          "points": 2,
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -638,18 +638,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 2.0,
+          "rang": 12,
+          "points": 0,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 13.5,
           "rang": 4,
           "points": 7,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 6.5,
-          "rang": 8,
-          "points": 4,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -659,11 +659,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 2.0,
-          "rang": 12,
-          "points": 0,
-          "commentaire": "Avis de Célestine"
+          "invite": 4,
+          "note": 6.5,
+          "rang": 8,
+          "points": 4,
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -705,18 +705,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 4.5,
+          "rang": 10,
+          "points": 2,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 15.0,
           "rang": 3,
           "points": 8,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 9.5,
-          "rang": 6,
-          "points": 6,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -726,11 +726,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 4.5,
-          "rang": 10,
-          "points": 2,
-          "commentaire": "Avis de Célestine"
+          "invite": 4,
+          "note": 9.5,
+          "rang": 6,
+          "points": 6,
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -772,18 +772,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 7.0,
+          "rang": 8,
+          "points": 4,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 16.5,
           "rang": 2,
           "points": 10,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 12.5,
-          "rang": 4,
-          "points": 7,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -793,11 +793,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 7.0,
-          "rang": 8,
-          "points": 4,
-          "commentaire": "Avis de Célestine"
+          "invite": 4,
+          "note": 12.5,
+          "rang": 4,
+          "points": 7,
+          "commentaire": "Avis de Désiré"
         }
       ]
     },
@@ -839,18 +839,18 @@
       },
       "notes": [
         {
+          "invite": 3,
+          "note": 9.5,
+          "rang": 6,
+          "points": 6,
+          "commentaire": "Avis de Célestine"
+        },
+        {
           "invite": 1,
           "note": 18.0,
           "rang": 1,
           "points": 12,
           "commentaire": "Avis de Aglaé"
-        },
-        {
-          "invite": 4,
-          "note": 15.5,
-          "rang": 2,
-          "points": 10,
-          "commentaire": "Avis de Désiré"
         },
         {
           "invite": 2,
@@ -860,11 +860,11 @@
           "commentaire": "Avis de Barnabé"
         },
         {
-          "invite": 3,
-          "note": 9.5,
-          "rang": 6,
-          "points": 6,
-          "commentaire": "Avis de Célestine"
+          "invite": 4,
+          "note": 15.5,
+          "rang": 2,
+          "points": 10,
+          "commentaire": "Avis de Désiré"
         }
       ]
     }
@@ -918,18 +918,18 @@
   "plus_proche": 2,
   "commentaires": [
     {
+      "invite": 3,
+      "chanson": 1,
+      "texte": "Avis de Célestine",
+      "note": 2.5,
+      "points": 1
+    },
+    {
       "invite": 1,
       "chanson": 1,
       "texte": "Avis de Aglaé",
       "note": 1.5,
       "points": 0
-    },
-    {
-      "invite": 4,
-      "chanson": 1,
-      "texte": "Avis de Désiré",
-      "note": 3.0,
-      "points": 1
     },
     {
       "invite": 2,
@@ -939,32 +939,11 @@
       "points": 1
     },
     {
-      "invite": 3,
+      "invite": 4,
       "chanson": 1,
-      "texte": "Avis de Célestine",
-      "note": 2.5,
-      "points": 1
-    },
-    {
-      "invite": 1,
-      "chanson": 2,
-      "texte": "Avis de Aglaé",
+      "texte": "Avis de Désiré",
       "note": 3.0,
       "points": 1
-    },
-    {
-      "invite": 4,
-      "chanson": 2,
-      "texte": "Avis de Désiré",
-      "note": 6.0,
-      "points": 3
-    },
-    {
-      "invite": 2,
-      "chanson": 2,
-      "texte": "Avis de Barnabé",
-      "note": 4.0,
-      "points": 3
     },
     {
       "invite": 3,
@@ -975,24 +954,24 @@
     },
     {
       "invite": 1,
-      "chanson": 3,
+      "chanson": 2,
       "texte": "Avis de Aglaé",
-      "note": 4.5,
-      "points": 2
-    },
-    {
-      "invite": 4,
-      "chanson": 3,
-      "texte": "Avis de Désiré",
-      "note": 9.0,
-      "points": 5
+      "note": 3.0,
+      "points": 1
     },
     {
       "invite": 2,
-      "chanson": 3,
+      "chanson": 2,
       "texte": "Avis de Barnabé",
+      "note": 4.0,
+      "points": 3
+    },
+    {
+      "invite": 4,
+      "chanson": 2,
+      "texte": "Avis de Désiré",
       "note": 6.0,
-      "points": 4
+      "points": 3
     },
     {
       "invite": 3,
@@ -1003,16 +982,37 @@
     },
     {
       "invite": 1,
-      "chanson": 4,
+      "chanson": 3,
       "texte": "Avis de Aglaé",
+      "note": 4.5,
+      "points": 2
+    },
+    {
+      "invite": 2,
+      "chanson": 3,
+      "texte": "Avis de Barnabé",
       "note": 6.0,
-      "points": 0
+      "points": 4
     },
     {
       "invite": 4,
-      "chanson": 4,
+      "chanson": 3,
       "texte": "Avis de Désiré",
-      "note": 12.0,
+      "note": 9.0,
+      "points": 5
+    },
+    {
+      "invite": 3,
+      "chanson": 4,
+      "texte": "Avis de Célestine",
+      "note": 10.0,
+      "points": 0
+    },
+    {
+      "invite": 1,
+      "chanson": 4,
+      "texte": "Avis de Aglaé",
+      "note": 6.0,
       "points": 0
     },
     {
@@ -1023,32 +1023,11 @@
       "points": 0
     },
     {
-      "invite": 3,
-      "chanson": 4,
-      "texte": "Avis de Célestine",
-      "note": 10.0,
-      "points": 0
-    },
-    {
-      "invite": 1,
-      "chanson": 5,
-      "texte": "Avis de Aglaé",
-      "note": 7.5,
-      "points": 3
-    },
-    {
       "invite": 4,
-      "chanson": 5,
+      "chanson": 4,
       "texte": "Avis de Désiré",
-      "note": 15.0,
-      "points": 8
-    },
-    {
-      "invite": 2,
-      "chanson": 5,
-      "texte": "Avis de Barnabé",
-      "note": 10.0,
-      "points": 5
+      "note": 12.0,
+      "points": 0
     },
     {
       "invite": 3,
@@ -1059,24 +1038,24 @@
     },
     {
       "invite": 1,
-      "chanson": 6,
+      "chanson": 5,
       "texte": "Avis de Aglaé",
-      "note": 9.0,
-      "points": 4
-    },
-    {
-      "invite": 4,
-      "chanson": 6,
-      "texte": "Avis de Désiré",
-      "note": 18.0,
-      "points": 12
+      "note": 7.5,
+      "points": 3
     },
     {
       "invite": 2,
-      "chanson": 6,
+      "chanson": 5,
       "texte": "Avis de Barnabé",
-      "note": 12.0,
-      "points": 6
+      "note": 10.0,
+      "points": 5
+    },
+    {
+      "invite": 4,
+      "chanson": 5,
+      "texte": "Avis de Désiré",
+      "note": 15.0,
+      "points": 8
     },
     {
       "invite": 3,
@@ -1087,24 +1066,24 @@
     },
     {
       "invite": 1,
-      "chanson": 7,
+      "chanson": 6,
       "texte": "Avis de Aglaé",
-      "note": 10.5,
-      "points": 5
-    },
-    {
-      "invite": 4,
-      "chanson": 7,
-      "texte": "Avis de Désiré",
-      "note": 0.5,
-      "points": 0
+      "note": 9.0,
+      "points": 4
     },
     {
       "invite": 2,
-      "chanson": 7,
+      "chanson": 6,
       "texte": "Avis de Barnabé",
-      "note": 14.0,
-      "points": 7
+      "note": 12.0,
+      "points": 6
+    },
+    {
+      "invite": 4,
+      "chanson": 6,
+      "texte": "Avis de Désiré",
+      "note": 18.0,
+      "points": 12
     },
     {
       "invite": 3,
@@ -1115,24 +1094,24 @@
     },
     {
       "invite": 1,
-      "chanson": 8,
+      "chanson": 7,
       "texte": "Avis de Aglaé",
-      "note": 12.0,
-      "points": 6
-    },
-    {
-      "invite": 4,
-      "chanson": 8,
-      "texte": "Avis de Désiré",
-      "note": 3.5,
-      "points": 2
+      "note": 10.5,
+      "points": 5
     },
     {
       "invite": 2,
-      "chanson": 8,
+      "chanson": 7,
       "texte": "Avis de Barnabé",
-      "note": 16.0,
-      "points": 8
+      "note": 14.0,
+      "points": 7
+    },
+    {
+      "invite": 4,
+      "chanson": 7,
+      "texte": "Avis de Désiré",
+      "note": 0.5,
+      "points": 0
     },
     {
       "invite": 3,
@@ -1143,24 +1122,24 @@
     },
     {
       "invite": 1,
-      "chanson": 9,
+      "chanson": 8,
       "texte": "Avis de Aglaé",
-      "note": 13.5,
-      "points": 7
-    },
-    {
-      "invite": 4,
-      "chanson": 9,
-      "texte": "Avis de Désiré",
-      "note": 6.5,
-      "points": 4
+      "note": 12.0,
+      "points": 6
     },
     {
       "invite": 2,
-      "chanson": 9,
+      "chanson": 8,
       "texte": "Avis de Barnabé",
-      "note": 18.0,
-      "points": 10
+      "note": 16.0,
+      "points": 8
+    },
+    {
+      "invite": 4,
+      "chanson": 8,
+      "texte": "Avis de Désiré",
+      "note": 3.5,
+      "points": 2
     },
     {
       "invite": 3,
@@ -1171,24 +1150,24 @@
     },
     {
       "invite": 1,
-      "chanson": 10,
+      "chanson": 9,
       "texte": "Avis de Aglaé",
-      "note": 15.0,
-      "points": 8
-    },
-    {
-      "invite": 4,
-      "chanson": 10,
-      "texte": "Avis de Désiré",
-      "note": 9.5,
-      "points": 6
+      "note": 13.5,
+      "points": 7
     },
     {
       "invite": 2,
-      "chanson": 10,
+      "chanson": 9,
       "texte": "Avis de Barnabé",
-      "note": 20.0,
-      "points": 12
+      "note": 18.0,
+      "points": 10
+    },
+    {
+      "invite": 4,
+      "chanson": 9,
+      "texte": "Avis de Désiré",
+      "note": 6.5,
+      "points": 4
     },
     {
       "invite": 3,
@@ -1199,24 +1178,24 @@
     },
     {
       "invite": 1,
-      "chanson": 11,
+      "chanson": 10,
       "texte": "Avis de Aglaé",
-      "note": 16.5,
-      "points": 10
-    },
-    {
-      "invite": 4,
-      "chanson": 11,
-      "texte": "Avis de Désiré",
-      "note": 12.5,
-      "points": 7
+      "note": 15.0,
+      "points": 8
     },
     {
       "invite": 2,
-      "chanson": 11,
+      "chanson": 10,
       "texte": "Avis de Barnabé",
-      "note": 1.5,
-      "points": 0
+      "note": 20.0,
+      "points": 12
+    },
+    {
+      "invite": 4,
+      "chanson": 10,
+      "texte": "Avis de Désiré",
+      "note": 9.5,
+      "points": 6
     },
     {
       "invite": 3,
@@ -1227,17 +1206,38 @@
     },
     {
       "invite": 1,
+      "chanson": 11,
+      "texte": "Avis de Aglaé",
+      "note": 16.5,
+      "points": 10
+    },
+    {
+      "invite": 2,
+      "chanson": 11,
+      "texte": "Avis de Barnabé",
+      "note": 1.5,
+      "points": 0
+    },
+    {
+      "invite": 4,
+      "chanson": 11,
+      "texte": "Avis de Désiré",
+      "note": 12.5,
+      "points": 7
+    },
+    {
+      "invite": 3,
+      "chanson": 12,
+      "texte": "Avis de Célestine",
+      "note": 9.5,
+      "points": 6
+    },
+    {
+      "invite": 1,
       "chanson": 12,
       "texte": "Avis de Aglaé",
       "note": 18.0,
       "points": 12
-    },
-    {
-      "invite": 4,
-      "chanson": 12,
-      "texte": "Avis de Désiré",
-      "note": 15.5,
-      "points": 10
     },
     {
       "invite": 2,
@@ -1247,11 +1247,11 @@
       "points": 2
     },
     {
-      "invite": 3,
+      "invite": 4,
       "chanson": 12,
-      "texte": "Avis de Célestine",
-      "note": 9.5,
-      "points": 6
+      "texte": "Avis de Désiré",
+      "note": 15.5,
+      "points": 10
     }
   ],
   "duos": [
@@ -1262,7 +1262,7 @@
         2
       ],
       "reciproques": true,
-      "tranche": "Âmes sœurs… de loin",
+      "tranche": "Cousins éloignés",
       "photos": []
     },
     {
@@ -1272,7 +1272,7 @@
         2
       ],
       "reciproques": false,
-      "tranche": "Âmes sœurs… de loin",
+      "tranche": "Cousins éloignés",
       "photos": []
     },
     {
@@ -1282,7 +1282,7 @@
         3
       ],
       "reciproques": false,
-      "tranche": "Âmes sœurs… de loin",
+      "tranche": "Cousins éloignés",
       "photos": []
     }
   ],

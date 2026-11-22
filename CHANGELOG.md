@@ -1,5 +1,17 @@
 # Journal des versions
 
+## 1.14.0 — 22 novembre 2026 (ronds des pays passés, jumeaux en liens de parenté)
+Deux demandes de Julien du 22/11/2026 (choix en boîtes à choix : télé et téléphones, rond plein rose ; Bac à sable
+plus tard).
+- **Dévoilement** : le total d'un pays dont les points du public sont déjà passés (pas courant compris) s'affiche en
+  blanc dans un rond rose (couleur du public), sur le tableau de la télé (`Devoilement.svelte`, `faits`) et le
+  classement en direct des téléphones (`Spectacle.svelte`) ; au podium, tous.
+- **Jumeaux de vote** : tranches renommées en liens de parenté, mêmes bornes : « Jumeaux » (moins d'1 point d'écart
+  moyen), « Frères ou sœurs » (moins de 2), « Cousins » (moins de 3,5), « Cousins éloignés ». Les soirées déjà
+  clôturées gardent l'ancien texte dans leur journal ; Gazette affiche le texte tel quel. Exemples du contrat refaits.
+- Tests : `test_photos_16.py` adapté, `test_ecrans.py` (un rond sur la télé et sur le téléphone au premier pays).
+- **Jamais essayé sur la vraie installation.** Bac à sable pas mis à jour.
+
 ## 1.13.1 — 22 novembre 2026 (HEIC, invités attendus rapides, ordre de passage)
 Trois retours de Julien du 22/11/2026.
 - **HEIC refusé pour le logo, la bannière et le poster** (« Format non reconnu ») : accepté maintenant (25 Mo, comme

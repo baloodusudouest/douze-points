@@ -174,7 +174,8 @@ def affinites(notes: dict[int, dict[int, int]], ordres: dict[int, list[int]], po
 # ================================================================ 1.6 : jumeaux de vote
 # Tranches d'accord (écart moyen des notes, sur 20) : jamais de pourcentage, qui laisserait deviner les notes de l'autre
 # (conseil du 19/11/2026). La dernière tranche n'a pas de borne.
-TRANCHES = ((1.0, "Jumeaux parfaits"), (2.0, "Très proches"), (3.5, "Proches"), (None, "Âmes sœurs… de loin"))
+# 1.14 (demande de Julien du 22/11/2026) : des liens de parenté, du plus proche au plus lointain (mêmes bornes)
+TRANCHES = ((1.0, "Jumeaux"), (2.0, "Frères ou sœurs"), (3.5, "Cousins"), (None, "Cousins éloignés"))
 
 
 def tranche(ecart_moyen: float) -> str:

@@ -1,9 +1,12 @@
 # Reprise — Douze points
 
-À lire en premier. Mis à jour le 22/11/2026, version 1.13.1.
+À lire en premier. Mis à jour le 22/11/2026, version 1.14.0.
 
 ## Où on en est
 
+- **1.14.0 (22/11/2026)** : `faits` (pays dont le public est passé) dans `Devoilement.svelte` et `Spectacle.svelte`
+  (classe `fait` sur le total, rond rose) ; `points.TRANCHES` en liens de parenté (Jumeaux, Frères ou sœurs, Cousins,
+  Cousins éloignés). **Jamais essayé sur la vraie installation.**
 - **1.13.1 (22/11/2026)** : `image_deposer` accepte le HEIC (`_format_photo`, conversion `ecran.vignette` en JPEG,
   `ecran.COTE_IMAGE`) ; `Images.svelte` (accept, extension .heic au glisser-déposer). `Soiree.svelte` : `basculer`
   optimiste, `fileAttendus` (envois en file, `demarrer` l'attend). GET soirées, soirée, invités en `lecture()`.

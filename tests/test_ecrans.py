@@ -496,8 +496,11 @@ def test_une_soiree_entiere(serveur, navigateur):
     suivant.click(position={"x": 300, "y": 150})                         # pas de jury : la première chanson du public
     t.get_by_text("des autres invités").wait_for(timeout=10000)          # le téléphone a suivi la télé
     t.wait_for_timeout(1600)
+    # 1.14 : le pays appelé a son total dans un rond rose, sur le téléphone et sur la télé ; les autres non
+    assert t.locator(".col.tot.fait").count() == 1
     invite.verifier("tel-8-devoilement-public")
     p.wait_for_timeout(600)
+    assert p.locator(".rangee .total.fait").count() == 1
     regie.verifier("paysage-7-public")
     # 1.7.0 : le dernier vote du public, joué en accéléré (le rythme réel : lib/dernier.js, testé par node)
     vite = "window.__DOUZE_POINTS_RYTHME = {rapide: 200, lent: 60, pause: 300, final: 100, minimum: 20}"
@@ -725,6 +728,8 @@ def test_jury_puis_public_fiche_et_suppression(serveur, navigateur):
                 if phase == "Les points du public":
                     p.wait_for_timeout(1300)                 # l'addition est faite, la ligne a pris sa place
                     regie.verifier("paysage-12-public-apres")
+                    # 1.14 : le total du pays qui vient de passer est dans un rond rose
+                    assert p.locator(".rangee .total.fait").count() >= 1
         if "top" not in vus and p.get_by_role("list", name="Top 5 du jury").count():
             vus.add("top")
             assert "Les points du public" not in vus                   # entre le jury et le public

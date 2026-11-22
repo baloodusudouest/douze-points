@@ -2,7 +2,7 @@
   // 1.6 : sur le téléphone d'un invité, après le dévoilement, ses duos de jumeaux de vote : son jumeau, et ceux qui
   // l'ont choisi comme jumeau (un jumeau n'est pas toujours réciproque). Un bouton « Immortaliser » ouvre l'appareil
   // photo en selfie ; dès qu'une photo du duo est arrivée (de l'un ou de l'autre), le duo est « immortalisé ».
-  // Jamais de note ni de pourcentage : une tranche (« Très proches »), qui ne laisse pas deviner les notes de l'autre.
+  // Jamais de note ni de pourcentage : une tranche (« Frères ou sœurs »), qui ne laisse pas deviner les notes de l'autre.
   // 1.6.2 : le jumeau s'affiche toujours ; « Immortaliser » seulement si les photos sont actives (Immich réglé).
   import Photo from './Photo.svelte'
   let { jeton, tel, moi, jumeaux, photos = true, onenvoye = () => {} } = $props()

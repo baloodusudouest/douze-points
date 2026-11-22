@@ -81,6 +81,10 @@
     return lignes.sort((a, b) => t(b.chanson) - t(a.chanson) || a.c.ordre - b.c.ordre)
   })
   let plus = $derived(Math.max(1, ...tableau.map((l) => l.total)))
+  // 1.14 : les pays dont les points du public sont déjà passés (pas courant compris) ont leur total dans un rond rose,
+  // comme à l'Eurovision ; au podium, tous
+  let faits = $derived(new Set(fini ? (d?.chansons || []).map((c) => c.id)
+    : etapes.slice(0, pas).filter((e) => e.phase === 'public').map((e) => e.chanson)))
   let recu = $derived(new Set(courant ? (courant.chanson ? [courant.chanson] : courant.lot.map((p) => p.chanson)) : []))
   let teinte = $derived(courant?.jury ? 'jury' : 'public')
   // 1.7.0 : le dernier pas du public joue l'animation du dernier vote (lib/DernierVote.svelte) à la place du tableau.
@@ -333,7 +337,7 @@
               <span class="rang shrink-0 text-right opacity-60">{l.rang ?? i + 1}</span>
               <span class="drapeau shrink-0">{drapeau(l.c.pays, l.c.code_pays)}</span>
               <span class="min-w-0 flex-1 truncate">{l.c.pays}</span>
-              <span class="total chiffre shrink-0 text-right"><Compteur valeur={l.total} retard={recu.has(l.chanson) ? 250 : 0} /></span>
+              <span class="total chiffre shrink-0 text-right" class:fait={faits.has(l.chanson)}><span class="nombre"><Compteur valeur={l.total} retard={recu.has(l.chanson) ? 250 : 0} /></span></span>
               {#if avecJury}
                 <span class="barre" aria-hidden="true">
                   <i style="width: {(l.jury / plus) * 100}%; background: var(--jury)"></i><i style="width: {(l.pub / plus) * 100}%; background: var(--public)"></i>
@@ -488,6 +492,10 @@
   .rangee .rang { width: 1.4em; font-size: 0.75em; }
   .rangee .drapeau { font-size: 1.15em; line-height: 1; }
   .rangee .total { width: 2.6em; font-size: 1.25em; }
+  /* 1.14 : total d'un pays déjà passé : chiffre blanc dans un rond rose (couleur du public) */
+  .rangee .total.fait { display: flex; justify-content: flex-end; }
+  .rangee .total.fait .nombre { display: inline-grid; min-width: calc(var(--h) * 0.82); height: calc(var(--h) * 0.82); place-items: center;
+    border-radius: 999px; padding: 0 0.3em; background: var(--public); color: #fff; font-size: 0.85em; }
   @media (pointer: coarse) { .geste { display: block; } }
   .barre { position: absolute; left: 0.75rem; right: 0.75rem; bottom: 0; display: flex; height: 3px; overflow: hidden; border-radius: 2px; opacity: 0.9; }
   .barre i { display: block; height: 100%; transition: width 0.9s cubic-bezier(0.2, 0.8, 0.2, 1); }

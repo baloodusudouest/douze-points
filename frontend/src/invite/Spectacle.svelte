@@ -92,6 +92,8 @@
     return l.sort((a, b) => t(b) - t(a) || a.c.ordre - b.c.ordre)
   })
   let parId = $derived(d ? Object.fromEntries(d.chansons.map((c) => [c.id, c])) : {})
+  // 1.14 : pays dont les points du public sont déjà passés : total dans un rond rose (au podium : tous)
+  let faits = $derived(new Set(fini ? (d?.chansons || []).map((c) => c.id) : (d?.public || []).map((x) => x.chanson)))
   // 1.7.0 : le dernier pas du public, joué par lib/DernierVote.svelte (comme à la télé)
   let dernierPas = $derived(!!d && !fini && !!appelee && d.pas === d.fin - 1)
   let totauxDernier = $derived(dernierPas ? Object.fromEntries(lignesDe(d).map((l) => [l.c.id, l.total])) : {})
@@ -181,7 +183,7 @@
             {#if d.moi}<span class="col moi">{l.moi || ''}</span>{/if}
             {#if d.avec_jury}<span class="col jury">{#if d.jury}<Compteur valeur={l.jury} />{/if}</span>{/if}
             <span class="col pub">{#if l.pub || autres[l.c.id] === 0}<Compteur valeur={l.pub} />{/if}</span>
-            <span class="col tot chiffre"><Compteur valeur={l.total} retard={200} /></span>
+            <span class="col tot chiffre" class:fait={faits.has(l.c.id)}><span class="nombre"><Compteur valeur={l.total} retard={200} /></span></span>
           </li>
         {/each}
       </ol>
@@ -221,6 +223,10 @@
   .col.jury { color: var(--jury); }
   .col.pub { color: var(--pub); }
   .col.tot { width: 2.6em; font-size: 1.2em; }
+  /* 1.14 : total d'un pays déjà passé : chiffre blanc dans un rond rose */
+  .col.tot.fait { display: flex; justify-content: flex-end; }
+  .col.tot.fait .nombre { display: inline-grid; min-width: calc(var(--h) * 0.8); height: calc(var(--h) * 0.8); place-items: center;
+    border-radius: 999px; padding: 0 0.25em; background: var(--pub); color: #fff; font-size: 0.85em; }
   .entete .col.tot { width: calc(3.1 * clamp(9px, calc(var(--h) * 0.46), 1rem)); color: var(--foreground); }
   .entete .col.moi, .entete .col.jury, .entete .col.pub { color: inherit; }
   .commande { min-height: 2.9rem; border-radius: 0.7rem; border: 1px solid var(--border); font-size: 1rem; }

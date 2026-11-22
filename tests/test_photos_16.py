@@ -19,12 +19,12 @@ def test_jumeaux_et_duos():
     notes = {1: {1: 40, 2: 60, 3: 20}, 2: {1: 42, 2: 58, 3: 22}, 3: {1: 50, 2: 50, 3: 30}, 4: {1: 0, 2: 80, 3: 80}}
     js = jumeaux(notes)
     assert js[1]["jumeau"] == 2 and js[2]["jumeau"] == 1 and js[3]["jumeau"] == 2
-    assert js[1]["tranche"] == "Jumeaux parfaits"
+    assert js[1]["tranche"] == "Jumeaux"
     d = duos(js)
     assert d[0]["invites"] == [1, 2] and d[0]["reciproques"]          # les réciproques d'abord
     assert [1, 2] not in [x["invites"] for x in d[1:]]                  # chaque paire une fois
     assert [x["invites"] for x in d] == [[1, 2], [3, 2], [4, 1]]        # puis du plus proche au plus lointain
-    assert not d[1]["reciproques"] and d[2]["tranche"] == "Âmes sœurs… de loin"
+    assert not d[1]["reciproques"] and d[2]["tranche"] == "Cousins éloignés"
 
 
 def test_sans_assez_de_chansons_communes_pas_de_jumeau():
@@ -33,8 +33,8 @@ def test_sans_assez_de_chansons_communes_pas_de_jumeau():
 
 
 def test_tranches_sans_pourcentage():
-    assert tranche(0.5) == "Jumeaux parfaits" and tranche(1.5) == "Très proches"
-    assert tranche(3) == "Proches" and tranche(9) == "Âmes sœurs… de loin"
+    assert tranche(0.5) == "Jumeaux" and tranche(1.5) == "Frères ou sœurs"
+    assert tranche(3) == "Cousins" and tranche(9) == "Cousins éloignés"
 
 
 # ---------------------------------------------------------------- faux Immich
