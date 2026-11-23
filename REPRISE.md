@@ -152,5 +152,7 @@ Voir `docs/dossier.md` § 7 : service de notification, logo de l'affiche, source
 ## Échéance
 
 Soirée d'essai avec de vrais invités en février ou mars 2027 ; demi-finales les 11 et 13 mai 2027, finale le 15 mai.
+## État (23/11/2026) — 1.14.2 : listes déroulantes lisibles en sombre (`frontend/src/app.css`, bloc « Listes déroulantes (socle 0.12.2) » : `select option, select optgroup` aux couleurs `--popover`). Jamais essayé sur la vraie installation.
+
 ## État (22/11/2026) — 1.14.1 : barre d'onglets collée en bas sur iPhone (`App.svelte`, classes du socle 0.12.1 : `fixed inset-x-0 bottom-0 … pb-[calc(0.375rem+env(safe-area-inset-bottom))]`, `md:right-auto md:justify-start`). Jamais essayé sur la vraie installation.
 
